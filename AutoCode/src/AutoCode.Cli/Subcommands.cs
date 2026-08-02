@@ -107,7 +107,7 @@ public static class Subcommands
                 : $"{server.Command} {string.Join(' ', server.Args)}".Trim();
 
             AnsiConsole.MarkupLine(
-                $"[{(server.Disabled ? theme.Muted : theme.Accent)}]●[/] [{theme.ToolName}]{Markup.Escape(name)}[/] " +
+                $"[{(server.Disabled ? theme.Muted : theme.Accent)}]●[/] [{theme.Strong}]{Markup.Escape(name)}[/] " +
                 $"[{theme.Muted}]{server.Transport} · {Markup.Escape(target)}{(server.Disabled ? " (disabled)" : "")}[/]");
         }
 
@@ -146,7 +146,7 @@ public static class Subcommands
         foreach (var session in sessions)
         {
             table.AddRow(
-                $"[{theme.ToolName}]{Markup.Escape(session.Id)}[/]",
+                $"[{theme.Strong}]{Markup.Escape(session.Id)}[/]",
                 $"[{theme.Muted}]{session.UpdatedAt.LocalDateTime:yyyy-MM-dd HH:mm}[/]",
                 $"[{theme.Muted}]{Markup.Escape(session.Title)}[/]");
         }

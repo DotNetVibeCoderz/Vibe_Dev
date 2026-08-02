@@ -18,6 +18,10 @@
     <ProjectReference Include="..\..\src\AutoCode.Tools\AutoCode.Tools.csproj" />
     <ProjectReference Include="..\..\src\AutoCode.Mcp\AutoCode.Mcp.csproj" />
     <ProjectReference Include="..\..\src\AutoCode.Studio\AutoCode.Studio.csproj" />
+
+    <!-- The CLI is an executable, but its slash-command catalogue is the single source of truth
+         the documentation is checked against, so the tests need to see it. -->
+    <ProjectReference Include="..\..\src\AutoCode.Cli\AutoCode.Cli.csproj" />
   </ItemGroup>
 
 </Project>

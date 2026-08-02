@@ -33,7 +33,7 @@ public enum SlashResult
 /// provider, memeriksa biaya, mengubah mode izin. Semuanya ditangani di sini agar tetap responsif
 /// dan tetap berfungsi walau konfigurasi provider bermasalah.
 /// </summary>
-public sealed class SlashCommandRouter(AutoCodeSession session, Theme theme)
+public sealed partial class SlashCommandRouter(AutoCodeSession session, Theme theme)
 {
     /// <summary>Set when a command expands into a prompt for the model (skills, /init).</summary>
     public string? PendingPrompt { get; private set; }
@@ -132,48 +132,116 @@ public sealed class SlashCommandRouter(AutoCodeSession session, Theme theme)
                 SetLanguage(argument);
                 return SlashResult.Handled;
 
+            case "about":
+                Mascot.Render(theme, Banner.Version);
+                ShowAbout();
+                return SlashResult.Handled;
+
+            case "rename":
+                Rename(argument);
+                return SlashResult.Handled;
+
+            case "branch":
+                await BranchAsync(cancellationToken).ConfigureAwait(false);
+                return SlashResult.Handled;
+
+            case "undo" or "rewind":
+                Undo(argument);
+                return SlashResult.Handled;
+
+            case "recap":
+                return Recap();
+
+            case "effort":
+                ShowOrSetEffort(argument);
+                return SlashResult.Handled;
+
+            case "config":
+                ShowConfig();
+                return SlashResult.Handled;
+
+            case "theme":
+                ShowTheme(argument);
+                return SlashResult.Handled;
+
+            case "plan":
+                EnterPlanMode();
+                return SlashResult.Handled;
+
+            case "diff":
+                await ShowDiffAsync(argument, cancellationToken).ConfigureAwait(false);
+                return SlashResult.Handled;
+
+            case "code-review" or "review":
+                return Review(security: false);
+
+            case "security-review":
+                return Review(security: true);
+
+            case "tasks":
+                ShowTasks();
+                return SlashResult.Handled;
+
+            case "memory":
+                return Memory(argument);
+
+            case "btw" or "aside":
+                await SideThreadAsync(argument, cancellationToken).ConfigureAwait(false);
+                return SlashResult.Handled;
+
+            case "fork":
+                await ForkAsync(argument, cancellationToken).ConfigureAwait(false);
+                return SlashResult.Handled;
+
             default:
                 return await TryRunSkillAsync(name, argument, cancellationToken).ConfigureAwait(false);
         }
     }
 
+    /// <summary>
+    /// Renders the command list from the catalogue, grouped.
+    ///
+    /// EN: generated rather than hand-written, so a command can never be advertised here and be
+    /// missing from the dispatcher — or the reverse. Grouping is by what the user is trying to do,
+    /// not alphabetically: nobody scans a CLI's help for a letter.
+    /// ID: dihasilkan dari katalog, bukan ditulis tangan, sehingga tidak mungkin ada perintah yang
+    /// diiklankan di sini tetapi tidak ada di dispatcher. Pengelompokan mengikuti niat pengguna.
+    /// </summary>
     private void ShowHelp()
     {
-        var table = new Table()
-            .Border(TableBorder.None)
-            .AddColumn(new TableColumn("").PadRight(3))
-            .AddColumn("");
+        foreach (var group in SlashCommandCatalog.Groups)
+        {
+            var commands = SlashCommandCatalog.All.Where(c => c.Group == group).ToList();
 
-        void Row(string command, string description) =>
-            table.AddRow($"[{theme.Accent}]{command}[/]", $"[{theme.Muted}]{description}[/]");
+            if (commands.Count == 0)
+                continue;
 
-        Row("/help", "Show this list");
-        Row("/clear", "Start a fresh conversation");
-        Row("/compact", "Summarise the conversation to free context");
-        Row("/cost", "Token and cost accounting for this session");
-        Row("/status", "Provider, model, workspace and permission posture");
-        Row("/model [id]", "Show or switch the model");
-        Row("/provider [name]", "Show or switch the provider profile");
-        Row("/permissions [mode]", "Show or set ask | acceptEdits | plan | bypassPermissions");
-        Row("/tools", "List the tools available to the model");
-        Row("/agents", "List the subagents that can be dispatched");
-        Row("/teams <name> <brief>", "Run an agent team on a brief");
-        Row("/skills", "List installed skills");
-        Row("/mcp", "Show MCP server connections");
-        Row("/context", "Show the AUTOCODE.md files in effect");
-        Row("/sessions", "List saved sessions for this workspace");
-        Row("/index", "Build the semantic code index");
-        Row("/export [path]", "Write the transcript to a markdown file");
-        Row("/init", "Generate an AUTOCODE.md for this project");
-        Row("/language <en|id>", "Switch the interface and reply language");
-        Row("/exit", "Leave Auto Code");
+            AnsiConsole.MarkupLine($"\n  [{theme.Faint}]{group.ToUpperInvariant()}[/]");
 
-        AnsiConsole.Write(table);
+            var table = new Table()
+                .Border(TableBorder.None)
+                .HideHeaders()
+                .AddColumn(new TableColumn("").PadLeft(2).PadRight(3))
+                .AddColumn("");
+
+            foreach (var command in commands)
+            {
+                table.AddRow(
+                    $"[{theme.Accent}]{Markup.Escape(command.Usage)}[/]",
+                    $"[{theme.Muted}]{Markup.Escape(command.Summary)}[/]");
+            }
+
+            AnsiConsole.Write(table);
+        }
 
         if (session.Skills.Count > 0)
         {
-            AnsiConsole.MarkupLine($"\n[{theme.Muted}]Skills are also slash commands: {string.Join(", ", session.Skills.Select(s => "/" + s.Name))}[/]");
+            AnsiConsole.MarkupLine(
+                $"\n  [{theme.Faint}]Skills are commands too: " +
+                $"{Markup.Escape(string.Join(", ", session.Skills.Select(s => "/" + s.Name)))}[/]");
         }
+
+        AnsiConsole.MarkupLine($"\n  [{theme.Faint}]Type / to complete a command. Tab fills it in.[/]");
     }
 
     private async Task CompactAsync(CancellationToken cancellationToken)
@@ -185,9 +253,8 @@ public sealed class SlashCommandRouter(AutoCodeSession session, Theme theme)
         var compactor = new Core.Agents.ContextCompactor(summarizer);
         var before = session.Loop.Messages.Count;
 
-        var result = await AnsiConsole.Status()
-            .StartAsync("Compacting…", _ => compactor.CompactAsync(session.Loop.Messages, cancellationToken))
-            .ConfigureAwait(false);
+        var result = await WithStatusAsync("Compacting…",
+            () => compactor.CompactAsync(session.Loop.Messages, cancellationToken)).ConfigureAwait(false);
 
         if (result.Summary is null)
         {
@@ -293,7 +360,7 @@ public sealed class SlashCommandRouter(AutoCodeSession session, Theme theme)
 
                 table.AddRow(
                     active ? $"[{theme.Accent}]●[/]" : " ",
-                    $"[{(active ? theme.Accent : theme.ToolName)}]{Markup.Escape(name)}[/]",
+                    $"[{(active ? theme.Accent : theme.Strong)}]{Markup.Escape(name)}[/]",
                     $"[{theme.Muted}]{Markup.Escape(profile.Model)}{(ready ? "" : "  (no API key)")}[/]");
             }
 
@@ -364,7 +431,7 @@ public sealed class SlashCommandRouter(AutoCodeSession session, Theme theme)
                 _ => "local",
             };
 
-            table.AddRow($"[{theme.ToolName}]{Markup.Escape(tool.Name)}[/]", $"[{theme.Muted}]{capability}[/]");
+            table.AddRow($"[{theme.Strong}]{Markup.Escape(tool.Name)}[/]", $"[{theme.Muted}]{capability}[/]");
         }
 
         AnsiConsole.Write(table);
@@ -440,12 +507,12 @@ public sealed class SlashCommandRouter(AutoCodeSession session, Theme theme)
             if (connection.Connected)
             {
                 AnsiConsole.MarkupLine(
-                    $"[{theme.Success}]●[/] [{theme.ToolName}]{Markup.Escape(connection.ServerName)}[/] [{theme.Muted}]{connection.ToolCount} tools[/]");
+                    $"[{theme.Success}]●[/] [{theme.Strong}]{Markup.Escape(connection.ServerName)}[/] [{theme.Muted}]{connection.ToolCount} tools[/]");
             }
             else
             {
                 AnsiConsole.MarkupLine(
-                    $"[{theme.Error}]●[/] [{theme.ToolName}]{Markup.Escape(connection.ServerName)}[/] [{theme.Error}]{Markup.Escape(connection.Error ?? "failed")}[/]");
+                    $"[{theme.Error}]●[/] [{theme.Strong}]{Markup.Escape(connection.ServerName)}[/] [{theme.Error}]{Markup.Escape(connection.Error ?? "failed")}[/]");
             }
         }
     }
@@ -486,7 +553,7 @@ public sealed class SlashCommandRouter(AutoCodeSession session, Theme theme)
 
             table.AddRow(
                 current ? $"[{theme.Accent}]●[/]" : " ",
-                $"[{theme.ToolName}]{Markup.Escape(saved.Id)}[/]",
+                $"[{theme.Strong}]{Markup.Escape(saved.Id)}[/]",
                 $"[{theme.Muted}]{saved.UpdatedAt.LocalDateTime:yyyy-MM-dd HH:mm}  {Markup.Escape(saved.Title)}[/]");
         }
 
@@ -496,13 +563,8 @@ public sealed class SlashCommandRouter(AutoCodeSession session, Theme theme)
 
     private async Task BuildIndexAsync(CancellationToken cancellationToken)
     {
-        var message = await AnsiConsole.Status()
-            .StartAsync("Indexing…", async ctx =>
-            {
-                var progress = new Progress<string>(status => ctx.Status(Markup.Escape(status)));
-                return await session.BuildIndexAsync(progress, cancellationToken).ConfigureAwait(false);
-            })
-            .ConfigureAwait(false);
+        var message = await WithStatusAsync("Indexing…",
+            () => session.BuildIndexAsync(null, cancellationToken)).ConfigureAwait(false);
 
         AnsiConsole.MarkupLine($"[{theme.Success}]{Markup.Escape(message)}[/]");
     }

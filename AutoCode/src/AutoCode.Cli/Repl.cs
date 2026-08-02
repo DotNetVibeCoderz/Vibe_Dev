@@ -19,6 +19,10 @@ namespace AutoCode.Cli;
 public sealed class Repl(AutoCodeSession session, Theme theme)
 {
     private readonly SlashCommandRouter _commands = new(session, theme);
+    private readonly Glyphs _glyphs = Glyphs.Detect();
+
+    private readonly LineEditor _editor = new(
+        theme, Glyphs.Detect(), () => session.Skills.Select(s => s.Name));
 
     public async Task<int> RunAsync(string? initialPrompt, CancellationToken applicationToken)
     {
@@ -40,7 +44,8 @@ public sealed class Repl(AutoCodeSession session, Theme theme)
             {
                 input = pending;
                 pending = null;
-                AnsiConsole.MarkupLine($"[{theme.Prompt}]›[/] {Markup.Escape(Collapse(input))}");
+                AnsiConsole.WriteLine();
+                AnsiConsole.MarkupLine($"  [{theme.Accent}]{_glyphs.Prompt}[/] {Markup.Escape(Collapse(input))}");
             }
             else
             {
@@ -122,18 +127,11 @@ public sealed class Repl(AutoCodeSession session, Theme theme)
     /// </summary>
     private string ReadInput()
     {
-        AnsiConsole.Markup($"[{theme.Prompt}]›[/] ");
-
-        var line = Console.ReadLine();
-
-        if (line is null)
-            return "/exit";
-
-        line = line.Trim();
+        var line = _editor.Read();
 
         while (line.EndsWith('\\'))
         {
-            AnsiConsole.Markup($"[{theme.Muted}]…[/] ");
+            AnsiConsole.Markup($"  [{theme.Muted}]{_glyphs.Continuation}[/] ");
             var continuation = Console.ReadLine();
 
             if (continuation is null)
@@ -145,18 +143,41 @@ public sealed class Repl(AutoCodeSession session, Theme theme)
         return line;
     }
 
+    /// <summary>
+    /// The accounting line after each turn.
+    ///
+    /// EN: the context meter only appears once the window is a quarter full. Shown from the first
+    /// turn it is a permanent decoration nobody reads; shown when it starts to matter it is a
+    /// warning, and the eye catches it precisely because it was not there before.
+    /// ID: meter konteks baru muncul setelah jendela terisi seperempat. Ditampilkan sejak awal ia
+    /// hanya hiasan; muncul saat mulai relevan, ia menjadi peringatan yang justru menarik perhatian.
+    /// </summary>
     private void RenderStatusLine()
     {
         if (!session.Options.ShowCost)
             return;
 
-        var context = session.Cost.ContextUtilization;
-        var contextNote = context > 0.5
-            ? $"  ·  context {context:P0}"
-            : "";
+        var glyphs = Glyphs.Detect();
+        var parts = new List<string>
+        {
+            Markup.Escape(session.Profile.Model),
+            Markup.Escape(session.Cost.Format()),
+        };
 
-        AnsiConsole.MarkupLine(
-            $"[{theme.Muted}]{Markup.Escape(session.Profile.Model)}  ·  {Markup.Escape(session.Cost.Format())}{contextNote}[/]");
+        var used = session.Cost.ContextUtilization;
+
+        if (used >= 0.25)
+        {
+            const int width = 8;
+            var filled = Math.Clamp((int)Math.Round(used * width), 1, width);
+
+            var colour = used >= 0.9 ? theme.Error : used >= 0.75 ? theme.Warning : theme.Faint;
+            var meter = new string(glyphs.MeterFull[0], filled) + new string(glyphs.MeterEmpty[0], width - filled);
+
+            parts.Add($"[{colour}]{meter}[/] {used:P0}");
+        }
+
+        AnsiConsole.MarkupLine($"  [{theme.Faint}]{string.Join("  ·  ", parts)}[/]");
     }
 
     private async Task FinishAsync()

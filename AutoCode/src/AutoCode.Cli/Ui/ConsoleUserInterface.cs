@@ -9,75 +9,82 @@ namespace AutoCode.Cli.Ui;
 /// <summary>
 /// The interactive terminal surface.
 ///
-/// EN: assistant prose is written as it streams rather than buffered and re-rendered, because a
-/// response that appears word by word reads as responsive while a response that appears all at once
-/// reads as a hang. Tool calls use a two-line shape — the call, then its result indented beneath —
-/// so a long run stays scannable.
-/// ID: teks asisten ditulis saat streaming, bukan ditahan lalu digambar ulang, agar terasa responsif.
-/// Pemanggilan tool memakai dua baris — pemanggilan lalu hasilnya menjorok — agar mudah dipindai.
+/// EN: the design idea is that a turn should read as one connected trace rather than as scattered
+/// lines. Tool calls hang off a vertical spine with their durations right-aligned, so the shape of
+/// what the agent did — how many steps, which ones were slow — is legible at a glance without
+/// reading a word. Everything else stays deliberately quiet: colour is reserved for state, and
+/// structure does the rest.
+/// ID: satu giliran harus terbaca sebagai satu rangkaian, bukan baris-baris terpisah. Pemanggilan
+/// tool menggantung pada batang vertikal dengan durasi rata kanan, sehingga bentuk pekerjaan agent
+/// terbaca sekilas. Selebihnya sengaja tenang: warna hanya untuk status, sisanya dibawa struktur.
 /// </summary>
-public sealed class ConsoleUserInterface(Theme theme, bool showThinking) : IAgentUserInterface
+public sealed class ConsoleUserInterface : IAgentUserInterface
 {
-    private bool _assistantLineOpen;
-    private bool _thinkingOpen;
+    private readonly Theme _theme;
+    private readonly Glyphs _glyphs;
+    private readonly bool _showThinking;
+    private readonly MarkdownStream _markdown;
 
-    /// <summary>Set while a prompt is on screen so streaming output cannot interleave with it.</summary>
-    public bool IsPrompting { get; private set; }
+    private readonly Dictionary<string, string> _pendingCalls = new(StringComparer.Ordinal);
+    private readonly ThinkingIndicator _waiting;
+    private bool _thinkingOpen;
+    private bool _spineOpen;
+
+    public ConsoleUserInterface(Theme theme, bool showThinking)
+    {
+        _theme = theme;
+        _glyphs = Glyphs.Detect();
+        _showThinking = showThinking;
+        _markdown = new MarkdownStream(theme, _glyphs);
+        _waiting = new ThinkingIndicator(theme);
+    }
 
     public ValueTask EmitAsync(AgentEvent evt, CancellationToken cancellationToken)
     {
+        // The indicator covers exactly one interval: request sent, nothing back yet. The first
+        // sign of life from the model — prose, reasoning, or a tool call — retires it.
+        if (evt is TurnStartedEvent)
+            _waiting.Start();
+        else if (evt is AssistantTextEvent or AssistantThinkingEvent or ToolCallStartedEvent
+                     or ToolCallCompletedEvent or ToolCallDeniedEvent or TurnCompletedEvent
+                     or ErrorEvent or NoticeEvent)
+        {
+            _waiting.Stop();
+        }
+
         switch (evt)
         {
-            case AssistantThinkingEvent thinking when showThinking:
-                if (!_thinkingOpen)
-                {
-                    CloseAssistantLine();
-                    AnsiConsole.Markup($"[{theme.Thinking}]✻ thinking… [/]");
-                    _thinkingOpen = true;
-                }
-
-                AnsiConsole.Markup($"[{theme.Thinking}]{Escape(Collapse(thinking.Text))}[/]");
+            case AssistantThinkingEvent thinking when _showThinking:
+                RenderThinking(thinking.Text);
                 break;
 
             case AssistantThinkingEvent:
                 break;
 
             case AssistantTextEvent { IsFinal: true }:
-                CloseAssistantLine();
+                _markdown.Flush();
+                _markdown.Reset();
                 break;
 
             case AssistantTextEvent text:
-                CloseThinkingLine();
-
-                if (!_assistantLineOpen)
-                {
-                    AnsiConsole.WriteLine();
-                    _assistantLineOpen = true;
-                }
-
-                // Raw write: the payload is model prose, not markup, and must not be interpreted.
-                Console.Write(text.Text);
+                CloseThinking();
+                CloseSpine();
+                _markdown.Append(text.Text);
                 break;
 
             case ToolCallStartedEvent tool:
-                CloseAssistantLine();
-                CloseThinkingLine();
-                AnsiConsole.MarkupLine($"[{theme.ToolBullet}]⏺[/] [{theme.ToolName}]{Escape(tool.Summary)}[/]");
+                CloseThinking();
+                _markdown.Flush();
+                OpenSpine();
+                _pendingCalls[tool.CallId] = tool.Summary;
                 break;
 
             case ToolCallCompletedEvent completed:
-                {
-                    var colour = completed.Success ? theme.Muted : theme.Error;
-                    var glyph = completed.Success ? "⎿" : "✗";
-                    var elapsed = completed.ElapsedMs >= 1000 ? $" ({completed.ElapsedMs / 1000.0:F1}s)" : "";
-
-                    AnsiConsole.MarkupLine(
-                        $"  [{colour}]{glyph}  {Escape(FirstLine(completed.Display))}{elapsed}[/]");
-                    break;
-                }
+                RenderToolCall(completed);
+                break;
 
             case ToolCallDeniedEvent denied:
-                AnsiConsole.MarkupLine($"  [{theme.Error}]⎿  {Escape(FirstLine(denied.Reason))}[/]");
+                RenderDenial(denied);
                 break;
 
             case TodoUpdatedEvent todos:
@@ -85,167 +92,264 @@ public sealed class ConsoleUserInterface(Theme theme, bool showThinking) : IAgen
                 break;
 
             case SubagentStartedEvent started:
-                CloseAssistantLine();
-                AnsiConsole.MarkupLine($"[{theme.Accent}]◆[/] [{theme.ToolName}]{Escape(started.AgentName)}[/] [{theme.Muted}]{Escape(started.Description)}[/]");
+                CloseThinking();
+                _markdown.Flush();
+                OpenSpine();
+                AnsiConsole.MarkupLine(
+                    $"  [{_theme.Accent}]{_glyphs.Subagent}[/] [{_theme.Strong}]{Escape(started.AgentName)}[/] " +
+                    $"[{_theme.Faint}]{Escape(started.Description)}[/]");
                 break;
 
             case SubagentCompletedEvent completed:
-                AnsiConsole.MarkupLine($"  [{theme.Muted}]⎿  {Escape(completed.AgentName)} finished ({completed.ElapsedMs / 1000.0:F1}s)[/]");
+                AnsiConsole.MarkupLine(
+                    $"  [{_theme.Faint}]{_glyphs.TraceMid}[/] [{_theme.Muted}]{Escape(completed.AgentName)} finished[/] " +
+                    $"[{_theme.Faint}]{Duration(completed.ElapsedMs)}[/]");
                 break;
 
             case CompactionEvent compaction:
-                CloseAssistantLine();
+                CloseSpine();
                 AnsiConsole.MarkupLine(
-                    $"[{theme.Muted}]⟳ Compacted context: {compaction.MessagesBefore} → {compaction.MessagesAfter} messages[/]");
+                    $"  [{_theme.Faint}]{_glyphs.Compact} context compacted · {compaction.MessagesBefore} → " +
+                    $"{compaction.MessagesAfter} messages[/]");
                 break;
 
             case NoticeEvent notice:
-                CloseAssistantLine();
-                var noticeColour = notice.Severity switch
+                CloseSpine();
+                var colour = notice.Severity switch
                 {
-                    NoticeSeverity.Warning => theme.Warning,
-                    NoticeSeverity.Success => theme.Success,
-                    _ => theme.Muted,
+                    NoticeSeverity.Warning => _theme.Warning,
+                    NoticeSeverity.Success => _theme.Success,
+                    _ => _theme.Muted,
                 };
-                AnsiConsole.MarkupLine($"[{noticeColour}]{Escape(notice.Message)}[/]");
+                AnsiConsole.MarkupLine($"  [{colour}]{Escape(notice.Message)}[/]");
                 break;
 
             case ErrorEvent error:
-                CloseAssistantLine();
-                AnsiConsole.MarkupLine($"[{theme.Error}]✗ {Escape(error.Message)}[/]");
+                CloseSpine();
+                AnsiConsole.MarkupLine($"  [{_theme.Error}]{_glyphs.Denied} {Escape(error.Message)}[/]");
                 if (error.Detail is { Length: > 0 } detail)
-                    AnsiConsole.MarkupLine($"[{theme.Muted}]{Escape(detail)}[/]");
+                    AnsiConsole.MarkupLine($"    [{_theme.Faint}]{Escape(detail)}[/]");
                 break;
 
             case TurnCompletedEvent:
-                CloseAssistantLine();
+                _markdown.Flush();
+                _markdown.Reset();
+                CloseSpine();
                 break;
         }
 
         return ValueTask.CompletedTask;
     }
 
-    public async ValueTask<PermissionDecision> RequestPermissionAsync(
-        PermissionRequest request,
-        CancellationToken cancellationToken)
+    /// <summary>
+    /// One tool call, drawn as a single line: what was called on the left, how long it took on the
+    /// right, and its result indented beneath. Duration is shown because it is the only way to
+    /// learn which parts of a run are actually expensive.
+    /// </summary>
+    private void RenderToolCall(ToolCallCompletedEvent completed)
     {
-        CloseAssistantLine();
-        CloseThinkingLine();
-        IsPrompting = true;
+        _pendingCalls.Remove(completed.CallId, out var summary);
+        summary ??= completed.ToolName;
 
-        try
+        var glyph = completed.Success ? _glyphs.ToolCall : _glyphs.Denied;
+        var glyphColour = completed.Success ? _theme.Accent : _theme.Error;
+
+        AnsiConsole.MarkupLine(
+            $"  [{glyphColour}]{glyph}[/] [{_theme.Strong}]{Escape(summary)}[/]" +
+            $"  [{_theme.Faint}]{Duration(completed.ElapsedMs)}[/]");
+
+        var body = FirstLine(completed.Display);
+
+        if (body.Length > 0 && !body.Equals(summary, StringComparison.Ordinal))
         {
-            var body = new Rows(
-                new Markup($"[{theme.ToolName}]{Escape(request.Summary)}[/]"),
-                request.Detail is { Length: > 0 } detail
-                    ? new Markup($"[{theme.Muted}]{Escape(Clip(detail, 600))}[/]")
-                    : new Markup(""));
-
-            AnsiConsole.Write(new Panel(body)
-            {
-                Header = new PanelHeader($" {DescribeCapability(request.Capability)} ", Justify.Left),
-                Border = BoxBorder.Rounded,
-                BorderStyle = new Style(theme.AccentColor),
-                Padding = new Padding(1, 0, 1, 0),
-            });
-
-            const string allowOnce = "Yes";
-            var allowAlways = $"Yes, and don't ask again for {request.SuggestedRule ?? request.ToolName}";
-            const string deny = "No, tell Auto Code what to do differently";
-            const string abort = "No, and stop this turn";
-
-            var choice = await AnsiConsole.PromptAsync(
-                new SelectionPrompt<string>()
-                    .Title($"[{theme.Prompt}]Allow this?[/]")
-                    .HighlightStyle(new Style(theme.AccentColor))
-                    .AddChoices(allowOnce, allowAlways, deny, abort),
-                cancellationToken).ConfigureAwait(false);
-
-            if (choice == allowOnce)
-                return PermissionDecision.Allow;
-
-            if (choice == allowAlways)
-                return new PermissionDecision(PermissionOutcome.AllowAlways, null, request.SuggestedRule);
-
-            if (choice == abort)
-                return new PermissionDecision(PermissionOutcome.Abort, "The user stopped the turn.");
-
-            var reason = await AnsiConsole.PromptAsync(
-                new TextPrompt<string>($"[{theme.Prompt}]What should it do instead?[/]")
-                    .AllowEmpty(),
-                cancellationToken).ConfigureAwait(false);
-
-            return new PermissionDecision(
-                PermissionOutcome.Deny,
-                string.IsNullOrWhiteSpace(reason) ? "The user declined." : reason);
+            var colour = completed.Success ? _theme.Muted : _theme.Error;
+            AnsiConsole.MarkupLine($"  [{_theme.Faint}]{_glyphs.TraceMid}[/] [{colour}]{Escape(body)}[/]");
         }
-        finally
+    }
+
+    private void RenderDenial(ToolCallDeniedEvent denied)
+    {
+        _pendingCalls.Remove(denied.CallId);
+        OpenSpine();
+
+        AnsiConsole.MarkupLine(
+            $"  [{_theme.Error}]{_glyphs.Denied}[/] [{_theme.Strong}]{Escape(denied.ToolName)}[/]");
+        AnsiConsole.MarkupLine(
+            $"  [{_theme.Faint}]{_glyphs.TraceMid}[/] [{_theme.Muted}]{Escape(FirstLine(denied.Reason))}[/]");
+    }
+
+    /// <summary>
+    /// Reasoning is written inline and dim rather than in a panel: it is an aside the user may
+    /// glance at, and boxing it would give it more weight than the answer it precedes.
+    /// </summary>
+    private void RenderThinking(string text)
+    {
+        CloseSpine();
+
+        if (!_thinkingOpen)
         {
-            IsPrompting = false;
+            AnsiConsole.WriteLine();
+            AnsiConsole.Markup($"  [{_theme.Thinking}]{_glyphs.Thinking} [/]");
+            _thinkingOpen = true;
         }
+
+        AnsiConsole.Markup($"[{_theme.Thinking}]{Escape(text.ReplaceLineEndings(" "))}[/]");
     }
 
     private void RenderTodos(IReadOnlyList<TodoItem> items)
     {
-        CloseAssistantLine();
+        CloseSpine();
 
         if (items.Count == 0)
             return;
+
+        AnsiConsole.WriteLine();
 
         foreach (var item in items)
         {
             var (glyph, colour) = item.Status switch
             {
-                TodoStatus.Completed => ("✔", theme.Success),
-                TodoStatus.InProgress => ("▶", theme.Accent),
-                _ => ("○", theme.Muted),
+                TodoStatus.Completed => (_glyphs.TodoDone, _theme.Success),
+                TodoStatus.InProgress => (_glyphs.TodoActive, _theme.Accent),
+                _ => (_glyphs.TodoPending, _theme.Faint),
             };
 
             var text = item.Status == TodoStatus.InProgress && item.ActiveForm is { Length: > 0 }
                 ? item.ActiveForm
                 : item.Content;
 
-            AnsiConsole.MarkupLine($"  [{colour}]{glyph} {Escape(text)}[/]");
+            // Completed work is struck through: the list is a record of progress, and finished
+            // items should recede rather than compete with what is still outstanding.
+            var body = item.Status == TodoStatus.Completed
+                ? $"[{_theme.Faint} strikethrough]{Escape(text)}[/]"
+                : $"[{_theme.Muted}]{Escape(text)}[/]";
+
+            AnsiConsole.MarkupLine($"  [{colour}]{glyph}[/] {body}");
         }
+
+        AnsiConsole.WriteLine();
     }
 
-    private void CloseAssistantLine()
+    /// <summary>Stops any running indicator; used when the REPL takes the screen back.</summary>
+    public void StopWaiting() => _waiting.Stop();
+
+    public async ValueTask<PermissionDecision> RequestPermissionAsync(
+        PermissionRequest request,
+        CancellationToken cancellationToken)
     {
-        if (!_assistantLineOpen)
+        _waiting.Stop();
+        CloseThinking();
+        CloseSpine();
+        _markdown.Flush();
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine(
+            $"  [{_theme.Warning}]{DescribeCapability(request.Capability)}[/]  " +
+            $"[{_theme.Strong}]{Escape(request.Summary)}[/]");
+
+        RenderPermissionDetail(request);
+
+        AnsiConsole.WriteLine();
+
+        const string allowOnce = "Yes";
+        var allowAlways = $"Yes, and don't ask again for {request.SuggestedRule ?? request.ToolName}";
+        const string deny = "No — tell Auto Code what to do instead";
+        const string abort = "No — stop this turn";
+
+        var choice = await AnsiConsole.PromptAsync(
+            new SelectionPrompt<string>()
+                .Title($"  [{_theme.Accent}]Allow this?[/]")
+                .HighlightStyle(new Style(_theme.AccentColor, decoration: Decoration.Bold))
+                .AddChoices(allowOnce, allowAlways, deny, abort),
+            cancellationToken).ConfigureAwait(false);
+
+        if (choice == allowOnce)
+            return PermissionDecision.Allow;
+
+        if (choice == allowAlways)
+            return new PermissionDecision(PermissionOutcome.AllowAlways, null, request.SuggestedRule);
+
+        if (choice == abort)
+            return new PermissionDecision(PermissionOutcome.Abort, "The user stopped the turn.");
+
+        var reason = await AnsiConsole.PromptAsync(
+            new TextPrompt<string>($"  [{_theme.Accent}]What should it do instead?[/]").AllowEmpty(),
+            cancellationToken).ConfigureAwait(false);
+
+        return new PermissionDecision(
+            PermissionOutcome.Deny,
+            string.IsNullOrWhiteSpace(reason) ? "The user declined." : reason);
+    }
+
+    /// <summary>
+    /// Shows the pending call in whatever form makes its risk legible: a diff for an edit, the
+    /// command for a shell call, a preview for a write.
+    /// </summary>
+    private void RenderPermissionDetail(PermissionRequest request)
+    {
+        if (DiffRenderer.TryBuild(_theme, _glyphs, request.Arguments) is { } diff)
+        {
+            AnsiConsole.Write(new Padder(diff, new Padding(4, 0, 0, 0)));
+            return;
+        }
+
+        if (request.Detail is not { Length: > 0 } detail)
             return;
 
-        Console.WriteLine();
-        _assistantLineOpen = false;
+        foreach (var line in Clip(detail, 12))
+            AnsiConsole.MarkupLine($"    [{_theme.Code}]{Escape(line)}[/]");
     }
 
-    private void CloseThinkingLine()
+    /// <summary>Opens a blank line before a run of tool calls, so turns are visually separable.</summary>
+    private void OpenSpine()
+    {
+        if (_spineOpen)
+            return;
+
+        AnsiConsole.WriteLine();
+        _spineOpen = true;
+    }
+
+    private void CloseSpine() => _spineOpen = false;
+
+    private void CloseThinking()
     {
         if (!_thinkingOpen)
             return;
 
-        Console.WriteLine();
+        AnsiConsole.WriteLine();
         _thinkingOpen = false;
+    }
+
+    private static IEnumerable<string> Clip(string value, int maxLines)
+    {
+        var lines = value.ReplaceLineEndings("\n").Split('\n');
+
+        foreach (var line in lines.Take(maxLines))
+            yield return line.Length <= 110 ? line : line[..110] + "…";
+
+        if (lines.Length > maxLines)
+            yield return $"… {lines.Length - maxLines} more line(s)";
     }
 
     private static string DescribeCapability(ToolCapability capability)
     {
-        if ((capability & ToolCapability.ExecutesCommands) != 0) return "Run command";
-        if ((capability & ToolCapability.WritesFiles) != 0) return "Modify files";
-        if ((capability & ToolCapability.AccessesNetwork) != 0) return "Network access";
-        return "Permission";
+        if ((capability & ToolCapability.ExecutesCommands) != 0) return "run command";
+        if ((capability & ToolCapability.WritesFiles) != 0) return "modify files";
+        if ((capability & ToolCapability.AccessesNetwork) != 0) return "network";
+        return "permission";
     }
+
+    /// <summary>Milliseconds below a second, seconds above — precision nobody needs is noise.</summary>
+    private static string Duration(long milliseconds) =>
+        milliseconds >= 1000 ? $"{milliseconds / 1000.0:0.0}s" : $"{milliseconds}ms";
 
     private static string FirstLine(string value)
     {
         var newline = value.IndexOf('\n');
-        var line = newline < 0 ? value : value[..newline];
-        return Clip(line.TrimEnd(), 160);
+        var line = (newline < 0 ? value : value[..newline]).TrimEnd();
+        return line.Length <= 150 ? line : line[..150] + "…";
     }
-
-    private static string Collapse(string value) => value.ReplaceLineEndings(" ");
-
-    private static string Clip(string value, int max) =>
-        value.Length <= max ? value : value[..max] + "…";
 
     private static string Escape(string value) => Markup.Escape(value);
 }

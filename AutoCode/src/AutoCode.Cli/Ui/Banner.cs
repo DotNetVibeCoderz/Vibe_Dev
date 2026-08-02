@@ -9,50 +9,77 @@ namespace AutoCode.Cli.Ui;
 /// <summary>The start-up header and the transcript exporter.</summary>
 public static class Banner
 {
+    /// <summary>
+    /// The start-up header.
+    ///
+    /// EN: three quiet lines rather than a bordered panel. A box around a splash screen is the
+    /// reflexive answer for a CLI, and it spends the user's first screenful of attention on a
+    /// rectangle. What actually matters on launch is which workspace and which model — so those get
+    /// the space, and the mark alone carries the identity.
+    /// ID: tiga baris tenang, bukan panel berbingkai. Kotak di layar pembuka adalah jawaban refleks
+    /// sebuah CLI, dan ia menghabiskan perhatian pertama pengguna untuk sebuah persegi. Yang benar-
+    /// benar penting saat start adalah workspace dan model mana yang aktif.
+    /// </summary>
     public static void Render(AutoCodeSession session, Theme theme)
     {
-        var grid = new Grid()
-            .AddColumn(new GridColumn().PadRight(2))
-            .AddColumn();
+        var glyphs = Glyphs.Detect();
 
-        grid.AddRow(
-            $"[{theme.Accent}]▲[/]",
-            $"[{theme.ToolName}]Auto Code[/] [{theme.Muted}]v{Version}[/]");
+        Mascot.Render(theme, Version);
 
-        grid.AddRow("", $"[{theme.Muted}]Gravicode Studios · Kang Fadhil[/]");
-        grid.AddRow("", "");
-        grid.AddRow("", $"[{theme.Muted}]{Markup.Escape(Shorten(session.WorkspaceRoot))}[/]");
-        grid.AddRow("", $"[{theme.Muted}]{Markup.Escape(session.Profile.Name)} · {Markup.Escape(session.Profile.Model)}[/]");
+        AnsiConsole.MarkupLine(
+            $"     [{theme.Muted}]{Markup.Escape(Shorten(session.WorkspaceRoot))}[/]" +
+            $"  [{theme.Faint}]{glyphs.TraceMid}[/]  " +
+            $"[{theme.Muted}]{Markup.Escape(session.Profile.Name)} · {Markup.Escape(session.Profile.Model)}[/]");
 
-        if (session.Permissions.Mode != Core.Permissions.PermissionMode.Ask)
-            grid.AddRow("", $"[{theme.Warning}]{session.Permissions.Mode} mode[/]");
-
-        AnsiConsole.Write(new Panel(grid)
-        {
-            Border = BoxBorder.Rounded,
-            BorderStyle = new Style(theme.AccentColor),
-            Padding = new Padding(1, 0, 2, 0),
-        });
-
-        var hints = new List<string> { "/help for commands", "Ctrl+C to interrupt" };
+        var hints = new List<string>();
 
         if (session.ContextFiles.Count > 0)
-            hints.Insert(0, $"{session.ContextFiles.Count} context file{(session.ContextFiles.Count == 1 ? "" : "s")} loaded");
+            hints.Add($"{session.ContextFiles.Count} context file{(session.ContextFiles.Count == 1 ? "" : "s")}");
 
-        AnsiConsole.MarkupLine($"[{theme.Muted}]{string.Join("  ·  ", hints)}[/]");
+        // The permission mode is only worth a line when it is not the safe default — a warning
+        // shown permanently stops reading as a warning.
+        if (session.Permissions.Mode != Core.Permissions.PermissionMode.Ask)
+            hints.Add($"[{theme.Warning}]{session.Permissions.Mode}[/]");
+
+        hints.Add("/help");
+        hints.Add("Ctrl+C to interrupt");
+
+        AnsiConsole.MarkupLine($"     [{theme.Faint}]{string.Join("  ·  ", hints)}[/]");
         AnsiConsole.WriteLine();
     }
 
     public static string Version =>
         typeof(Banner).Assembly.GetName().Version is { } v ? $"{v.Major}.{v.Minor}.{v.Build}" : "1.0.0";
 
-    private static string Shorten(string path)
+    /// <summary>
+    /// Shortens a workspace path for the header.
+    ///
+    /// EN: elided from the middle rather than the end. What identifies a workspace is its last
+    /// segment — the directory you actually think of it by — and truncating from the right throws
+    /// exactly that away. A deep temp or build path would otherwise wrap and take over the header.
+    /// ID: dipangkas di tengah, bukan di ujung. Yang mengidentifikasi sebuah workspace adalah segmen
+    /// terakhirnya, dan memotong dari kanan justru membuang bagian itu.
+    /// </summary>
+    private static string Shorten(string path, int max = 46)
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify);
 
-        return path.StartsWith(home, Core.Utilities.WorkspacePath.PathComparison)
+        var display = path.StartsWith(home, Core.Utilities.WorkspacePath.PathComparison)
             ? "~" + path[home.Length..].Replace('\\', '/')
             : path.Replace('\\', '/');
+
+        if (display.Length <= max)
+            return display;
+
+        var segments = display.Split('/');
+        var tail = segments[^1];
+
+        // Always keep the final segment whole, even when it is itself over budget.
+        if (tail.Length + 6 >= max)
+            return "…/" + tail;
+
+        var head = display[..Math.Max(1, max - tail.Length - 4)];
+        return head + "…/" + tail;
     }
 }
 
@@ -69,6 +96,17 @@ public static class Transcript
                .Append("- Started: ").Append(session.Session.CreatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm")).Append('\n')
                .Append("- Tokens: ").Append(session.Cost.InputTokens).Append(" in / ").Append(session.Cost.OutputTokens).Append(" out\n\n")
                .Append("---\n\n");
+
+        // The side thread is part of the record even though it never reached the main model.
+        if (session.Session.SideThread.Count > 0)
+        {
+            builder.Append("## Side thread\n\n");
+
+            foreach (var message in session.Session.SideThread)
+                builder.Append("- **").Append(message.Role).Append("** ").Append(message.Text.ReplaceLineEndings(" ")).Append('\n');
+
+            builder.Append('\n');
+        }
 
         foreach (var summary in session.Session.CompactionSummaries)
             builder.Append("> **Compacted earlier context**\n>\n> ").Append(summary.ReplaceLineEndings("\n> ")).Append("\n\n");

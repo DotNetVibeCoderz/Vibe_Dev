@@ -155,13 +155,29 @@ fi
 
 step "Installing the autocode command"
 
-# `tool install` fails outright when the tool is already present, so an upgrade has to be an
-# explicit update. Probing first keeps the output honest about which one happened.
+# Always uninstall then install, rather than `tool update`.
+#
+# The version does not change between development builds, and `dotnet tool update` treats
+# same-version as "already up to date" — it reports success and leaves the old binary in place.
+# NuGet also keeps an extracted copy under ~/.nuget/packages, so even a fresh install can resolve
+# to previously cached bits. Removing both is the only way a reinstall means what it says.
+REPLACED=0
 if dotnet tool list --global 2>/dev/null | grep -qi "^${PACKAGE_ID} "; then
-    dotnet tool update --global --add-source "$ARTIFACTS" "$PACKAGE_ID" --no-cache
-    ok "autocode updated."
+    dotnet tool uninstall --global "$PACKAGE_ID" >/dev/null 2>&1 || true
+    REPLACED=1
+fi
+
+CACHED="$HOME/.nuget/packages/$(printf %s "$PACKAGE_ID" | tr '[:upper:]' '[:lower:]')"
+if [ -d "$CACHED" ]; then
+    rm -rf "$CACHED"
+    ok "Cleared the cached package."
+fi
+
+dotnet tool install --global --add-source "$ARTIFACTS" "$PACKAGE_ID" --no-cache
+
+if [ "$REPLACED" -eq 1 ]; then
+    ok "autocode replaced."
 else
-    dotnet tool install --global --add-source "$ARTIFACTS" "$PACKAGE_ID" --no-cache
     ok "autocode installed."
 fi
 

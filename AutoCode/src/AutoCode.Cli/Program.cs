@@ -25,6 +25,8 @@ if (OperatingSystem.IsWindows())
     {
         // Redirected output that rejects the change is fine; the glyphs simply degrade.
     }
+
+    TerminalCapabilities.EnableVirtualTerminal();
 }
 
 var cli = CommandLineOptions.Parse(args);

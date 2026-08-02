@@ -137,21 +137,33 @@ elseif (-not (Test-Path $Artifacts)) {
 
 Write-Step 'Installing the autocode command'
 
-# `tool install` fails outright when the tool is already present, so an upgrade has to be an
-# explicit update. Probing the list first keeps the output honest about which one happened.
+# Always uninstall then install, rather than `tool update`.
+#
+# The version here does not change between builds during development, and `dotnet tool update`
+# treats same-version as "already up to date" — it prints success and leaves the old binary in
+# place. Worse, NuGet keeps an extracted copy under ~/.nuget/packages, so even a fresh install can
+# resolve to the previously cached bits. Removing both is the only way a reinstall reliably means
+# what it says.
 $installed = (& dotnet tool list --global 2>$null) -match "^$PackageId\s"
 
 if ($installed) {
-    & dotnet tool update --global --add-source $Artifacts $PackageId --no-cache
-    $action = 'updated'
-}
-else {
-    & dotnet tool install --global --add-source $Artifacts $PackageId --no-cache
-    $action = 'installed'
+    & dotnet tool uninstall --global $PackageId 2>&1 | Out-Null
 }
 
-if ($LASTEXITCODE -ne 0) { Write-Fail "Could not be $action."; exit 1 }
-Write-Ok "autocode $action."
+$cached = Join-Path $env:USERPROFILE ".nuget\packages\$($PackageId.ToLowerInvariant())"
+if (Test-Path $cached) {
+    Remove-Item $cached -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Ok 'Cleared the cached package.'
+}
+
+& dotnet tool install --global --add-source $Artifacts $PackageId --no-cache
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Fail 'Installation failed.'
+    exit 1
+}
+
+Write-Ok $(if ($installed) { 'autocode replaced.' } else { 'autocode installed.' })
 
 # ---------------------------------------------------------------- studio (optional)
 

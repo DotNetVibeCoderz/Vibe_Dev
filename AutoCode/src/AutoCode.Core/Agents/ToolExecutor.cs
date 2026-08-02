@@ -135,6 +135,7 @@ public sealed class ToolExecutor(
                 ToolName = tool.Name,
                 Summary = summary,
                 Detail = BuildDetail(arguments),
+                Arguments = arguments,
                 Capability = tool.Capability,
                 SuggestedRule = suggested,
             },

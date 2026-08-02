@@ -43,27 +43,70 @@ autocode <perintah> [argumen]
 
 Tersedia di dalam sesi interaktif.
 
+Ketik `/` dan daftarnya muncul, lengkap dengan keterangan singkat tiap perintah. Tab mengisi sejauh
+semua kandidat sepakat; tombol panah memilih salah satu.
+
+![Pelengkapan slash command](../assets/autocode-completion.png)
+
+**Konteks**
+
 | Perintah | Kegunaan |
 | --- | --- |
-| `/help` | Daftar perintah |
+| `/context` | Pemakaian token dan berkas instruksi yang berlaku |
+| `/compact [instruksi]` | Ringkas percakapan; instruksinya mengarahkan apa yang dipertahankan |
 | `/clear` | Mulai percakapan baru |
-| `/compact` | Ringkas percakapan untuk melegakan konteks |
-| `/cost` | Perhitungan token dan biaya |
-| `/status` | Provider, model, workspace, izin, sesi |
+| `/memory [catatan]` | Tinjau atau tambahkan ke `AUTOCODE.md`, instruksi tetap proyek ini |
+| `/btw [pertanyaan]` | Bertanya di thread samping — dijawab tanpa menyentuh percakapan utama |
+
+**Sesi**
+
+| Perintah | Kegunaan |
+| --- | --- |
+| `/rename <judul>` | Beri nama sesi ini |
+| `/resume`, `/sessions` | Daftar sesi tersimpan untuk workspace ini |
+| `/branch` | Cabangkan percakapan, untuk menjajaki alternatif |
+| `/undo [n]`, `/rewind [n]` | Buang n pertukaran terakhir lalu lanjut dari sana |
+| `/export [jalur]` | Tulis transkrip ke berkas markdown |
+| `/recap` | Ringkasan satu paragraf dari sesi ini sejauh ini |
+
+**Konfigurasi**
+
+| Perintah | Kegunaan |
+| --- | --- |
 | `/model [id]` | Tampilkan atau ganti model |
 | `/provider [nama]` | Tampilkan atau ganti profil provider |
-| `/permissions [mode]` | Tampilkan atau atur mode izin |
+| `/effort [level]` | Kedalaman penalaran: off, low, medium, high, max |
+| `/permissions [mode]` | Tampilkan atau atur ask, acceptEdits, plan, bypassPermissions |
+| `/config` | Dari mana setelan dibaca, dan cara menyuntingnya |
+| `/theme [nama]` | Ganti tema warna: auto, plain |
+| `/language <en\|id>` | Bahasa antarmuka dan jawaban |
+
+**Alur kerja**
+
+| Perintah | Kegunaan |
+| --- | --- |
+| `/plan` | Masuk mode rencana: hanya riset, tanpa perubahan |
+| `/diff [jalur]` | Tampilkan perubahan yang belum di-commit |
+| `/code-review` | Tinjau diff kerja untuk mencari cacat |
+| `/security-review` | Tinjau diff kerja untuk mencari kerentanan |
+| `/init` | Buatkan `AUTOCODE.md` untuk proyek ini |
+| `/index` | Bangun indeks kode semantik |
+
+**Periksa**
+
+| Perintah | Kegunaan |
+| --- | --- |
+| `/status` | Provider, model, workspace, izin, sesi |
+| `/cost` | Perhitungan token dan biaya |
 | `/tools` | Tool yang tersedia bagi model |
 | `/agents` | Subagent yang bisa dikirim |
 | `/teams <nama> <brief>` | Jalankan sebuah agent team |
+| `/fork <agent> <brief>` | Serahkan tugas sampingan ke subagent, di luar percakapan utama |
 | `/skills` | Skill yang terpasang |
 | `/mcp` | Status koneksi MCP |
-| `/context` | Berkas konteks yang berlaku |
-| `/sessions` | Sesi tersimpan untuk workspace ini |
-| `/index` | Bangun indeks kode semantik |
-| `/export [jalur]` | Tulis transkrip ke markdown |
-| `/init` | Buatkan `AUTOCODE.md` untuk proyek ini |
-| `/language <en\|id>` | Ganti bahasa antarmuka dan jawaban |
+| `/tasks` | Subagent yang sedang berjalan |
+| `/about` | Tentang Auto Code |
+| `/help` | Daftar perintah ini |
 | `/exit` | Keluar |
 
 Setiap skill yang terpasang juga menjadi slash command: `/deploy`, `/release`, dan seterusnya.
@@ -139,3 +182,21 @@ git diff --staged | autocode -p "tuliskan pesan commit untuk perubahan ini"
 autocode -p "perbaiki test yang gagal" --permission-mode acceptEdits
 autocode doctor
 ```
+
+## Perintah yang sengaja tidak ada
+
+Auto Code berjalan sepenuhnya di terminal Anda, pada sesi yang Anda mulai sendiri. Empat perintah
+yang sering diminta mengandaikan infrastruktur yang tidak dimilikinya, dan stub bertuliskan "segera
+hadir" lebih buruk daripada tidak ada sama sekali:
+
+| Perintah | Alasannya |
+| --- | --- |
+| `/background` | Tidak ada daemon sesi. Satu giliran hidup dan mati bersama prosesnya. |
+| `/teleport` | Tidak ada sesi web untuk ditarik. |
+| `/remote-control` | Tidak ada server yang menyimpan sesi untuk diakses perangkat lain. |
+| `/batch` | Memecah perubahan besar menjadi unit independen adalah pertimbangan perencanaan, bukan mekanisme. Gunakan `/plan`, lalu kerjakan hasilnya. |
+
+`/focus` juga tidak ada: antarmukanya memang tidak punya elemen untuk disembunyikan.
+
+`/tasks` ada, tetapi akan selalu melaporkan tidak ada yang berjalan — subagent dieksekusi inline di
+dalam giliran yang mengirimnya, sehingga tidak pernah ada yang terpisah.

@@ -43,28 +43,71 @@ autocode <command> [args]
 
 Available inside an interactive session.
 
+Type `/` and the list appears, each command with what it does. Tab fills in as far as every
+candidate agrees; the arrow keys pick one.
+
+![Slash command completion](../assets/autocode-completion.png)
+
+**Context**
+
 | Command | Purpose |
 | --- | --- |
-| `/help` | List commands |
+| `/context` | Token usage and the instruction files in effect |
+| `/compact [instruction]` | Summarise the conversation; the instruction steers what is kept |
 | `/clear` | Start a fresh conversation |
-| `/compact` | Summarise the conversation to free context |
-| `/cost` | Token and cost accounting |
-| `/status` | Provider, model, workspace, permissions, session |
+| `/memory [note]` | Review or add to `AUTOCODE.md`, the project's standing instructions |
+| `/btw [question]` | Ask on a side thread — answered without touching the main conversation |
+
+**Session**
+
+| Command | Purpose |
+| --- | --- |
+| `/rename <title>` | Name this session |
+| `/resume`, `/sessions` | List saved sessions for this workspace |
+| `/branch` | Fork the conversation, to explore an alternative |
+| `/undo [n]`, `/rewind [n]` | Drop the last n exchanges and carry on from there |
+| `/export [path]` | Write the transcript to a markdown file |
+| `/recap` | One-paragraph summary of this session so far |
+
+**Configuration**
+
+| Command | Purpose |
+| --- | --- |
 | `/model [id]` | Show or switch the model |
 | `/provider [name]` | Show or switch the provider profile |
-| `/permissions [mode]` | Show or set the permission mode |
+| `/effort [level]` | Reasoning depth: off, low, medium, high, max |
+| `/permissions [mode]` | Show or set ask, acceptEdits, plan, bypassPermissions |
+| `/config` | Where settings are read from, and how to edit them |
+| `/theme [name]` | Switch the colour theme: auto, plain |
+| `/language <en\|id>` | Interface and reply language |
+
+**Workflow**
+
+| Command | Purpose |
+| --- | --- |
+| `/plan` | Enter plan mode: research only, no changes |
+| `/diff [path]` | Show uncommitted changes |
+| `/code-review` | Review the working diff for defects |
+| `/security-review` | Review the working diff for vulnerabilities |
+| `/init` | Generate an `AUTOCODE.md` for this project |
+| `/index` | Build the semantic code index |
+
+**Inspect**
+
+| Command | Purpose |
+| --- | --- |
+| `/status` | Provider, model, workspace, permissions, session |
+| `/cost` | Token and cost accounting |
 | `/tools` | Tools available to the model |
 | `/agents` | Subagents that can be dispatched |
-| `/teams <name> <brief>` | Run an agent team |
+| `/teams <name> <brief>` | Run an agent team on a brief |
+| `/fork <agent> <brief>` | Hand a side-task to a subagent, off the main conversation |
 | `/skills` | Installed skills |
-| `/mcp` | MCP connection status |
-| `/context` | Context files in effect |
-| `/sessions` | Saved sessions for this workspace |
-| `/index` | Build the semantic code index |
-| `/export [path]` | Write the transcript to markdown |
-| `/init` | Generate an `AUTOCODE.md` for the project |
-| `/language <en\|id>` | Switch interface and reply language |
-| `/exit` | Leave |
+| `/mcp` | MCP server connections |
+| `/tasks` | Subagents running right now |
+| `/about` | About Auto Code |
+| `/help` | List these commands |
+| `/exit` | Leave Auto Code |
 
 Every installed skill is also a slash command: `/deploy`, `/release`, and so on.
 
@@ -139,3 +182,21 @@ git diff --staged | autocode -p "write a commit message for this"
 autocode -p "fix the failing test" --permission-mode acceptEdits
 autocode doctor
 ```
+
+## Commands that are deliberately absent
+
+Auto Code runs entirely in your terminal, against a session you started. Four commands people ask
+for assume infrastructure it does not have, and stubs that print "coming soon" are worse than
+nothing:
+
+| Command | Why not |
+| --- | --- |
+| `/background` | There is no session daemon. A turn lives and dies with the process. |
+| `/teleport` | There is no web session to pull down. |
+| `/remote-control` | There is no server holding sessions for other devices to attach to. |
+| `/batch` | Splitting a large change into independent units is a planning judgement, not a mechanism. Use `/plan`, then work through the result. |
+
+`/focus` is also absent: the interface has no chrome to hide.
+
+`/tasks` exists but will always report nothing running — subagents execute inline, inside the turn
+that dispatched them, so nothing ever detaches.

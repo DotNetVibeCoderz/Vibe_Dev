@@ -37,6 +37,21 @@ public sealed class Session
     /// <summary>Summaries produced by earlier compactions, kept so history is never silently lost.</summary>
     public List<string> CompactionSummaries { get; set; } = [];
 
+    /// <summary>
+    /// The side thread opened with <c>/btw</c>.
+    ///
+    /// EN: a second, parallel conversation. It has its own history and never joins
+    /// <see cref="Messages"/>, which is the entire point: a clarifying question can be asked and
+    /// answered without the main task losing its thread, and without the answer being replayed on
+    /// every subsequent turn. Because only this list is sent — not the main transcript — a side
+    /// question costs a fraction of what the same question would cost inline.
+    /// ID: percakapan kedua yang berjalan paralel. Ia punya riwayat sendiri dan tidak pernah masuk
+    /// ke <see cref="Messages"/> — itulah intinya: pertanyaan klarifikasi bisa diajukan dan dijawab
+    /// tanpa memutus alur tugas utama, dan tanpa jawabannya ikut dikirim ulang di tiap giliran
+    /// berikutnya. Karena hanya daftar ini yang dikirim, biayanya jauh lebih kecil.
+    /// </summary>
+    public List<ChatMessage> SideThread { get; set; } = [];
+
     [JsonIgnore]
     public int UserTurnCount => Messages.Count(m => m.Role == ChatRole.User);
 

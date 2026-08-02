@@ -33,6 +33,18 @@ public sealed record PermissionRequest
     /// <summary>Optional detail body: a diff for edits, the full command for shell calls.</summary>
     public string? Detail { get; init; }
 
+    /// <summary>
+    /// The raw call arguments.
+    ///
+    /// EN: passed through so the host can present each tool in the form that makes the risk
+    /// legible — a real diff for an edit, the command for a shell call. Core deliberately does not
+    /// decide that: what an approval prompt should look like is a question about the terminal, not
+    /// about the agent.
+    /// ID: diteruskan agar host bisa menampilkan tiap tool dalam bentuk yang membuat risikonya
+    /// terbaca — diff untuk penyuntingan, perintah untuk shell. Core sengaja tidak memutuskan itu.
+    /// </summary>
+    public System.Text.Json.JsonElement? Arguments { get; init; }
+
     public required ToolCapability Capability { get; init; }
 
     /// <summary>Rule string that "always allow" would persist, e.g. <c>Bash(npm run build:*)</c>.</summary>
