@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AutoCode.Cli</RootNamespace>
+    <AssemblyName>autocode</AssemblyName>
+    <ToolCommandName>autocode</ToolCommandName>
+    <PackAsTool>true</PackAsTool>
+    <PackageId>Gravicode.AutoCode</PackageId>
+    <Description>Auto Code — agentic coding assistant for the terminal, built on .NET 10.</Description>
+
+    <!-- Startup tuning -->
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <TieredCompilationQuickJitForLoops>true</TieredCompilationQuickJitForLoops>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AutoCode.Core\AutoCode.Core.csproj" />
+    <ProjectReference Include="..\AutoCode.Providers\AutoCode.Providers.csproj" />
+    <ProjectReference Include="..\AutoCode.Providers.Onnx\AutoCode.Providers.Onnx.csproj" />
+    <ProjectReference Include="..\AutoCode.Tools\AutoCode.Tools.csproj" />
+    <ProjectReference Include="..\AutoCode.Mcp\AutoCode.Mcp.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="autocode.dll.config" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

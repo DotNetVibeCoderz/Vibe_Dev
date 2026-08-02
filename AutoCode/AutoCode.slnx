@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AutoCode.Cli/AutoCode.Cli.csproj" />
+    <Project Path="src/AutoCode.Core/AutoCode.Core.csproj" />
+    <Project Path="src/AutoCode.Mcp/AutoCode.Mcp.csproj" />
+    <Project Path="src/AutoCode.Providers.Onnx/AutoCode.Providers.Onnx.csproj" />
+    <Project Path="src/AutoCode.Providers/AutoCode.Providers.csproj" />
+    <Project Path="src/AutoCode.Studio/AutoCode.Studio.csproj" />
+    <Project Path="src/AutoCode.Tools/AutoCode.Tools.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AutoCode.Tests/AutoCode.Tests.csproj" />
+  </Folder>
+</Solution>

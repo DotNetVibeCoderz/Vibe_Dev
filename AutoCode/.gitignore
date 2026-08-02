@@ -1,0 +1,35 @@
+# Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+*.user
+*.suo
+
+# IDE
+.vs/
+.vscode/
+.idea/
+
+# NuGet
+*.nupkg
+packages/
+.nuget/
+
+# Auto Code — personal settings and anything it generates
+.autocode/settings.local.json
+.autocode/sessions/
+autocode-*.md
+
+# Secrets
+.env
+.env.*
+*.pem
+*.key
+test-keys.txt
+*-keys.txt
+
+# OS
+.DS_Store
+Thumbs.db

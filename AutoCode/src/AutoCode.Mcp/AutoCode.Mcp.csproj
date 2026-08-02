@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AutoCode.Mcp</RootNamespace>
+    <Description>Auto Code Model Context Protocol client: connects stdio/http MCP servers and exposes their tools to the agent.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AutoCode.Core\AutoCode.Core.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,247 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AutoCode.Studio.ViewModels"
+        xmlns:conv="using:AutoCode.Studio.Converters"
+        x:Class="AutoCode.Studio.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Auto Code Studio"
+        Width="1020" Height="712"
+        MinWidth="860" MinHeight="540"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource Ink}"
+        >
+
+  <Window.Resources>
+    <conv:SignalBrushConverter x:Key="SignalBrush" />
+    <conv:SignalGlyphConverter x:Key="SignalGlyph" />
+  </Window.Resources>
+
+  <Grid RowDefinitions="Auto,*,Auto">
+
+    <!-- ───────────────────────────────────────────────── header -->
+    <Border Grid.Row="0" Background="{StaticResource Panel}"
+            BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1"
+            Padding="20,14">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="11">
+          <Border Width="22" Height="22" CornerRadius="3" Background="{StaticResource Signal}">
+            <TextBlock Text="▲" FontSize="11" Foreground="#1A1206"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <StackPanel VerticalAlignment="Center">
+            <TextBlock Text="AUTO CODE STUDIO" FontSize="12" FontWeight="SemiBold"
+                       Foreground="{StaticResource Text}" LetterSpacing="1.2" />
+            <TextBlock Text="Gravicode Studios · Kang Fadhil" FontSize="10"
+                       Foreground="{StaticResource Faint}" />
+          </StackPanel>
+        </StackPanel>
+
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <TextBlock Classes="eyebrow" Text="WRITING TO" VerticalAlignment="Center" />
+          <ComboBox Classes="field" Width="230"
+                    ItemsSource="{Binding Targets}"
+                    SelectedItem="{Binding SelectedTarget}" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- ───────────────────────────────────────────────── body -->
+    <Grid Grid.Row="1" ColumnDefinitions="228,*">
+
+      <!-- channel rail -->
+      <Border Grid.Column="0" Background="{StaticResource Panel}"
+              BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0">
+        <Grid RowDefinitions="Auto,*,Auto" Margin="12,14">
+
+          <TextBlock Grid.Row="0" Classes="eyebrow" Text="CHANNELS" Margin="6,0,0,10" />
+
+          <ListBox Grid.Row="1" Classes="rail"
+                   ItemsSource="{Binding Providers}"
+                   SelectedItem="{Binding Selected}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:ProviderViewModel">
+                <Grid ColumnDefinitions="Auto,*,Auto" Margin="9,8">
+                  <!-- The lamp is the whole point of the rail: reachability at a glance. -->
+                  <Ellipse Grid.Column="0" Width="7" Height="7" VerticalAlignment="Center"
+                           Fill="{Binding State, Converter={StaticResource SignalBrush}}" />
+                  <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                    <TextBlock Text="{Binding Name}" FontSize="12"
+                               Foreground="{StaticResource Text}" />
+                    <TextBlock Text="{Binding Model}" Classes="mono" FontSize="10"
+                               Foreground="{StaticResource Faint}"
+                               TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="2" Text="•" VerticalAlignment="Center"
+                             Foreground="{StaticResource Signal}" FontSize="14"
+                             IsVisible="{Binding IsDirty}" ToolTip.Tip="Unsaved changes" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <StackPanel Grid.Row="2" Spacing="6" Margin="0,12,0,0">
+            <ComboBox Classes="field" HorizontalAlignment="Stretch"
+                      PlaceholderText="+  add a channel"
+                      ItemsSource="{Binding KnownVendors}"
+                      SelectedItem="{Binding AddVendor}" />
+            <Button Classes="ghost" HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center"
+                    Content="Test every channel"
+                    Command="{Binding TestAllCommand}"
+                    IsEnabled="{Binding !IsBusy}" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- editor -->
+      <Grid Grid.Column="1">
+
+      <!-- Empty state. Not a void: the user almost certainly already has a key exported, which
+           is how they were running the CLI before opening this. Offer exactly those. -->
+      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                  MaxWidth="380" Spacing="14"
+                  IsVisible="{Binding IsEmpty}">
+        <TextBlock Classes="eyebrow" Text="NO CHANNELS" HorizontalAlignment="Center" />
+        <TextBlock Classes="hint" TextAlignment="Center" FontSize="13"
+                   Text="A channel is one provider: an endpoint, a key and a model. Auto Code uses whichever one you mark active." />
+
+        <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}"
+                BorderThickness="1" CornerRadius="4" Padding="16,14"
+                IsVisible="{Binding HasDetectedVendors}">
+          <StackPanel Spacing="10">
+            <TextBlock Text="{Binding DetectedSummary}" Classes="hint" TextAlignment="Center" />
+            <Button Classes="primary" HorizontalAlignment="Center"
+                    Content="Add them" Command="{Binding AddDetectedCommand}" />
+          </StackPanel>
+        </Border>
+
+        <TextBlock Classes="hint" TextAlignment="Center"
+                   IsVisible="{Binding !HasDetectedVendors}"
+                   Text="Pick a vendor from the list on the left, or add a custom OpenAI-compatible endpoint." />
+      </StackPanel>
+
+      <ScrollViewer Padding="28,22">
+        <StackPanel Spacing="0" MaxWidth="620" HorizontalAlignment="Left"
+                    IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
+
+          <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,20">
+            <StackPanel Grid.Column="0">
+              <TextBlock Classes="eyebrow" Text="CHANNEL" />
+              <TextBox Classes="field" Margin="0,6,0,0" Width="240" HorizontalAlignment="Left"
+                       FontSize="14"
+                       Text="{Binding Selected.Name}" />
+            </StackPanel>
+            <Button Grid.Column="1" Classes="ghost" Content="Remove"
+                    VerticalAlignment="Bottom"
+                    Command="{Binding RemoveProviderCommand}" />
+          </Grid>
+
+          <!-- ── wire -->
+          <TextBlock Classes="eyebrow" Text="WIRE" Margin="0,0,0,10" />
+
+          <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto"
+                Margin="0,0,0,22">
+            <TextBlock Grid.Row="0" Grid.Column="0" Classes="label" Text="protocol" />
+            <ComboBox Grid.Row="0" Grid.Column="1" Classes="field" HorizontalAlignment="Stretch"
+                      ItemsSource="{Binding Kinds}"
+                      SelectedItem="{Binding Selected.Kind}" />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Classes="label" Text="endpoint" Margin="0,10,0,0" />
+            <TextBox Grid.Row="1" Grid.Column="1" Classes="field" Margin="0,10,0,0"
+                     PlaceholderText="https://api.example.com/v1"
+                     Text="{Binding Selected.Endpoint}" />
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Classes="label" Text="api key" Margin="0,10,0,0" />
+            <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,Auto" Margin="0,10,0,0">
+              <TextBox Grid.Column="0" Classes="field" Name="KeyBox"
+                       PlaceholderText="env:OPENAI_API_KEY  —  or paste the key"
+                       PasswordChar="{Binding KeyMaskChar}"
+                       Text="{Binding Selected.ApiKey}" />
+              <Button Grid.Column="1" Classes="icon" Margin="4,0,0,0"
+                      Content="{Binding RevealLabel}"
+                      Command="{Binding ToggleRevealCommand}" />
+            </Grid>
+          </Grid>
+
+          <!-- ── models -->
+          <TextBlock Classes="eyebrow" Text="MODELS" Margin="0,0,0,10" />
+
+          <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto" Margin="0,0,0,8">
+            <TextBlock Grid.Row="0" Grid.Column="0" Classes="label" Text="main" />
+            <TextBox Grid.Row="0" Grid.Column="1" Classes="field"
+                     PlaceholderText="the model the agent reasons with"
+                     Text="{Binding Selected.Model}" />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Classes="label" Text="small" Margin="0,10,0,0" />
+            <TextBox Grid.Row="1" Grid.Column="1" Classes="field" Margin="0,10,0,0"
+                     PlaceholderText="cheaper model for summaries — optional"
+                     Text="{Binding Selected.SmallModel}" />
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Classes="label" Text="context" Margin="0,10,0,0" />
+            <TextBox Grid.Row="2" Grid.Column="1" Classes="field" Margin="0,10,0,0" Width="160"
+                     HorizontalAlignment="Left"
+                     Text="{Binding Selected.ContextWindow}" />
+          </Grid>
+
+          <TextBlock Classes="hint" Margin="110,0,0,18"
+                     Text="Context size drives when Auto Code compacts a long conversation. Leave the vendor default unless you know it differs." />
+
+          <!-- ── signature element: the signal readout -->
+          <Border Background="{StaticResource Panel}"
+                  BorderBrush="{Binding Selected.State, Converter={StaticResource SignalBrush}}"
+                  BorderThickness="1" CornerRadius="4" Padding="18,16">
+            <Grid ColumnDefinitions="Auto,*">
+              <Border Grid.Column="0" Width="34" Height="34" CornerRadius="17"
+                      Background="{StaticResource Ink}"
+                      BorderBrush="{Binding Selected.State, Converter={StaticResource SignalBrush}}"
+                      BorderThickness="1" VerticalAlignment="Top">
+                <TextBlock Text="{Binding Selected.State, Converter={StaticResource SignalGlyph}}"
+                           Foreground="{Binding Selected.State, Converter={StaticResource SignalBrush}}"
+                           FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+
+              <StackPanel Grid.Column="1" Margin="14,0,0,0" Spacing="4">
+                <TextBlock Classes="eyebrow" Text="SIGNAL" />
+                <TextBlock Text="{Binding Selected.Reading}" Classes="mono" FontSize="13"
+                           Foreground="{Binding Selected.State, Converter={StaticResource SignalBrush}}" />
+                <TextBlock Text="{Binding Selected.Detail}" Classes="hint"
+                           IsVisible="{Binding Selected.Detail, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <Border Background="#2A1B12" BorderBrush="{StaticResource Fault}" BorderThickness="1"
+                  CornerRadius="4" Padding="14,11" Margin="0,12,0,0"
+                  IsVisible="{Binding SecretWarning}">
+            <TextBlock Classes="hint" Foreground="#F0B4B4"
+                       Text="This file is meant to be committed, and the key is a literal. Use env:NAME instead, or switch the target to the local settings file." />
+          </Border>
+
+        </StackPanel>
+      </ScrollViewer>
+      </Grid>
+    </Grid>
+
+    <!-- ───────────────────────────────────────────────── footer -->
+    <Border Grid.Row="2" Background="{StaticResource Panel}"
+            BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0"
+            Padding="20,12">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Grid.Column="0" Text="{Binding Status}" Classes="hint"
+                   VerticalAlignment="Center" />
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <Button Classes="ghost" Content="Copy as env vars"
+                  Click="OnCopyEnvironment" />
+          <Button Classes="ghost" Content="Test connection"
+                  Command="{Binding TestCommand}"
+                  IsEnabled="{Binding !IsBusy}" />
+          <Button Classes="primary" Content="Save"
+                  Command="{Binding SaveCommand}" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+  </Grid>
+</Window>

@@ -1,0 +1,51 @@
+buatkan clone claude code dengan nama "Auto Code", dibuat dengan .NET dan memanfaatkan semua library yang ada di .NET seperti Microsoft Agent Framework, Microsoft Extensions AI, Microsoft Extensions Vector Data, Semantic Kernel, dengan UI EX yang sama. Hanya support ke berbagai model LLM yang bisa di konfigurasi dari aplikasi atau app.config seperti OpenAI, Anthropic, Gemini, Ollama, DeepSeek, Qwen, dsb (open ai compatible endpoint)
+
+---
+
+ 🔑 Fitur Utama Claude Code
+
+- Agentic loop  
+  Claude bekerja dalam tiga fase: *gather context*, *take action*, dan *verify results*. Ia bisa mengulang siklus ini berkali‑kali untuk debugging, refactor, atau implementasi fitur.
+
+- Code understanding  
+  Membaca dan memahami kode lintas bahasa, menelusuri eksekusi fungsi, data flow, serta mengenali arsitektur dan framework.
+
+- Code generation & modification  
+  Mengubah requirement natural language menjadi kode, memperbaiki bug, melakukan refactor, menulis unit test, dan memperbarui dokumentasi.
+
+- Development automation  
+  Menjalankan build tools, test, script, CI/CD, package management, hingga operasi database (migrasi, query, schema).
+
+- Integration features  
+  Mendukung MCP (Model Context Protocol), utilities Unix, integrasi IDE (VS Code, Cursor), serta koneksi ke layanan eksternal seperti Google Drive, Figma, Slack.
+
+- Extensibility  
+  Bisa diperluas dengan CLAUDE.md (persistent context), skills (workflow reusable), subagents (isolated execution), agent teams (koordinasi multi‑agent), hooks (trigger lifecycle), dan plugins.
+
+- Advanced features  
+  Termasuk extended reasoning, parallel sessions, structured output (JSON, streaming), multi‑agent coordination, dan cost tracking API usage.
+
+---
+
+ 📊 Ringkasan dalam Tabel
+
+| Fitur | Deskripsi | Contoh Penggunaan |
+|-----------|---------------|------------------------|
+| Agentic loop | Siklus gather → act → verify | Debugging bug kompleks |
+| Code understanding | Analisis arsitektur & data flow | Menemukan dependency tersembunyi |
+| Code generation | Membuat kode dari requirement | Generate REST API dengan auth |
+| Automation | Build, test, CI/CD, DB ops | Migrasi database otomatis |
+| Integration | IDE, MCP, layanan eksternal | Integrasi dengan Slack untuk notifikasi |
+| Extensibility | Skills, hooks, subagents | /deploy checklist otomatis |
+| Advanced | Multi‑agent, structured output | Parallel research dengan subagents |
+
+---
+
+Notes:
+- Dibuat dengan .NET 10
+- Optimasi code agar cepat dan ringan
+- Dokumentasi lengkap dengan Bahasa Indonesia dan English
+- Readme dengan Bahasa Indonesia dan English
+- Tambahkan fitur-fitur claude code yang baru yang mungkin belum tertera diatas
+- Tambahkan info di docs dan source dibuat oleh Gravicode Studios dipimpin oleh Kang Fadhil
+- PLAN.md untuk roadmap aplikasi, Progress.md untuk tracking development

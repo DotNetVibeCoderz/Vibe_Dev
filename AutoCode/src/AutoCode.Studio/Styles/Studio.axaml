@@ -1,0 +1,173 @@
+<!--
+  Auto Code Studio — design tokens and control styles
+  Gravicode Studios (Kang Fadhil)
+
+  Direction: an instrument panel, not a settings form. The app has one real job — prove that a
+  key, endpoint and model actually work together — so the verification readout is the centre of
+  gravity and the form around it stays quiet.
+
+  Colour carries state and nothing else: amber means verified, teal means in flight, red means
+  faulted, everything else is greyscale. Chrome is set in Inter; every machine value — endpoint,
+  key, model id, latency — is monospaced, because a proportional face makes a URL harder to read.
+-->
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <Styles.Resources>
+    <!-- Ground and surfaces -->
+    <SolidColorBrush x:Key="Ink"        Color="#0E1018" />
+    <SolidColorBrush x:Key="Panel"      Color="#151926" />
+    <SolidColorBrush x:Key="PanelHigh"  Color="#1C2130" />
+    <SolidColorBrush x:Key="Line"       Color="#272D3F" />
+    <SolidColorBrush x:Key="LineSoft"   Color="#1E2331" />
+
+    <!-- Text -->
+    <SolidColorBrush x:Key="Text"       Color="#E6E8F2" />
+    <SolidColorBrush x:Key="Muted"      Color="#868DA6" />
+    <SolidColorBrush x:Key="Faint"      Color="#5A6178" />
+
+    <!-- State. These three are the only hues in the app. -->
+    <SolidColorBrush x:Key="Signal"     Color="#F5A33C" />
+    <SolidColorBrush x:Key="SignalDim"  Color="#4A3A22" />
+    <SolidColorBrush x:Key="Live"       Color="#45C4B0" />
+    <SolidColorBrush x:Key="Fault"      Color="#E5484D" />
+
+    <FontFamily x:Key="Mono">Cascadia Code,Cascadia Mono,SF Mono,Menlo,DejaVu Sans Mono,Consolas,monospace</FontFamily>
+  </Styles.Resources>
+
+  <!-- ─────────────────────────────────────────────────────── typography -->
+
+  <Style Selector="TextBlock.eyebrow">
+    <Setter Property="FontSize" Value="10" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{StaticResource Faint}" />
+    <Setter Property="LetterSpacing" Value="1.6" />
+  </Style>
+
+  <Style Selector="TextBlock.label">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="Foreground" Value="{StaticResource Muted}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="TextBlock.mono">
+    <Setter Property="FontFamily" Value="{StaticResource Mono}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{StaticResource Text}" />
+  </Style>
+
+  <Style Selector="TextBlock.hint">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="Foreground" Value="{StaticResource Faint}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+
+  <!-- ─────────────────────────────────────────────────────── inputs -->
+
+  <Style Selector="TextBox.field">
+    <Setter Property="FontFamily" Value="{StaticResource Mono}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Background" Value="{StaticResource Ink}" />
+    <Setter Property="Foreground" Value="{StaticResource Text}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="Padding" Value="9,7" />
+    <Setter Property="MinHeight" Value="32" />
+  </Style>
+
+  <Style Selector="TextBox.field:focus">
+    <Setter Property="BorderBrush" Value="{StaticResource Signal}" />
+  </Style>
+
+  <Style Selector="TextBox.field /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="{StaticResource Ink}" />
+  </Style>
+
+  <Style Selector="ComboBox.field">
+    <Setter Property="FontFamily" Value="{StaticResource Mono}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Background" Value="{StaticResource Ink}" />
+    <Setter Property="Foreground" Value="{StaticResource Text}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="MinHeight" Value="32" />
+    <Setter Property="Padding" Value="9,4" />
+  </Style>
+
+  <!-- ─────────────────────────────────────────────────────── buttons -->
+
+  <Style Selector="Button.ghost">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource Muted}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="Padding" Value="14,8" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+
+  <Style Selector="Button.ghost:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource PanelHigh}" />
+    <Setter Property="TextBlock.Foreground" Value="{StaticResource Text}" />
+  </Style>
+
+  <Style Selector="Button.primary">
+    <Setter Property="Background" Value="{StaticResource Signal}" />
+    <Setter Property="Foreground" Value="#1A1206" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="Padding" Value="18,8" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+
+  <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#FFB661" />
+  </Style>
+
+  <Style Selector="Button.primary:disabled /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource PanelHigh}" />
+    <Setter Property="TextBlock.Foreground" Value="{StaticResource Faint}" />
+  </Style>
+
+  <Style Selector="Button.icon">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource Faint}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="7,4" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+
+  <Style Selector="Button.icon:pointerover /template/ ContentPresenter">
+    <Setter Property="TextBlock.Foreground" Value="{StaticResource Text}" />
+  </Style>
+
+  <!-- ─────────────────────────────────────────────────────── channel rail -->
+
+  <Style Selector="ListBox.rail">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+
+  <Style Selector="ListBox.rail ListBoxItem">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Margin" Value="0,1" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <Style Selector="ListBox.rail ListBoxItem:selected /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource PanelHigh}" />
+  </Style>
+
+  <Style Selector="ListBox.rail ListBoxItem:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource LineSoft}" />
+  </Style>
+
+</Styles>

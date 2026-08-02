@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AutoCode.Providers</RootNamespace>
+    <Description>Auto Code LLM providers: OpenAI-compatible, Anthropic and Gemini chat clients over Microsoft.Extensions.AI.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
+
+    <!-- Pure managed and small; the ONNX backend lives in its own project because it drags in
+         a native runtime that most users never need. -->
+    <PackageReference Include="OllamaSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AutoCode.Core\AutoCode.Core.csproj" />
+  </ItemGroup>
+
+</Project>

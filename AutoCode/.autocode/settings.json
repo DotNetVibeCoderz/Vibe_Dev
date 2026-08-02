@@ -1,0 +1,32 @@
+{
+  "$comment": "Auto Code settings for the Auto Code repository itself. Secrets belong in settings.local.json.",
+
+  "permissionMode": "ask",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "List",
+      "TodoWrite",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet test:*)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
+    ],
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/settings.local.json)",
+      "Bash(rm -rf:*)",
+      "Bash(git push --force:*)"
+    ]
+  },
+
+  "verifyCommands": [
+    "dotnet build --nologo -v q",
+    "dotnet test --nologo -v q"
+  ],
+
+  "language": "en"
+}
