@@ -36,7 +36,8 @@ public sealed class ScriptedProvider : IModelProvider
     public async IAsyncEnumerable<ModelEvent> StreamAsync(ModelRequest request, [EnumeratorCancellation] CancellationToken ct)
     {
         var last = request.Messages.LastOrDefault();
-        var lastText = last?.Text ?? "";
+        // "match" sees the last message's text and, after tool calls, the tool results' text.
+        var lastText = (last?.Text ?? "") + string.Concat(last?.ToolResults.Select(r => "\n" + r.TextContent) ?? []);
         ScriptedResponse? response = null;
         lock (_gate)
         {

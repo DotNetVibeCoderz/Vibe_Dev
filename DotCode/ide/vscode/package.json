@@ -1,0 +1,96 @@
+{
+  "name": "dotcode-vscode",
+  "displayName": "DotCode",
+  "description": "Agentic coding with any LLM (Anthropic, OpenAI, Azure, Gemini, DeepSeek, Ollama) inside VS Code: chat, tool calls, diffs and permission prompts from the DotCode agent. By Gravicode Studios, led by Kang Fadhil.",
+  "version": "0.1.0",
+  "publisher": "gravicode",
+  "license": "MIT",
+  "icon": "assets/icon.png",
+  "repository": { "type": "git", "url": "https://github.com/DotNetVibeCoderz/Vibe_Dev.git", "directory": "DotCode/ide/vscode" },
+  "homepage": "https://github.com/DotNetVibeCoderz/Vibe_Dev/tree/main/DotCode",
+  "bugs": { "url": "https://github.com/DotNetVibeCoderz/Vibe_Dev/issues" },
+  "engines": { "vscode": "^1.90.0" },
+  "categories": ["AI", "Chat", "Programming Languages"],
+  "keywords": ["ai", "agent", "llm", "coding agent", "claude", "openai", "gemini", "deepseek", "ollama", "mcp"],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [{ "id": "dotcode", "title": "DotCode", "icon": "media/dotcode.svg" }]
+    },
+    "views": {
+      "dotcode": [{ "type": "webview", "id": "dotcode.chat", "name": "Chat" }]
+    },
+    "commands": [
+      { "command": "dotcode.openChat", "title": "Open Chat", "category": "DotCode" },
+      { "command": "dotcode.newSession", "title": "New Session", "category": "DotCode", "icon": "$(add)" },
+      { "command": "dotcode.askAboutSelection", "title": "Ask DotCode about Selection", "category": "DotCode" },
+      { "command": "dotcode.stop", "title": "Stop", "category": "DotCode", "icon": "$(debug-stop)" },
+      { "command": "dotcode.selectModel", "title": "Select Model", "category": "DotCode" },
+      { "command": "dotcode.setPermissionMode", "title": "Set Permission Mode", "category": "DotCode" },
+      { "command": "dotcode.openInTerminal", "title": "Open DotCode in Terminal", "category": "DotCode", "icon": "$(terminal)" }
+    ],
+    "menus": {
+      "view/title": [
+        { "command": "dotcode.newSession", "when": "view == dotcode.chat", "group": "navigation@1" },
+        { "command": "dotcode.openInTerminal", "when": "view == dotcode.chat", "group": "navigation@2" }
+      ],
+      "editor/context": [
+        { "command": "dotcode.askAboutSelection", "when": "editorHasSelection", "group": "navigation@90" }
+      ]
+    },
+    "keybindings": [
+      { "command": "dotcode.openChat", "key": "ctrl+escape", "mac": "cmd+escape" },
+      { "command": "dotcode.askAboutSelection", "key": "ctrl+alt+k", "mac": "cmd+alt+k", "when": "editorHasSelection" }
+    ],
+    "configuration": {
+      "title": "DotCode",
+      "properties": {
+        "dotcode.cliPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the `dotcode` executable (or `dotcode.dll`). Empty: `DOTCODE_CLI_PATH`, then `dotcode` on PATH, then the installer's default locations."
+        },
+        "dotcode.model": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Model as `provider:model`, an alias or a role (e.g. `anthropic:claude-sonnet-4-5`, `openai:gpt-5`, `ollama:qwen3-coder`). Empty: your DotCode settings."
+        },
+        "dotcode.permissionMode": {
+          "type": "string",
+          "enum": ["default", "acceptEdits", "auto", "plan"],
+          "default": "default",
+          "markdownDescription": "Permission mode for new sessions (`auto` lets a classifier approve low-risk actions)."
+        },
+        "dotcode.showDiffOnPermission": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open proposed edits in the diff editor when DotCode asks for permission."
+        },
+        "dotcode.settings": {
+          "type": "object",
+          "default": {},
+          "markdownDescription": "Inline DotCode settings merged over your settings files (for example a `providers` block)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node esbuild.mjs && tsc -p tsconfig.test.json && node out/test/runTest.js",
+    "package": "node esbuild.mjs --production && vsce package --no-dependencies -o dotcode-vscode.vsix"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.10.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.2.2",
+    "dotcode-sdk": "file:../../sdk/typescript",
+    "esbuild": "^0.25.0",
+    "mocha": "^11.1.0",
+    "typescript": "^5.7.0"
+  }
+}

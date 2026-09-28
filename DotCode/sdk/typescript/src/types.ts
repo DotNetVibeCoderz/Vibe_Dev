@@ -1,6 +1,6 @@
 // Protocol types for the DotCode JSON-RPC server (see schema/protocol.schema.json).
 
-export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions";
+export type PermissionMode = "default" | "acceptEdits" | "auto" | "plan" | "bypassPermissions";
 export type ReasoningEffort = "off" | "low" | "medium" | "high" | "xhigh";
 
 export interface Usage {

@@ -90,6 +90,17 @@ jobs:
       - name: Rust SDK sample (build)
         working-directory: DotCode/samples/sdk/rust
         run: cargo build
+      - name: VS Code extension (integration tests inside VS Code, then VSIX)
+        working-directory: DotCode/ide/vscode
+        run: |
+          npm ci
+          npm run typecheck
+          xvfb-run -a npm test
+          npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vscode-extension
+          path: DotCode/ide/vscode/dotcode-vscode.vsix
 
   sandbox-macos:
     # The shell sandbox uses sandbox-exec (Seatbelt) on macOS: run its tests for real on a macOS runner.
@@ -274,6 +285,8 @@ jobs:
         with: { name: release-assets, path: dist }
       - uses: actions/download-artifact@v4
         with: { name: nuget-packages, path: dist/nuget }
+      - uses: actions/download-artifact@v4
+        with: { name: vscode-extension, path: dist/vscode }
       - name: Release notes
         run: |
           v="${GITHUB_REF_NAME#dotcode-v}"
@@ -289,6 +302,8 @@ jobs:
           irm https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/DotCode/install/install.ps1 | iex
           \`\`\`
           **.NET tool:** \`dotnet tool install -g DotCode.Cli\` · **Update:** \`dotcode update\`
+
+          **VS Code extension:** download \`dotcode-vscode.vsix\` below, then \`code --install-extension dotcode-vscode.vsix\`.
 
           Every archive is listed in \`SHA256SUMS\` (the installers and \`dotcode update\` verify it) and has a build-provenance
           attestation: \`gh attestation verify dotcode-linux-x64.tar.gz --repo ${GITHUB_REPOSITORY}\`. SBOM: \`dotcode-sbom.spdx.json\`.
@@ -307,3 +322,4 @@ jobs:
             dist/install.sh
             dist/install.ps1
             dist/nuget/*.nupkg
+            dist/vscode/*.vsix

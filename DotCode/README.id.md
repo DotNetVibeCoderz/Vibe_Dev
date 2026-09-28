@@ -80,6 +80,7 @@ dotcode --dangerously-skip-permissions              # hanya untuk sandbox / CI
 | [Ekstensi](docs/id/ekstensi.md) | [Extensions](docs/en/extensions.md) |
 | [Mode headless](docs/id/headless.md) | [Headless mode](docs/en/headless.md) |
 | [SDK & protokol](docs/id/sdk.md) | [SDK & protocol](docs/en/sdk.md) |
+| [Ekstensi VS Code](docs/id/vscode.md) | [VS Code extension](docs/en/vscode.md) |
 | [Git worktree](docs/id/worktree.md) | [Git worktrees](docs/en/worktrees.md) |
 | [Observabilitas: audit log & OpenTelemetry](docs/id/observabilitas.md) | [Observability](docs/en/observability.md) |
 | [Arsitektur](docs/id/arsitektur.md) | [Architecture](docs/en/architecture.md) |

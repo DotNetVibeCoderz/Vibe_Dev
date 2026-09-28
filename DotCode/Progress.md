@@ -64,7 +64,8 @@
 | Git worktrees | ✅ | `--worktree [name]` (auto-removed when unchanged), `dotcode worktree list\|remove\|prune`, subagent `isolation: worktree`, SDK/protocol `worktree` option in all 5 SDKs |
 | Shell sandbox | ✅ | `sandbox` settings, `/sandbox`: bubblewrap (Linux) and Seatbelt (macOS) confine writes, hide credentials, optional network deny, auto-allow sandboxed commands; Windows Job Object containment + limits; tested for real on Linux, macOS (CI) and Windows |
 | LSP tool | ✅ | 7 operations, built-in server defaults + `lsp.servers`, lazy start per workspace root, `<new-diagnostics>` after Edit/Write; verified with typescript-language-server and pyright (CI runs the TypeScript server) |
-| Desktop, IDE | ⏳ | See PLAN.md |
+| VS Code extension | ✅ | `ide/vscode`: chat webview (streaming, tools, diffs, todos, cost), permission cards + diff editor preview, ask-about-selection, model/mode pickers, questions, plan review, terminal launcher; 4 integration tests in real VS Code (CI under xvfb); VSIX attached to releases |
+| Desktop app, JetBrains | ⏳ | See PLAN.md |
 
 ## Real-LLM test log (2026-09-28)
 

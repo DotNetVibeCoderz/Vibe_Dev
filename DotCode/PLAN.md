@@ -14,7 +14,7 @@
 | **M3 — Protocol & SDK** | `dotcode serve` (stdio + WebSocket), OpenRPC schema, SDKs for .NET (in-proc + remote), TypeScript, Python, **Go**, **Java**; host tools, permission callbacks, conformance tests, docs | ✅ Done |
 | **M4 — Extensibility** | Skills, subagents, plugins + marketplaces, output styles, MCP HTTP + legacy SSE, WebFetch/WebSearch, auto mode | ✅ Done (incl. git worktrees, OS sandbox, LSP tool) |
 | **M5 — Automation & enterprise** | Managed settings, budgets, fallback chains, OpenTelemetry, audit log ✅ · agent view/daemon, `/loop`, `/schedule`, workflows, CI actions | 🟡 Partial |
-| **M6 — Desktop & IDE** | Avalonia desktop app (true font selection), VS Code extension, JetBrains plugin — all thin protocol clients | ⏳ Planned |
+| **M6 — Desktop & IDE** | VS Code extension ✅ · Avalonia desktop app (true font selection), JetBrains plugin — all thin protocol clients | 🟡 Partial |
 | **M7 — Optional** | Web/cloud runner, computer use, artifacts, voice, channels, agent teams | ⏳ Backlog |
 
 ## Next up (priority order)
@@ -28,7 +28,7 @@
 7. **TUI polish** — ✅ vim mode, Ctrl+R history search, transcript viewer (Ctrl+O), terminal bell/OSC notifications, bilingual UI strings (EN/ID) (v0.2) · ⏳ image paste, clickable file links.
 8. **Providers** — Bedrock/Vertex transports for Anthropic, Entra ID / ADC token providers, Gemini context caching, model capability auto-probing for compat servers, token counting via tokenizers.
 9. **SDKs** — ✅ Rust SDK on crates.io (v0.2) · ⏳ schema-driven code generation for all SDKs; WebSocket "connect" mode in TypeScript/Python/Go; in-process WASM/host bindings investigation.
-10. **Desktop & IDE** — Avalonia app sharing the event stream; VS Code extension (diff review, inline permissions).
+10. **Desktop & IDE** — ✅ VS Code extension (chat, diff review, inline permissions; v0.2) · ⏳ Marketplace/Open VSX publication, Avalonia app, JetBrains plugin.
 
 ## Principles (unchanged from the design)
 

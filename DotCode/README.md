@@ -110,6 +110,7 @@ Same API in [.NET](docs/en/sdk.md#net), [TypeScript](docs/en/sdk.md#typescript),
 | [Extensions: skills, commands, agents, hooks, plugins, MCP](docs/en/extensions.md) | [Ekstensi](docs/id/ekstensi.md) |
 | [Headless mode](docs/en/headless.md) | [Mode headless](docs/id/headless.md) |
 | [SDK & protocol](docs/en/sdk.md) | [SDK & protokol](docs/id/sdk.md) |
+| [VS Code extension](docs/en/vscode.md) | [Ekstensi VS Code](docs/id/vscode.md) |
 | [Git worktrees](docs/en/worktrees.md) | [Git worktree](docs/id/worktree.md) |
 | [Observability: audit log & OpenTelemetry](docs/en/observability.md) | [Observabilitas](docs/id/observabilitas.md) |
 | [Architecture](docs/en/architecture.md) | [Arsitektur](docs/id/arsitektur.md) |

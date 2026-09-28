@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<!-- Renders the real chat webview (../media) with VS Code Dark Modern colors and a scripted conversation, for screenshots:
+     msedge --headless --screenshot=vscode-chat.png --window-size=460,980 demo/index.html -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link href="../media/chat.css" rel="stylesheet">
+<style>
+  :root {
+    --vscode-font-family: "Segoe UI", system-ui, sans-serif; --vscode-font-size: 13px; --vscode-editor-font-family: "Cascadia Code", Consolas, monospace;
+    --vscode-foreground: #cccccc; --vscode-descriptionForeground: #9d9d9d; --vscode-sideBar-background: #181818; --vscode-editor-background: #1f1f1f;
+    --vscode-panel-border: #2b2b2b; --vscode-input-background: #313131; --vscode-input-foreground: #cccccc; --vscode-input-border: #3c3c3c;
+    --vscode-button-background: #0078d4; --vscode-button-foreground: #ffffff; --vscode-button-hoverBackground: #026ec1;
+    --vscode-button-secondaryBackground: #313131; --vscode-button-secondaryForeground: #cccccc; --vscode-textCodeBlock-background: #2b2b2b;
+    --vscode-textLink-foreground: #4daafc; --vscode-badge-background: #616161; --vscode-badge-foreground: #f8f8f8; --vscode-focusBorder: #0078d4;
+    --vscode-editorWidget-background: #202020;
+  }
+</style>
+</head>
+<body>
+<header id="header"><span id="model"></span><span id="mode"></span><span id="context"></span></header>
+<main id="messages"><section id="welcome"></section></main>
+<footer>
+  <div id="status"></div>
+  <div class="composer"><textarea id="prompt" rows="3" placeholder="Ask DotCode… (Enter to send)"></textarea>
+    <div class="buttons"><button id="send">Send</button><button id="stop" class="secondary" hidden>Stop</button></div></div>
+  <div class="links"><a href="#">model</a> · <a href="#">mode</a> · <a href="#">new session</a></div>
+</footer>
+<script src="../media/chat.js"></script>
+<script>
+  const post = (m) => window.dispatchEvent(new MessageEvent("message", { data: m }));
+  const ev = (event) => post({ type: "event", event });
+  post({ type: "state", busy: false, model: "anthropic:claude-sonnet-4-5", mode: "acceptEdits" });
+  post({ type: "user", text: "Add input validation to parseAmount in src/money.ts and cover it with a test" });
+  ev({ type: "assistant.text.delta", text: "I'll read the function first, then add validation and a test." });
+  ev({ type: "assistant.message", text: "I'll read the function first, then add **validation** and a test." });
+  ev({ type: "todo.updated", todos: [
+    { content: "Read parseAmount", status: "completed" },
+    { content: "Validate input in parseAmount", status: "completed" },
+    { content: "Add tests for invalid amounts", activeForm: "Adding tests for invalid amounts", status: "in_progress" } ] });
+  ev({ type: "tool.started", toolUseId: "t1", name: "Read", displayName: "Read(src/money.ts)" });
+  ev({ type: "tool.completed", toolUseId: "t1", name: "Read", isError: false, summary: "Read 24 lines", output: "..." });
+  ev({ type: "tool.started", toolUseId: "t2", name: "Edit", displayName: "Update(src/money.ts)" });
+  ev({ type: "tool.completed", toolUseId: "t2", name: "Edit", isError: false, summary: "Updated src/money.ts with 4 additions and 1 removal",
+       diff: "--- a/src/money.ts\n+++ b/src/money.ts\n@@ -3,5 +3,8 @@\n export function parseAmount(text: string): number {\n-  return Number(text);\n+  const value = Number(text.trim());\n+  if (!Number.isFinite(value) || value < 0)\n+    throw new RangeError(`Invalid amount: ${text}`);\n+  return Math.round(value * 100) / 100;\n }" });
+  post({ type: "permission", id: "p1", toolName: "Bash", displayName: "Bash(npm test -- money)", title: "Bash command", detail: "Run the money tests", canAlways: true, isEdit: false });
+  post({ type: "state", busy: true, model: "anthropic:claude-sonnet-4-5", mode: "acceptEdits" });
+  ev({ type: "usage.updated", contextTokens: 18400, contextWindow: 200000, sessionCostUsd: 0.0412 });
+</script>
+</body>
+</html>
