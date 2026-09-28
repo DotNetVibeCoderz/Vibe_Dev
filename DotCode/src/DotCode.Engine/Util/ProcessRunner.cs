@@ -96,7 +96,7 @@ public static class ProcessRunner
 
     /// <summary>Runs a process capturing combined stdout/stderr (in arrival order) with timeout and cancellation.</summary>
     public static async Task<ProcessResult> RunAsync(ProcessStartInfo psi, TimeSpan timeout, CancellationToken ct, string? stdin = null,
-        Action<string>? onLine = null, int maxOutputChars = 2_000_000)
+        Action<string>? onLine = null, int maxOutputChars = 2_000_000, Func<Process, IDisposable?>? onStarted = null)
     {
         psi.RedirectStandardOutput = true;
         psi.RedirectStandardError = true;
@@ -125,6 +125,8 @@ public static class ProcessRunner
 
         try { process.Start(); }
         catch (Exception ex) { return new ProcessResult(-1, $"Failed to start '{psi.FileName}': {ex.Message}", false, false); }
+        // Sandbox hook (Windows Job Object); disposed after the process tree is done, which kills leftovers.
+        using var attached = onStarted?.Invoke(process);
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
         try

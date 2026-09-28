@@ -77,7 +77,8 @@ Untuk migrasi, DotCode juga membaca `.claude/settings*.json` proyek dari Claude 
   "allowedProviders": ["ollama"],            // kebijakan: hanya provider ini yang boleh dipakai
   "webSearch": { "provider": "tavily", "apiKey": "${env:TAVILY_API_KEY}" },
   "audit": { "enabled": true, "path": "~/.dotcode/audit/audit.jsonl", "includePrompts": false },   // lihat observabilitas.md
-  "otel": { "enabled": true, "endpoint": "http://localhost:4318", "headers": {}, "serviceName": "dotcode" }
+  "otel": { "enabled": true, "endpoint": "http://localhost:4318", "headers": {}, "serviceName": "dotcode" },
+  "sandbox": { "enabled": true, "network": "allow", "allowWrite": [], "excludedCommands": ["docker"] }   // lihat izin.md
 }
 ```
 

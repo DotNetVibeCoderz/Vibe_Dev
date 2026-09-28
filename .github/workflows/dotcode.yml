@@ -49,8 +49,16 @@ jobs:
 
       - name: Build
         run: dotnet build DotCode.slnx -c Debug
+      - name: Install bubblewrap (runs the Linux sandbox test for real)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq bubblewrap
+          # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor; allow them on the CI runner.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --ro-bind / / --dev /dev --proc /proc --unshare-net --die-with-parent -- /bin/true && echo "bubblewrap OK"
       - name: .NET tests (provider contracts, engine, TUI, SDK conformance)
         run: dotnet test tests/DotCode.Tests --no-build -c Debug
+        env:
+          DOTCODE_REQUIRE_SANDBOX: "1"
       - name: TypeScript SDK
         working-directory: DotCode/sdk/typescript
         run: npm ci && npm run build && npm test
@@ -67,6 +75,19 @@ jobs:
           javac -d target/classes $(find src/main -name "*.java")
           javac -d target/test-classes -cp target/classes $(find src/test -name "*.java")
           java -cp target/classes:target/test-classes com.gravicode.dotcode.ConformanceTest
+
+  sandbox-macos:
+    # The shell sandbox uses sandbox-exec (Seatbelt) on macOS: run its tests for real on a macOS runner.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: DotCode/global.json
+      - name: Sandbox tests (Seatbelt)
+        run: dotnet test tests/DotCode.Tests -c Debug --filter "FullyQualifiedName~SandboxTests"
+        env:
+          DOTCODE_REQUIRE_SANDBOX: "1"
 
   binaries:
     needs: test

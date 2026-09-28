@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <RootNamespace>DotCode.Engine</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PackageId>DotCode.Engine</PackageId>
     <Description>DotCode Engine - part of DotCode, a .NET 10 multi-LLM coding agent and harness SDK by Gravicode Studios.</Description>
   </PropertyGroup>

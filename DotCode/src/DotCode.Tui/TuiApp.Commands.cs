@@ -42,6 +42,7 @@ internal sealed partial class App
         ("plugin", "Manage plugins: list | install <src> | remove <name> | marketplace add <src>", false),
         ("resume", "Resume a conversation", false),
         ("review", "Review the current code changes", false),
+        ("sandbox", "Show the shell sandbox status; /sandbox on | off to toggle it for this project", false),
         ("rewind", "Restore the code and/or conversation to a previous point", false),
         ("security-review", "Complete a security review of the pending changes", false),
         ("skills", "List available skills", false),
@@ -432,6 +433,35 @@ internal sealed partial class App
                 Echo();
                 ShowTodos();
                 return true;
+
+            case "sandbox":
+            {
+                Echo();
+                var arg = args.Trim().ToLowerInvariant();
+                if (arg is "on" or "off")
+                {
+                    SettingsLoader.SetValue(DotCodePaths.ProjectLocalSettings(_runtime.ProjectRoot), "sandbox.enabled", JsonValue.Create(arg == "on"));
+                    _runtime.Reload();
+                }
+                var sb = _runtime.Settings.Sandbox;
+                var kind = Engine.Sandbox.ShellSandbox.Available;
+                var enabled = sb?.Enabled == true;
+                var lines = new List<string>
+                {
+                    $"Sandbox: {(enabled ? t.C("enabled", t.Success) : t.Dim("disabled"))} · mechanism: {t.B(kind.ToString())}"
+                    + (Engine.Sandbox.ShellSandbox.IsolatesFileSystem(kind) ? "" : kind == Engine.Sandbox.SandboxKind.JobObject ? t.Dim(" (process containment only, no file-system isolation)") : t.Dim(" (Linux: install bubblewrap; macOS: sandbox-exec)")),
+                };
+                if (enabled)
+                {
+                    var policy = Engine.Sandbox.ShellSandbox.BuildPolicy(_session, sb!);
+                    lines.Add($"Auto-allow sandboxed commands: {(sb!.AutoAllowBashIfSandboxed != false && Engine.Sandbox.ShellSandbox.IsolatesFileSystem(kind) ? "yes" : "no")} · network: {(policy.DenyNetwork ? "blocked" : "allowed")} · escape hatch: {(sb.AllowUnsandboxedCommands != false ? "asks" : "disabled")}");
+                    lines.Add(t.Dim("Writable: " + string.Join(", ", policy.Writable.Take(6).Select(p => DotCodePaths.Display(p, _runtime.Cwd))) + (policy.Writable.Count > 6 ? $" +{policy.Writable.Count - 6} caches" : "")));
+                    lines.Add(t.Dim("Hidden: " + string.Join(", ", policy.Hidden.Select(p => DotCodePaths.Display(p, _runtime.Cwd)))));
+                }
+                lines.Add(t.Dim($"/sandbox {(enabled ? "off" : "on")} to toggle (saved to .dotcode/settings.local.json)"));
+                Out(lines);
+                return true;
+            }
 
             case "vim":
             {

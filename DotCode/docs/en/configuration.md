@@ -77,7 +77,8 @@ For migration, DotCode also reads Claude Code's project `.claude/settings*.json`
   "allowedProviders": ["ollama"],            // organization policy: only these providers
   "webSearch": { "provider": "tavily", "apiKey": "${env:TAVILY_API_KEY}" },
   "audit": { "enabled": true, "path": "~/.dotcode/audit/audit.jsonl", "includePrompts": false },   // see observability.md
-  "otel": { "enabled": true, "endpoint": "http://localhost:4318", "headers": {}, "serviceName": "dotcode" }
+  "otel": { "enabled": true, "endpoint": "http://localhost:4318", "headers": {}, "serviceName": "dotcode" },
+  "sandbox": { "enabled": true, "network": "allow", "allowWrite": [], "excludedCommands": ["docker"] }   // see permissions.md
 }
 ```
 

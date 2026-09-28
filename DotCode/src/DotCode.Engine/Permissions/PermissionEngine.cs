@@ -102,6 +102,8 @@ public sealed class PermissionEngine
             if (!WorkingDirectories.Any(d => DotCodePaths.IsUnder(full, d))) WorkingDirectories.Add(full);
     }
 
+    public const string SandboxedReason = "sandboxed";
+
     private static readonly string[] SecretPatterns = [".env", ".env.*", "*.pem", "*.key", "id_rsa", "id_ed25519", "*.pfx", "credentials.json", "secrets.json"];
 
     public static bool LooksSecret(string path)
@@ -137,6 +139,11 @@ public sealed class PermissionEngine
         foreach (var rule in allow)
             if (Matches(rule, tool, target, session, forDeny: false))
                 return new PermissionCheck(PermissionBehavior.Allow, MatchedRule: rule);
+
+        // Commands confined by an OS sandbox (writes limited to the working dirs) need no prompt; deny and ask rules
+        // above still apply, and dangerously_disable_sandbox falls through to the normal defaults.
+        if (target.Kind == PermissionKind.Shell && Sandbox.ShellSandbox.AutoAllows(session, input))
+            return new PermissionCheck(PermissionBehavior.Allow, SandboxedReason);
 
         return Defaults(tool, input, target, mode);
     }

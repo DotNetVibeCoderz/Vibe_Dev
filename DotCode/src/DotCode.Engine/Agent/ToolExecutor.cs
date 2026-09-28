@@ -171,7 +171,7 @@ public static class ToolExecutor
         // Permissions
         var check = forced == "allow" ? PermissionCheck.Allowed : session.Permissions.Evaluate(tool, input, session.Mode, session);
         if (forced == "ask" && check.Behavior == PermissionBehavior.Allow) check = check with { Behavior = PermissionBehavior.Ask };
-        trace.Decision = forced == "allow" ? "hook" : check.MatchedRule is { } matched ? $"rule:{matched}" : "mode";
+        trace.Decision = forced == "allow" ? "hook" : check.MatchedRule is { } matched ? $"rule:{matched}" : check.Reason == PermissionEngine.SandboxedReason ? "sandbox" : "mode";
         if (check.Behavior == PermissionBehavior.Deny)
         {
             (trace.Decision, trace.Reason) = ("denied", check.MatchedRule?.ToString() ?? check.Reason);

@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using DotCode.Abstractions;
 using DotCode.Engine.Agent;
+using DotCode.Engine.Sandbox;
 using DotCode.Engine.Util;
 
 namespace DotCode.Engine.Tools.Builtin;
@@ -28,9 +29,17 @@ public abstract class ShellToolBase : Tool
           "command":{"type":"string","description":"The command to execute"},
           "description":{"type":"string","description":"Clear, concise description of what this command does in 5-10 words"},
           "timeout":{"type":"number","description":"Optional timeout in milliseconds (max 600000)"},
-          "run_in_background":{"type":"boolean","description":"Run in the background; read output later with BashOutput"}},
+          "run_in_background":{"type":"boolean","description":"Run in the background; read output later with BashOutput"},
+          "dangerously_disable_sandbox":{"type":"boolean","description":"Only when the sandbox is enabled and a command failed because of it: run this command outside the sandbox (the user is asked to approve)"}},
          "required":["command"]}
         """);
+
+    public override string? Validate(JsonElement input, AgentSession s)
+    {
+        if (input.GetBool("dangerously_disable_sandbox") == true && s.Runtime.Settings.Sandbox is { Enabled: true, AllowUnsandboxedCommands: false })
+            return "Running commands outside the sandbox is disabled by policy (sandbox.allowUnsandboxedCommands = false). Adjust the command to work inside the sandbox, or ask the user to change sandbox.allowWrite / sandbox.network.";
+        return null;
+    }
 
     public override bool IsReadOnly(JsonElement input) => Permissions.ShellCommand.IsReadOnly(Str(input, "command"));
     public override string DisplayName(JsonElement input, AgentSession s) => $"{Name}({TextUtil.FirstLine(Str(input, "command"), 120)})";
@@ -55,9 +64,18 @@ public abstract class ShellToolBase : Tool
         psi.Environment["PAGER"] = "cat";
         psi.Environment["GIT_EDITOR"] = "true";
 
+        var sandbox = ShellSandbox.Plan(session, command, input.GetBool("dangerously_disable_sandbox") == true);
+        if (!sandbox.Active && sandbox.UnsandboxedReason == "no sandbox available on this system" && session.Runtime.Settings.Sandbox?.FailIfUnavailable == true)
+        {
+            try { File.Delete(script); } catch (IOException) { }
+            return ToolResult.Error("The sandbox is enabled with failIfUnavailable, but no sandbox is available on this system (Linux needs bubblewrap with unprivileged user namespaces, macOS needs sandbox-exec). The command was not run.");
+        }
+        sandbox.Apply(psi);
+        if (sandbox.Active) psi.Environment["DOTCODE_SANDBOX"] = sandbox.Kind.ToString().ToLowerInvariant();
+
         if (input.GetBool("run_in_background") == true)
         {
-            var id = session.Runtime.BackgroundShells.Start(psi, command, script);
+            var id = session.Runtime.BackgroundShells.Start(psi, command, script, sandbox);
             return ToolResult.Ok($"Command running in background with ID: {id}. Use BashOutput with bash_id=\"{id}\" to read its output, and KillShell to stop it.", $"Running in background ({id})");
         }
 
@@ -75,14 +93,18 @@ public abstract class ShellToolBase : Tool
                     lastProgress.Restart();
                     ctx.Progress(string.Join('\n', tail));
                 }
-            }).ConfigureAwait(false);
+            }, onStarted: sandbox.OnStarted).ConfigureAwait(false);
             if (result.Cancelled) ct.ThrowIfCancellationRequested();
 
             var output = ExtractCwd(result.Output, session);
             output = output.TrimEnd('\n', '\r');
             var sb = new StringBuilder(output);
             if (result.TimedOut) sb.Append($"\n\nCommand timed out after {timeout / 1000.0:0.#}s");
-            else if (result.ExitCode != 0) sb.Append(sb.Length > 0 ? "\n" : "").Append($"Exit code {result.ExitCode}");
+            else if (result.ExitCode != 0)
+            {
+                sb.Append(sb.Length > 0 ? "\n" : "").Append($"Exit code {result.ExitCode}");
+                sb.Append(ShellSandbox.FailureHint(sandbox, output, session.Runtime.Settings.Sandbox?.AllowUnsandboxedCommands != false));
+            }
             var text = sb.Length == 0 ? "(no output)" : sb.ToString();
             var lines = output.Length == 0 ? 0 : output.Split('\n').Length;
             return new ToolResult
@@ -238,7 +260,7 @@ public sealed class BackgroundShellManager
 
     public IReadOnlyCollection<Shell> Shells => [.. _shells.Values.OrderBy(s => s.Started)];
 
-    public string Start(ProcessStartInfo psi, string command, string? scriptPath)
+    public string Start(ProcessStartInfo psi, string command, string? scriptPath, SandboxPlan? sandbox = null)
     {
         psi.RedirectStandardOutput = true;
         psi.RedirectStandardError = true;
@@ -262,6 +284,8 @@ public sealed class BackgroundShellManager
         process.OutputDataReceived += (_, e) => OnData(e.Data);
         process.ErrorDataReceived += (_, e) => OnData(e.Data);
         process.Start();
+        // The job (Windows sandbox) lives until the shell exits; closing it kills anything left in the tree.
+        if (sandbox?.OnStarted(process) is { } job) process.Exited += (_, _) => job.Dispose();
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
         process.StandardInput.Close();

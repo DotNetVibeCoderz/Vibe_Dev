@@ -131,6 +131,15 @@ public static class PromptBuilder
             env.Append($"\nYou are working in an isolated git worktree ({wt.Path}, branch {wt.Branch}) created from {wt.BaseCommit[..Math.Min(12, wt.BaseCommit.Length)]}. Changes here do not touch the main checkout. Keep all work inside this directory and commit it to {wt.Branch} before you finish; mention the branch in your final report.\n");
         else if (runtime.Options.Worktree is { } sessionWt)
             env.Append($"\nThis session runs in a git worktree of {sessionWt.RepoRoot} (branch {sessionWt.Branch}), isolated from the main checkout. Work only inside the working directory.\n");
+        if (runtime.Settings.Sandbox?.Enabled == true && (toolNames.Contains("Bash") || toolNames.Contains("PowerShell")))
+        {
+            var kind = Sandbox.ShellSandbox.Available;
+            env.Append(Sandbox.ShellSandbox.IsolatesFileSystem(kind)
+                ? $"\nShell commands run in an OS sandbox ({kind}): they can write only inside the working directories, temp and package caches; credential folders are hidden; network is {(string.Equals(runtime.Settings.Sandbox.Network, "deny", StringComparison.OrdinalIgnoreCase) ? "blocked" : "allowed")}. If a command fails because of the sandbox, retry it with dangerously_disable_sandbox: true (the user must approve).\n"
+                : kind == Sandbox.SandboxKind.JobObject
+                    ? "\nShell commands run inside a Windows Job Object: every process they start is terminated when the command finishes, so start long-running servers with run_in_background.\n"
+                    : "");
+        }
         if (OperatingSystem.IsWindows() && toolNames.Contains("Bash"))
             env.Append("Note: the Bash tool runs Git Bash on Windows (POSIX syntax, paths like /c/Users/...). Use the PowerShell tool for Windows-specific tasks.\n");
 

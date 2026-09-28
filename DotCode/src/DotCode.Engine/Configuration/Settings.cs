@@ -45,6 +45,30 @@ public sealed class Settings
     public OtelSettings? Otel { get; set; }
     /// <summary>Hash-chained audit log of tool actions (opt-in, usually set in managed settings).</summary>
     public AuditSettings? Audit { get; set; }
+    /// <summary>OS-level sandbox for Bash/PowerShell commands (opt-in).</summary>
+    public SandboxSettings? Sandbox { get; set; }
+}
+
+public sealed class SandboxSettings
+{
+    public bool? Enabled { get; set; }
+    /// <summary>Run sandboxed shell commands without asking (only where the sandbox isolates the file system). Default true.</summary>
+    public bool? AutoAllowBashIfSandboxed { get; set; }
+    /// <summary>Allow the dangerously_disable_sandbox escape hatch (always asks). Default true.</summary>
+    public bool? AllowUnsandboxedCommands { get; set; }
+    /// <summary>Refuse to run shell commands when no sandbox is available on this machine. Default false (warn).</summary>
+    public bool? FailIfUnavailable { get; set; }
+    /// <summary>Extra writable paths (the working directories, temp and package caches are always writable).</summary>
+    public List<string>? AllowWrite { get; set; }
+    /// <summary>Extra paths hidden from sandboxed commands (credentials folders are hidden by default).</summary>
+    public List<string>? DenyRead { get; set; }
+    /// <summary>allow (default) | deny — outbound network from sandboxed commands.</summary>
+    public string? Network { get; set; }
+    /// <summary>Command prefixes that always run outside the sandbox (and therefore follow normal permission rules).</summary>
+    public List<string>? ExcludedCommands { get; set; }
+    /// <summary>Windows Job Object limits.</summary>
+    public int? MemoryLimitMb { get; set; }
+    public int? MaxProcesses { get; set; }
 }
 
 public sealed class OtelSettings

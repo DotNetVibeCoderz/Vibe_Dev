@@ -64,6 +64,35 @@ Perintah shell majemuk dipecah pada `&&`, `||`, `;`, `|`, dan baris baru: aturan
 
 Hook `PreToolUse` dapat mengembalikan `{"hookSpecificOutput":{"permissionDecision":"allow|deny|ask"}}` atau keluar dengan kode 2 untuk memblokir. Lihat [Ekstensi → Hooks](ekstensi.md#hooks).
 
+## Sandbox untuk perintah shell
+
+Dialog izin menentukan *apakah* sebuah perintah boleh berjalan. Sandbox membatasi *apa yang bisa dilakukannya* setelah berjalan. Aktifkan per proyek dengan `/sandbox on`, atau lewat pengaturan:
+
+```jsonc
+"sandbox": {
+  "enabled": true,
+  "autoAllowBashIfSandboxed": true,     // perintah dalam sandbox tidak perlu izin (hanya Linux/macOS)
+  "allowUnsandboxedCommands": true,     // izinkan jalan keluar dangerously_disable_sandbox (selalu bertanya)
+  "network": "allow",                   // allow | deny jaringan keluar
+  "allowWrite": ["../shared-cache"],    // path tambahan yang boleh ditulis
+  "denyRead": ["~/.config/private"],    // path tambahan yang disembunyikan
+  "excludedCommands": ["docker", "git push"],  // selalu di luar sandbox (aturan izin normal)
+  "failIfUnavailable": false,           // true = tolak menjalankan shell bila sandbox tidak tersedia
+  "memoryLimitMb": 4096, "maxProcesses": 64    // batas Job Object di Windows
+}
+```
+
+| Platform | Mekanisme | Yang ditegakkan |
+|---|---|---|
+| Linux | [bubblewrap](https://github.com/containers/bubblewrap) (`bwrap`) | File system root hanya-baca. Yang boleh ditulis: direktori kerja (termasuk `/add-dir` dan `.git` milik worktree), temp, serta cache paket (`~/.npm`, `~/.cache`, `~/.nuget`, `~/.cargo`, `~/go`, `~/.m2`, `~/.gradle`…). Folder kredensial (`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.azure`, `~/.kube`, `~/.config/gcloud`, `~/.docker`, `~/.config/gh`, `~/.netrc`, `~/.git-credentials`, `~/.npmrc`, `~/.pypirc`, `~/.dotcode`) disembunyikan. `network: deny` memberi perintah network namespace sendiri. |
+| macOS | `sandbox-exec` (profil Seatbelt) | Kebijakan tulis, sembunyi, dan jaringan yang sama (`deny` tetap mengizinkan localhost). |
+| Windows | Job Object | Seluruh pohon proses tertahan di dalam job: apa pun yang ditinggalkan perintah dimatikan saat perintah selesai, proses anak tidak bisa melepaskan diri, serta ada batas memori / jumlah proses opsional dan pembatasan clipboard, desktop, dan pengaturan sistem. **Tanpa isolasi file system**: Windows tidak punya padanan tanpa hak istimewa. |
+
+- **Dialog izin.** Bila file system terisolasi (Linux, macOS), perintah Bash/PowerShell dalam sandbox berjalan tanpa dialog: aturan deny dan ask tetap berlaku, dan audit log mencatat `decision: "sandbox"`. Di Windows, atau bila sandbox tidak tersedia, aturan izin normal yang berlaku.
+- **Kegagalan.** Bila perintah dalam sandbox gagal dengan galat khas sandbox ("Read-only file system", "Operation not permitted", gagal DNS…), model diberi tahu. Model boleh mencoba lagi dengan `dangerously_disable_sandbox: true`. Perintah itu lalu berjalan di luar sandbox melalui alur izin normal, jadi akan bertanya kecuali ada aturan allow yang cocok. Set `allowUnsandboxedCommands: false` untuk menghapus jalan keluar ini sepenuhnya.
+- **Ketersediaan.** `dotcode doctor` dan `/sandbox` menampilkan mekanisme yang tersedia. Di Linux, pasang `bubblewrap`. Sebagian lingkungan container dan kernel yang diperketat melarang user namespace tanpa hak istimewa yang dibutuhkannya; DotCode memeriksanya sekali dan melaporkan "not available". Perintah lalu berjalan tanpa sandbox (dan tidak diizinkan otomatis), atau ditolak bila `failIfUnavailable` aktif.
+- **Cakupan.** Sandbox berlaku untuk tool Bash dan PowerShell, termasuk shell latar belakang. Tool file milik DotCode sendiri (Read/Edit/Write) diatur oleh aturan izin dan direktori kerja.
+
 ## Checkpoint
 
 Sebelum perubahan pertama pada sebuah file di setiap turn, DotCode menyimpan snapshot-nya. `Esc Esc` atau `/rewind` memulihkan kode dan/atau percakapan ke prompt sebelumnya.

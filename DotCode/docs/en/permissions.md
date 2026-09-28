@@ -65,6 +65,35 @@ Compound shell commands are split on `&&`, `||`, `;`, `|` and newlines: an allow
 
 A `PreToolUse` hook can return `{"hookSpecificOutput":{"permissionDecision":"allow|deny|ask"}}` or exit with code 2 to block. See [Extensions → Hooks](extensions.md#hooks).
 
+## Sandbox for shell commands
+
+Permission prompts decide *whether* a command runs. The sandbox limits *what it can do* once it runs. Turn it on per project with `/sandbox on`, or in settings:
+
+```jsonc
+"sandbox": {
+  "enabled": true,
+  "autoAllowBashIfSandboxed": true,     // sandboxed commands need no prompt (Linux/macOS only)
+  "allowUnsandboxedCommands": true,     // allow the dangerously_disable_sandbox escape hatch (it always asks)
+  "network": "allow",                   // allow | deny outbound network
+  "allowWrite": ["../shared-cache"],    // extra writable paths
+  "denyRead": ["~/.config/private"],    // extra hidden paths
+  "excludedCommands": ["docker", "git push"],  // always run outside the sandbox (normal permission rules)
+  "failIfUnavailable": false,           // true = refuse to run shell commands when no sandbox is available
+  "memoryLimitMb": 4096, "maxProcesses": 64    // Windows Job Object limits
+}
+```
+
+| Platform | Mechanism | What it enforces |
+|---|---|---|
+| Linux | [bubblewrap](https://github.com/containers/bubblewrap) (`bwrap`) | Read-only root file system. Writable: the working directories (including `/add-dir` and the git worktree's `.git`), temp and package caches (`~/.npm`, `~/.cache`, `~/.nuget`, `~/.cargo`, `~/go`, `~/.m2`, `~/.gradle`…). Credential folders (`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.azure`, `~/.kube`, `~/.config/gcloud`, `~/.docker`, `~/.config/gh`, `~/.netrc`, `~/.git-credentials`, `~/.npmrc`, `~/.pypirc`, `~/.dotcode`) are hidden. `network: deny` gives the command its own network namespace. |
+| macOS | `sandbox-exec` (Seatbelt profile) | The same write, hide and network policy (`deny` still allows localhost). |
+| Windows | Job Object | The whole process tree stays contained: anything the command leaves running is killed when it finishes, children cannot break away, and optional memory / process-count limits and clipboard, desktop and system-settings restrictions apply. **No file-system isolation**: Windows has no unprivileged equivalent. |
+
+- **Prompts.** Where the file system is isolated (Linux, macOS), sandboxed Bash/PowerShell commands run without a prompt: deny and ask rules still apply, and the audit log records `decision: "sandbox"`. On Windows, or when no sandbox is available, the normal permission rules apply.
+- **Failures.** When a sandboxed command fails with a sandbox-looking error ("Read-only file system", "Operation not permitted", DNS failures…), the model is told so. It may retry with `dangerously_disable_sandbox: true`. That runs the command outside the sandbox under the normal permission flow, so it asks unless an allow rule matches. Set `allowUnsandboxedCommands: false` to remove this escape hatch entirely.
+- **Availability.** `dotcode doctor` and `/sandbox` show which mechanism is available. On Linux, install `bubblewrap`. Some container environments and hardened kernels forbid the unprivileged user namespaces it needs; DotCode probes once and reports "not available". Commands then run unsandboxed (and are not auto-allowed), or are refused with `failIfUnavailable`.
+- **Scope.** The sandbox applies to the Bash and PowerShell tools, including background shells. DotCode's own file tools (Read/Edit/Write) are governed by the permission rules and working directories.
+
 ## Checkpoints
 
 Before the first change to a file in each turn, DotCode snapshots it. `Esc Esc` or `/rewind` restores code and/or conversation to any earlier prompt.

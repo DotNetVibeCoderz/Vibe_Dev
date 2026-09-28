@@ -351,6 +351,7 @@ public static class Commands
         Console.WriteLine($"  Bash:           {ProcessRunner.BashPath ?? "not found (Bash tool disabled)"}");
         Console.WriteLine($"  PowerShell:     {ProcessRunner.PowerShellPath}");
         Console.WriteLine($"  ripgrep:        {ProcessRunner.FindOnPath("rg") ?? "not found (managed search fallback)"}");
+        Console.WriteLine($"  Sandbox:        {DotCode.Engine.Sandbox.ShellSandbox.Available switch { DotCode.Engine.Sandbox.SandboxKind.Bubblewrap => "bubblewrap (file-system isolation)", DotCode.Engine.Sandbox.SandboxKind.Seatbelt => "sandbox-exec (file-system isolation)", DotCode.Engine.Sandbox.SandboxKind.JobObject => "Windows Job Object (process containment only)", _ => "not available (Linux: install bubblewrap)" }}");
         Console.WriteLine($"  git:            {ProcessRunner.FindOnPath("git") ?? "not found"}");
         await using var runtime = AgentRuntime.Create(options.Runtime, connectMcp: false);
         Console.WriteLine($"  Project root:   {runtime.ProjectRoot}");
