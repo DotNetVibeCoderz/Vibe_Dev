@@ -8,7 +8,8 @@ Embed the [DotCode](https://github.com/DotNetVibeCoderz/Vibe_Dev) coding agent i
 
 ```toml
 [dependencies]
-dotcode-sdk = { git = "https://github.com/DotNetVibeCoderz/Vibe_Dev", branch = "main" }
+dotcode-sdk = "0.1"
+serde_json = "1"   # for tool schemas and event payloads
 ```
 
 The SDK needs the `dotcode` CLI: put it on `PATH` or set `DOTCODE_CLI_PATH` (a path to `dotcode.dll` is started with `dotnet`). Configure providers with environment variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, …), `~/.dotcode/settings.json`, or per session with the `settings` option.
