@@ -21,6 +21,7 @@
 | `--dangerously-skip-permissions` | ✅ | Plus `--allow-dangerously-skip-permissions`, managed `disableBypassPermissionsMode` |
 | Go SDK (added request) | ✅ | `sdk/go` + conformance tests + `samples/sdk/go` |
 | Java SDK (added request) | ✅ | `sdk/java` (zero-dependency, JDK 17+) + conformance tests + `samples/sdk/java` |
+| Go & Java package publishing | ✅ / 🟡 | Go: tag `DotCode/sdk/go/v0.1.0` on proxy.golang.org · Java: JitPack `com.github.DotNetVibeCoderz:Vibe_Dev:dotcode-java-v0.1.2`; Maven Central (`com.gravicode:dotcode-sdk`) ready (signed bundle validated, CI job + secrets) but waiting for namespace verification in the Central Portal |
 | Cool NuGet icon (added request) | ✅ | `assets/icon.svg` / `icon.png`, packed into every NuGet package |
 | Rotating spinner verb, elapsed time, live tokens (added request) | ✅ | Verb changes every ~15 s and per model call; `(16m 50s · ↓ 66.4k tokens · esc to interrupt)`; `docs/images/spinner.png` |
 
