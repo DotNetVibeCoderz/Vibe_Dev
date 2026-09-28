@@ -6,7 +6,24 @@ Embed the DotCode coding agent in JVM applications and drive it with **any LLM**
 
 ## Install
 
-Maven coordinates `com.gravicode:dotcode-sdk:0.1.0` (or build locally: `mvn install` in this folder). The `dotcode` CLI must be on `PATH` or set `DOTCODE_CLI_PATH`.
+Published on **JitPack** (built from this repository's tags):
+
+```xml
+<repositories>
+  <repository><id>jitpack.io</id><url>https://jitpack.io</url></repository>
+</repositories>
+<dependency>
+  <groupId>com.github.DotNetVibeCoderz</groupId>
+  <artifactId>Vibe_Dev</artifactId>
+  <version>dotcode-java-v0.1.1</version>
+</dependency>
+```
+
+Gradle: `repositories { maven { url "https://jitpack.io" } }` and `implementation "com.github.DotNetVibeCoderz:Vibe_Dev:dotcode-java-v0.1.1"`.
+
+Maven Central (`com.gravicode:dotcode-sdk`) is prepared (`publish-central.sh` + the `maven` workflow job) and goes live once the namespace is verified in the Sonatype Central Portal. Or build locally with `mvn install`.
+
+The `dotcode` CLI must be on `PATH` or set `DOTCODE_CLI_PATH`.
 
 ## Usage
 

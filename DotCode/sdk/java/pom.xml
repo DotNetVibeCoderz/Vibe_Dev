@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.gravicode</groupId>
   <artifactId>dotcode-sdk</artifactId>
-  <version>0.1.0</version>
+  <version>0.1.1</version>
   <packaging>jar</packaging>
   <name>DotCode SDK for Java</name>
   <description>Embed the DotCode multi-LLM coding agent (Anthropic, OpenAI, Azure, Gemini, DeepSeek, Ollama) in JVM apps. Built by Gravicode Studios, led by Kang Fadhil.</description>
@@ -35,6 +35,15 @@
   <!-- No runtime dependencies: JSON and JSON-RPC are implemented with the JDK only. -->
   <build>
     <plugins>
+      <!-- Pinned explicitly: older default compiler plugins (e.g. on JitPack) ignore maven.compiler.release. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+        <configuration>
+          <release>17</release>
+        </configuration>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-source-plugin</artifactId>
