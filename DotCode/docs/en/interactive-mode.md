@@ -16,7 +16,7 @@
 | `⎿  summary` | Tool result summary; edits show a colored diff with line numbers |
 | `☐ / ◼ / ☒` | Todo list items (pending / in progress / done) |
 | `✻ Verb… (12s · ↓ 1.2k tokens · esc to interrupt)` | Working indicator with a shimmering verb |
-| Footer | Mode indicator (`⏵⏵ accept edits on`, `⏸ plan mode on`, `⏵⏵ bypass permissions on`), model, context warnings |
+| Footer | Mode indicator (`⏵⏵ accept edits on`, `⏵⏵ auto mode on`, `⏸ plan mode on`, `⏵⏵ bypass permissions on`), model, context warnings |
 
 The working indicator cycles its glyph (`·✢✳✶✻✽`), sweeps a shimmer across a whimsical verb that changes as the turn progresses (Pondering → Mulling → Whirring…), and shows elapsed time (`16m 50s`), live output tokens (`↓ 66.4k tokens`) and whether the model is thinking:
 
@@ -28,7 +28,7 @@ The working indicator cycles its glyph (`·✢✳✶✻✽`), sweeps a shimmer a
 |---|---|
 | `Enter` | Send (while busy: queue the message) |
 | `Shift+Enter`, `Alt+Enter`, `Ctrl+J`, `\` + `Enter` | New line |
-| `Shift+Tab` | Cycle permission mode: default → accept edits → plan (→ bypass if enabled) |
+| `Shift+Tab` | Cycle permission mode: default → accept edits → (auto) → plan (→ bypass if enabled) |
 | `Esc` | Interrupt the running turn · close menus · twice: clear input |
 | `Esc Esc` (empty input) | Rewind to an earlier message (conversation and/or code) |
 | `Ctrl+C` | Clear input · interrupt · press twice to exit |

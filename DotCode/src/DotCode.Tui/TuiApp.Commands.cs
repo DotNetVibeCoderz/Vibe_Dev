@@ -679,7 +679,7 @@ internal sealed partial class App
                 case "autoCompact": Save("autoCompact", _runtime.Settings.AutoCompact == false); break;
                 case "verbose": _verbose = !_verbose; break;
                 case "outputStyle": TryBuiltinCommand("output-style", "", "/output-style"); return false;
-                case "defaultMode": Save("permissions.defaultMode", Cycle(_runtime.Settings.Permissions?.DefaultMode, ["default", "acceptEdits", "plan"])); break;
+                case "defaultMode": Save("permissions.defaultMode", Cycle(_runtime.Settings.Permissions?.DefaultMode, ["default", "acceptEdits", "auto", "plan"])); break;
             }
             ApplyTheme(_theme.Name);
             OpenConfig();

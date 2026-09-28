@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace DotCode.Engine.Permissions;
 
-public enum PermissionMode { Default, AcceptEdits, Plan, BypassPermissions }
+public enum PermissionMode { Default, AcceptEdits, Plan, BypassPermissions, Auto }
 
 public static class PermissionModes
 {
@@ -11,6 +11,7 @@ public static class PermissionModes
     {
         "acceptedits" or "accept-edits" or "accept_edits" => PermissionMode.AcceptEdits,
         "plan" => PermissionMode.Plan,
+        "auto" or "automode" or "auto-mode" => PermissionMode.Auto,
         "bypasspermissions" or "bypass" or "bypass-permissions" or "yolo" => PermissionMode.BypassPermissions,
         _ => PermissionMode.Default,
     };
@@ -20,14 +21,17 @@ public static class PermissionModes
         PermissionMode.AcceptEdits => "acceptEdits",
         PermissionMode.Plan => "plan",
         PermissionMode.BypassPermissions => "bypassPermissions",
+        PermissionMode.Auto => "auto",
         _ => "default",
     };
 
-    /// <summary>Shift+Tab cycle order (bypass only included when enabled at startup).</summary>
-    public static PermissionMode Next(this PermissionMode mode, bool includeBypass) => mode switch
+    /// <summary>Shift+Tab cycle order: default → accept edits → (auto) → plan → (bypass). Auto and bypass are only
+    /// part of the cycle when enabled.</summary>
+    public static PermissionMode Next(this PermissionMode mode, bool includeBypass, bool includeAuto = false) => mode switch
     {
         PermissionMode.Default => PermissionMode.AcceptEdits,
-        PermissionMode.AcceptEdits => PermissionMode.Plan,
+        PermissionMode.AcceptEdits => includeAuto ? PermissionMode.Auto : PermissionMode.Plan,
+        PermissionMode.Auto => PermissionMode.Plan,
         PermissionMode.Plan => includeBypass ? PermissionMode.BypassPermissions : PermissionMode.Default,
         _ => PermissionMode.Default,
     };

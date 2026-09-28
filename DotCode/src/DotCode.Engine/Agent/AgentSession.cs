@@ -59,6 +59,10 @@ public sealed partial class AgentSession : IAsyncDisposable
     public List<TodoItem> Todos { get; private set; } = [];
     public PermissionMode Mode { get; private set; }
     public bool BypassAvailable { get; }
+    /// <summary>Auto mode is part of the Shift+Tab cycle (enabled in settings or started in auto mode).</summary>
+    public bool AutoModeAvailable { get; }
+    /// <summary>Set when web/MCP content was read during the current turn (auto mode treats later actions with suspicion).</summary>
+    public bool UntrustedContentThisTurn { get; internal set; }
     public ResolvedModel Model { get; private set; }
     public ReasoningEffort Effort { get; set; }
     public PermissionEngine Permissions { get; }
@@ -101,6 +105,7 @@ public sealed partial class AgentSession : IAsyncDisposable
             runtime.Options.AllowedTools, runtime.Options.DisallowedTools, runtime.Options.AddDirs);
         Mode = parent?.Mode ?? runtime.InitialMode();
         BypassAvailable = parent?.BypassAvailable ?? (Mode == PermissionMode.BypassPermissions || runtime.Options.AllowDangerouslySkipPermissions) && !Permissions.BypassDisabled;
+        AutoModeAvailable = parent?.AutoModeAvailable ?? (Mode == PermissionMode.Auto || runtime.Settings.Permissions?.AutoMode?.Enabled == true);
         Effort = parent?.Effort ?? runtime.InitialEffort();
         Checkpoints = parent?.Checkpoints ?? new CheckpointManager(Path.Combine(DotCodePaths.ProjectDataDir(runtime.Cwd), "checkpoints", id));
         OutputStyle = runtime.Options.OutputStyle ?? runtime.Settings.OutputStyle;
@@ -206,6 +211,7 @@ public sealed partial class AgentSession : IAsyncDisposable
         var stop = StopReason.EndTurn;
         IsBusy = true;
         RejectedThisTurn = false;
+        if (!IsSubagent) UntrustedContentThisTurn = false;
         _stopHookRetries = 0;
         var turnId = Guid.NewGuid().ToString("n");
         if (!IsSubagent) Checkpoints.CurrentTurnId = turnId;
@@ -338,6 +344,15 @@ public sealed partial class AgentSession : IAsyncDisposable
         if (usage.ContextTokens > 0) LastContextTokens = usage.ContextTokens;
         Parent?.RecordChildUsage(usage, cost, key);
         Emit(new UsageUpdatedEvent(usage, TotalUsage, TotalCostUsd, LastContextTokens, Model.Capabilities.ContextWindow));
+    }
+
+    /// <summary>Usage of helper model calls (auto-mode classifier, titles) counted toward session cost.</summary>
+    internal void RecordAuxiliaryUsage(Usage usage, ResolvedModel model)
+    {
+        var cost = model.Capabilities.EstimateCost(usage);
+        var root = this;
+        while (root.Parent is not null) root = root.Parent;
+        root.RecordChildUsage(usage, cost, model.Qualified);
     }
 
     private void RecordChildUsage(Usage usage, decimal cost, string key)

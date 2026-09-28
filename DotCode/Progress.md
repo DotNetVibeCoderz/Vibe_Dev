@@ -41,6 +41,7 @@
 | Agent loop, parallel tools, interrupts | ✅ | |
 | Built-in tools (17) | ✅ | Read, Write, Edit, NotebookEdit, Glob, Grep, Bash, PowerShell, BashOutput, KillShell, WebFetch, WebSearch, TodoWrite, Agent, Skill, AskUserQuestion, ExitPlanMode (+ MCP resource tools) |
 | Permission engine & modes | ✅ | Claude Code rule syntax, compound command analysis |
+| Auto mode (classifier) | ✅ | `--permission-mode auto`, fail-safe (unclear → ask), prompt-injection hint, cached verdicts, cost tracked; verified live: curl\|bash → deny, force push → ask, python one-liner → allow |
 | Settings hierarchy (user/project/local/CLI/managed) | ✅ | `.claude/` compat |
 | Memory files & `@` imports | ✅ | |
 | Sessions, resume, fork, export | ✅ | |
@@ -55,9 +56,9 @@
 | JSON-RPC server (stdio, Content-Length, WebSocket + token) | ✅ | |
 | SDKs: .NET, TypeScript, Python, Go, Java | ✅ | Rust ⏳ |
 | OpenRPC schema | ✅ | Code generation from schema ⏳ |
-| Tests | ✅ | 57 xUnit + 2 TS + 2 Python + 2 Go + 2 Java conformance, all passing |
+| Tests | ✅ | 61 xUnit + 2 TS + 2 Python + 2 Go + 2 Java conformance, all passing |
 | NativeAOT binaries | ✅ | win-x64, linux-x64, osx-arm64 built and smoke-tested in CI |
-| Sandboxing, auto mode, worktrees, LSP tool, OpenTelemetry, Desktop, IDE | ⏳ | See PLAN.md |
+| Sandboxing, worktrees, LSP tool, OpenTelemetry, Desktop, IDE | ⏳ | See PLAN.md |
 
 ## Real-LLM test log (2026-09-28)
 

@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-DotCode: a clean-room .NET 10 / C# 14 re-implementation of the Claude Code experience (terminal agent) that works with any LLM, plus a harness SDK (.NET, TypeScript, Python, Go) over JSON-RPC. Built by Gravicode Studios (led by Kang Fadhil) — keep that credit in UI/docs. Never copy Claude Code source; behavior is derived from public docs. `solution-design.md` (Indonesian) is the design; `PLAN.md`/`Progress.md` track roadmap/status (update Progress.md when finishing features). Docs are bilingual: every page in `docs/en/` has a counterpart in `docs/id/` — keep them in sync.
+DotCode: a clean-room .NET 10 / C# 14 re-implementation of the Claude Code experience (terminal agent) that works with any LLM, plus a harness SDK (.NET, TypeScript, Python, Go, Java) over JSON-RPC. Built by Gravicode Studios (led by Kang Fadhil) — keep that credit in UI/docs. Never copy Claude Code source; behavior is derived from public docs. `solution-design.md` (Indonesian) is the design; `PLAN.md`/`Progress.md` track roadmap/status (update Progress.md when finishing features). Docs are bilingual: every page in `docs/en/` has a counterpart in `docs/id/` — keep them in sync.
 
 ## Commands
 
 ```bash
 dotnet build DotCode.slnx
-dotnet test tests/DotCode.Tests                                            # xUnit (57 tests)
+dotnet test tests/DotCode.Tests                                            # xUnit (61 tests)
 dotnet test tests/DotCode.Tests --filter "FullyQualifiedName~AgentLoopTests.Runs_tools_until_the_model_stops"
 dotnet run --project src/DotCode.Cli -- --model mock:echo                  # offline, no keys
 dotnet src/DotCode.Cli/bin/Debug/net10.0/dotcode.dll -p "hi" --model mock:echo
@@ -19,7 +19,10 @@ PATH="$PATH:/c/Program Files (x86)/Microsoft Visual Studio/Installer" dotnet pub
 cd sdk/typescript && npm run build && npm test     # SDK tests spawn src/DotCode.Cli/bin/Debug/net10.0/dotcode.dll
 cd sdk/python/tests && PYTHONPATH=../src python -m unittest -v
 cd sdk/go && go test ./...
+# Java (JDK 17+, no deps): javac -d target/classes $(find src/main -name "*.java") … then run com.gravicode.dotcode.ConformanceTest (see .github/workflows/dotcode.yml)
 ```
+
+Release: tag `dotcode-v*` → CI builds AOT binaries + pushes NuGet; `DotCode/sdk/go/v*` tags publish the Go module; `dotcode-java-v*` tags are built by JitPack (`../jitpack.yml`); Maven Central via `sdk/java/publish-central.sh` once the namespace is verified. npm/PyPI are published manually (`npm publish`, `twine upload`).
 
 Use `DOTCODE_CONFIG_DIR=<tmp>` when running the CLI in tests/demos so `~/.dotcode` (the user's real config) isn't touched. In this Bash environment `dotcode -p` should get `< /dev/null`.
 

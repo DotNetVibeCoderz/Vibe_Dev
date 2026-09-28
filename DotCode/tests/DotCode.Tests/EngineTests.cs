@@ -338,6 +338,75 @@ public sealed class AgentLoopTests : IDisposable
     }
 
     [Fact]
+    public async Task Auto_mode_runs_actions_the_classifier_allows()
+    {
+        // Script order: main call (tool) -> classifier verdict -> main call (final answer).
+        await using var runtime = Runtime("""
+            {"responses":[
+              {"toolCalls":[{"name":"Bash","input":{"command":"printf auto-ok"}}]},
+              {"text":"{\"decision\":\"allow\",\"reason\":\"harmless print requested by the user\"}"},
+              {"text":"printed"}
+            ]}
+            """, mode: "auto");
+        var session = runtime.CreateSession(persist: false);
+        var result = await session.RunTurnAsync("print something");
+        var toolResult = session.Messages.SelectMany(m => m.ToolResults).Single();
+        Assert.False(toolResult.IsError, toolResult.TextContent);
+        Assert.Contains("auto-ok", toolResult.TextContent);
+        Assert.Equal("printed", result.Text);
+    }
+
+    [Fact]
+    public async Task Auto_mode_blocks_actions_the_classifier_denies()
+    {
+        var target = Path.Combine(_dir, "denied.txt").Replace("\\", "/");
+        await using var runtime = Runtime($$$"""
+            {"responses":[
+              {"toolCalls":[{"name":"Bash","input":{"command":"printf x > {{{target}}}"}}]},
+              {"text":"{\"decision\":\"deny\",\"reason\":\"not requested\"}"},
+              {"text":"ok, I won't"}
+            ]}
+            """, mode: "auto");
+        var session = runtime.CreateSession(persist: false);
+        var result = await session.RunTurnAsync("hello");
+        var toolResult = session.Messages.SelectMany(m => m.ToolResults).Single();
+        Assert.True(toolResult.IsError);
+        Assert.Contains("Auto mode blocked this action: not requested", toolResult.TextContent);
+        Assert.False(File.Exists(Path.Combine(_dir, "denied.txt")));
+        Assert.Equal("ok, I won't", result.Text);
+    }
+
+    [Fact]
+    public async Task Auto_mode_falls_back_to_asking_when_the_classifier_is_unclear()
+    {
+        await using var runtime = Runtime("""
+            {"responses":[
+              {"toolCalls":[{"name":"Bash","input":{"command":"printf maybe"}}]},
+              {"text":"I am not sure"},
+              {"text":"done"}
+            ]}
+            """, mode: "auto");
+        var session = runtime.CreateSession(persist: false);
+        await session.RunTurnAsync("do it");
+        // Headless session: "ask" becomes a non-interactive denial with guidance.
+        var toolResult = session.Messages.SelectMany(m => m.ToolResults).Single();
+        Assert.True(toolResult.IsError);
+        Assert.Contains("not granted", toolResult.TextContent);
+    }
+
+    [Fact]
+    public void Auto_mode_verdict_parsing_is_fail_safe()
+    {
+        Assert.Equal(AutoDecision.Allow, AutoModeClassifier.Parse("```json\n{\"decision\": \"allow\", \"reason\": \"ok\"}\n```").Decision);
+        Assert.Equal(AutoDecision.Deny, AutoModeClassifier.Parse("{\"decision\":\"DENY\",\"reason\":\"x\"}").Decision);
+        Assert.Equal(AutoDecision.Ask, AutoModeClassifier.Parse("allow").Decision);
+        Assert.Equal(AutoDecision.Ask, AutoModeClassifier.Parse("{\"decision\":\"maybe\"}").Decision);
+        Assert.Equal(PermissionMode.Auto, PermissionModes.Parse("auto"));
+        Assert.Equal(PermissionMode.Auto, PermissionMode.AcceptEdits.Next(includeBypass: false, includeAuto: true));
+        Assert.Equal(PermissionMode.Plan, PermissionMode.AcceptEdits.Next(includeBypass: false));
+    }
+
+    [Fact]
     public async Task Rewind_restores_files_and_conversation()
     {
         var target = Path.Combine(_dir, "r.txt");

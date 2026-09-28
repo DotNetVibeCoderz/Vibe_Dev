@@ -133,7 +133,7 @@ public sealed class CliOptions
           --fork-session                           When resuming, create a new session id
           -m, --model <model>                      Model for the session: provider:model, alias (sonnet, gpt…) or role
           --fallback-model <model>                 Model to fall back to when the main model is overloaded
-          --permission-mode <mode>                 default | acceptEdits | plan | bypassPermissions
+          --permission-mode <mode>                 default | acceptEdits | auto | plan | bypassPermissions
           --dangerously-skip-permissions           Bypass all permission checks (sandboxes/CI only!)
           --allow-dangerously-skip-permissions     Make bypass mode available in the Shift+Tab cycle
           --allowedTools <rules...>                Allow rules, e.g. "Bash(git *)" Edit

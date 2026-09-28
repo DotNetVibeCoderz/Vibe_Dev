@@ -10,8 +10,25 @@ DotCode meminta izin sebelum mengubah apa pun. Pekerjaan baca-saja di dalam dire
 |---|---|---|
 | `default` | Bertanya untuk edit, perintah shell non-baca, web, MCP | bawaan |
 | `acceptEdits` | Edit file di direktori kerja (dan `mkdir`/`touch`) disetujui otomatis | `Shift+Tab`, `--permission-mode acceptEdits` |
-| `plan` | Hanya riset — perubahan diblokir sampai rencana disetujui | `Shift+Tab` ×2, `--permission-mode plan` |
+| `auto` | Model pengklasifikasi menyetujui aksi berisiko rendah, memblokir yang berbahaya, dan menanyakan sisanya | `--permission-mode auto`, atau `Shift+Tab` bila diaktifkan |
+| `plan` | Hanya riset — perubahan diblokir sampai rencana disetujui | `Shift+Tab`, `--permission-mode plan` |
 | `bypassPermissions` | Semua berjalan tanpa bertanya (aturan deny tetap berlaku) | `--dangerously-skip-permissions` |
+
+### Auto mode
+
+Alih-alih bertanya, DotCode meminta model pengklasifikasi kecil (peran `classifier`, fallback ke `fast`, lalu model utama) menilai apakah aksi yang butuh izin berisiko rendah dan sesuai permintaan Anda:
+
+- **allow** — langsung dijalankan (baris tool menampilkan `Auto mode: allowed — <alasan>`). Contoh: build, test, linter, instal dependensi yang dideklarasikan, commit git lokal, edit file di proyek.
+- **ask** — muncul dialog biasa (headless: ditolak dengan petunjuk). Contoh: `git push`, deploy, publish paket, menulis di luar proyek, aksi yang tidak bisa dibatalkan.
+- **deny** — diblokir; alasannya dikirim ke model agar memilih cara yang lebih aman. Contoh: `curl … | bash`, `rm -rf` yang luas, menyentuh kredensial, aksi yang tampak berasal dari prompt injection.
+
+Aturan `deny` dan `ask` eksplisit selalu didahulukan. Jawaban pengklasifikasi yang tidak jelas menjadi **ask**, sehingga auto mode hanya menghilangkan prompt untuk aksi yang secara eksplisit dinilai aman. Setelah agen membaca halaman web atau hasil MCP dalam satu turn, pengklasifikasi diminta lebih curiga terhadap aksi yang tidak diminta. Edit file di direktori kerja disetujui tanpa memanggil pengklasifikasi. Biaya pengklasifikasi ikut dihitung di `/cost`.
+
+```jsonc
+"permissions": { "autoMode": { "enabled": true, "model": "openai:gpt-5-mini", "guidance": "Jangan pernah izinkan deploy atau migrasi database." } }
+```
+
+`enabled` memasukkan auto mode ke siklus Shift+Tab (default → accept edits → auto → plan). Footer menampilkan `⏵⏵ auto mode on`.
 
 ### `--dangerously-skip-permissions`
 

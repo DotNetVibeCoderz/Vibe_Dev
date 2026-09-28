@@ -39,7 +39,8 @@ Untuk migrasi, DotCode juga membaca `.claude/settings*.json` proyek dari Claude 
     "allow": ["Bash(npm run test:*)", "Read(~/catatan/**)", "WebFetch(domain:learn.microsoft.com)"],
     "ask":   ["Bash(git push:*)"],
     "deny":  ["Read(./.env)", "Bash(rm -rf *)"],
-    "defaultMode": "default",               // default | acceptEdits | plan | bypassPermissions
+    "defaultMode": "default",               // default | acceptEdits | auto | plan | bypassPermissions
+    "autoMode": { "enabled": true, "model": "openai:gpt-5-mini", "guidance": "..." },
     "additionalDirectories": ["../shared-lib"],
     "disableBypassPermissionsMode": false   // true di managed settings untuk melarang bypass
   },

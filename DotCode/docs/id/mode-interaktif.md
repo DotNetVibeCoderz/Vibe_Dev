@@ -16,7 +16,7 @@
 | `⎿  ringkasan` | Ringkasan hasil tool; edit menampilkan diff berwarna dengan nomor baris |
 | `☐ / ◼ / ☒` | Daftar tugas (belum / sedang / selesai) |
 | `✻ Kata… (12s · ↓ 1.2k tokens · esc to interrupt)` | Indikator kerja dengan animasi kilau |
-| Footer | Mode (`⏵⏵ accept edits on`, `⏸ plan mode on`, `⏵⏵ bypass permissions on`), model, peringatan konteks |
+| Footer | Mode (`⏵⏵ accept edits on`, `⏵⏵ auto mode on`, `⏸ plan mode on`, `⏵⏵ bypass permissions on`), model, peringatan konteks |
 
 Indikator kerja memutar glyph (`·✢✳✶✻✽`), menampilkan kilau pada kata kerja yang berganti-ganti selama turn berjalan (Pondering → Mulling → Whirring…), serta lama waktu (`16m 50s`), token output secara langsung (`↓ 66.4k tokens`), dan status thinking:
 
@@ -28,7 +28,7 @@ Indikator kerja memutar glyph (`·✢✳✶✻✽`), menampilkan kilau pada kata
 |---|---|
 | `Enter` | Kirim (saat sibuk: masuk antrean) |
 | `Shift+Enter`, `Alt+Enter`, `Ctrl+J`, `\` + `Enter` | Baris baru |
-| `Shift+Tab` | Ganti mode izin: default → accept edits → plan (→ bypass bila diaktifkan) |
+| `Shift+Tab` | Ganti mode izin: default → accept edits → (auto) → plan (→ bypass bila diaktifkan) |
 | `Esc` | Hentikan turn · tutup menu · dua kali: kosongkan input |
 | `Esc Esc` (input kosong) | Rewind ke pesan sebelumnya (percakapan dan/atau kode) |
 | `Ctrl+C` | Kosongkan input · hentikan · dua kali untuk keluar |

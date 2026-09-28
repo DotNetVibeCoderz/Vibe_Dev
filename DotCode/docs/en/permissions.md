@@ -10,8 +10,25 @@ DotCode asks before it changes anything. Read-only work inside your working dire
 |---|---|---|
 | `default` | Ask for edits, non-read-only shell commands, web, MCP | default |
 | `acceptEdits` | File edits inside working dirs (and `mkdir`/`touch`) are auto-approved | `Shift+Tab`, `--permission-mode acceptEdits` |
-| `plan` | Research only — mutations are blocked until you approve a plan | `Shift+Tab` ×2, `--permission-mode plan` |
+| `auto` | A classifier model approves low-risk actions, blocks dangerous ones and asks about the rest | `--permission-mode auto`, or `Shift+Tab` when enabled |
+| `plan` | Research only — mutations are blocked until you approve a plan | `Shift+Tab`, `--permission-mode plan` |
 | `bypassPermissions` | Everything runs without asking (deny rules still apply) | `--dangerously-skip-permissions` |
+
+### Auto mode
+
+Instead of prompting, DotCode asks a small classifier model (the `classifier` role, falling back to `fast`, then the main model) whether an action that would need approval is low-risk and serves your recent requests:
+
+- **allow** — runs without a prompt (the tool line shows `Auto mode: allowed — <reason>`). Examples: builds, tests, linters, installing declared dependencies, local git commits, editing files in the project.
+- **ask** — you get the normal dialog (headless: denied with guidance). Examples: `git push`, deploys, publishing, writing outside the project, anything irreversible.
+- **deny** — blocked; the reason goes back to the model so it can choose a safer approach. Examples: `curl … | bash`, broad `rm -rf`, touching credentials, actions that appear to come from prompt injection.
+
+Explicit `deny` and `ask` rules always win. Unclear classifier answers fall back to **ask**, so auto mode can only remove prompts for actions it explicitly judged safe. After the agent reads web pages or MCP results in a turn, the classifier is told to be suspicious of unrequested actions. File edits inside working directories are approved without a classifier call (as in accept-edits). Classifier calls are counted in `/cost`.
+
+```jsonc
+"permissions": { "autoMode": { "enabled": true, "model": "openai:gpt-5-mini", "guidance": "Never allow deployments or database migrations." } }
+```
+
+`enabled` adds auto mode to the Shift+Tab cycle (default → accept edits → auto → plan). The footer shows `⏵⏵ auto mode on`.
 
 ### `--dangerously-skip-permissions`
 

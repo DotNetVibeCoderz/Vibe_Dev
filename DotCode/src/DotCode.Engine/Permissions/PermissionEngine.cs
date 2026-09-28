@@ -144,7 +144,7 @@ public sealed class PermissionEngine
                 if (IsInWorkingDirs(target.Value) && !LooksSecret(target.Value)) return PermissionCheck.Allowed;
                 return new PermissionCheck(PermissionBehavior.Ask, LooksSecret(target.Value) ? "File may contain secrets" : "Path is outside the working directories", suggestion);
             case PermissionKind.EditFile:
-                if (mode == PermissionMode.AcceptEdits && target.Value is not null && IsInWorkingDirs(target.Value)) return PermissionCheck.Allowed;
+                if (mode is PermissionMode.AcceptEdits or PermissionMode.Auto && target.Value is not null && IsInWorkingDirs(target.Value)) return PermissionCheck.Allowed;
                 return new PermissionCheck(PermissionBehavior.Ask, null, suggestion);
             case PermissionKind.Shell:
                 if (target.Value is not null && ShellCommand.IsReadOnly(target.Value)) return PermissionCheck.Allowed;

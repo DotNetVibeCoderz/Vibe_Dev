@@ -35,7 +35,7 @@ internal sealed partial class App
         // Shift+Tab: cycle permission modes
         if (key.Key == ConsoleKey.Tab && shift)
         {
-            _session.SetMode(_session.Mode.Next(_session.BypassAvailable));
+            _session.SetMode(_session.Mode.Next(_session.BypassAvailable, _session.AutoModeAvailable));
             return;
         }
 

@@ -203,6 +203,7 @@ internal sealed partial class App
             PermissionMode.AcceptEdits => t.C($"{t.Glyphs.AcceptEdits} accept edits on", t.AutoAccept) + t.Dim(" (shift+tab to cycle)"),
             PermissionMode.Plan => t.C($"{t.Glyphs.PlanMode} plan mode on", t.PlanMode) + t.Dim(" (shift+tab to cycle)"),
             PermissionMode.BypassPermissions => t.C($"{t.Glyphs.Bypass} bypass permissions on", t.Error) + t.Dim(" (shift+tab to cycle)"),
+            PermissionMode.Auto => t.C($"{t.Glyphs.AcceptEdits} auto mode on", t.Warning) + t.Dim(" (shift+tab to cycle)"),
             _ => _input.IsEmpty ? t.Dim("? for shortcuts") : "",
         };
         var window = _session.Model.Capabilities.ContextWindow;

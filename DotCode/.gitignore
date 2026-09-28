@@ -16,3 +16,4 @@ TestResults/
 target/
 *.exe
 sdk/python/build/
+.claude/

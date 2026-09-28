@@ -103,6 +103,22 @@ public static class ToolExecutor
         if (check.Behavior == PermissionBehavior.Deny)
             return Complete(session, call, tool.Name, ToolResult.Error(check.Reason ?? $"Permission to use {tool.Name} was denied."), sw);
 
+        // Auto mode: a classifier replaces the prompt for actions it judges low-risk (explicit "ask" rules still ask).
+        if (check.Behavior == PermissionBehavior.Ask && session.Mode == PermissionMode.Auto && check.MatchedRule is null && forced != "ask")
+        {
+            var verdict = await AutoModeClassifier.ClassifyAsync(session, tool, input, displayName, ct).ConfigureAwait(false);
+            switch (verdict.Decision)
+            {
+                case AutoDecision.Allow:
+                    check = PermissionCheck.Allowed;
+                    session.Emit(new ToolProgressEvent(call.Id, $"Auto mode: allowed — {verdict.Reason}"));
+                    break;
+                case AutoDecision.Deny:
+                    return Complete(session, call, tool.Name, ToolResult.Error(
+                        $"Auto mode blocked this action: {verdict.Reason}\nChoose a safer approach that stays within the user's request, or ask the user to approve it explicitly."), sw);
+            }
+        }
+
         if (check.Behavior == PermissionBehavior.Ask)
         {
             var (title, detail, diff) = SafeDescribe(tool, input, session);
@@ -132,6 +148,14 @@ public static class ToolExecutor
         catch (Exception ex)
         {
             result = ToolResult.Error($"Error: {ex.Message}");
+        }
+
+        if (tool.Name is "WebFetch" or "WebSearch" || tool.Name.StartsWith("mcp__", StringComparison.Ordinal))
+        {
+            var root = session;
+            while (root.Parent is not null) root = root.Parent;
+            root.UntrustedContentThisTurn = true;
+            session.UntrustedContentThisTurn = true;
         }
 
         // PostToolUse hooks

@@ -58,6 +58,18 @@ public sealed class PermissionSettings
     public string? DefaultMode { get; set; }
     public List<string>? AdditionalDirectories { get; set; }
     public bool? DisableBypassPermissionsMode { get; set; }
+    /// <summary>Auto mode: a classifier model approves low-risk actions instead of prompting.</summary>
+    public AutoModeSettings? AutoMode { get; set; }
+}
+
+public sealed class AutoModeSettings
+{
+    /// <summary>Include auto mode in the Shift+Tab cycle.</summary>
+    public bool? Enabled { get; set; }
+    /// <summary>Classifier model (defaults to models.classifier, then models.fast, then the main model).</summary>
+    public string? Model { get; set; }
+    /// <summary>Extra organization guidance appended to the classifier prompt (e.g. "never allow deploys").</summary>
+    public string? Guidance { get; set; }
 }
 
 public sealed class HookMatcher
