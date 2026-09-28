@@ -27,7 +27,7 @@
 6. ~~**Observability**~~ ✅ done (v0.2) — OpenTelemetry OTLP/HTTP traces + metrics (opt-in), hash-chained audit log with `dotcode audit verify`.
 7. **TUI polish** — ✅ vim mode, Ctrl+R history search, transcript viewer (Ctrl+O), terminal bell/OSC notifications, bilingual UI strings (EN/ID) (v0.2) · ⏳ image paste, clickable file links.
 8. **Providers** — Bedrock/Vertex transports for Anthropic, Entra ID / ADC token providers, Gemini context caching, model capability auto-probing for compat servers, token counting via tokenizers.
-9. **SDKs** — ✅ Rust SDK (v0.2) · ⏳ crates.io publication, schema-driven code generation for all SDKs; WebSocket "connect" mode in TypeScript/Python/Go; in-process WASM/host bindings investigation.
+9. **SDKs** — ✅ Rust SDK on crates.io (v0.2) · ⏳ schema-driven code generation for all SDKs; WebSocket "connect" mode in TypeScript/Python/Go; in-process WASM/host bindings investigation.
 10. **Desktop & IDE** — Avalonia app sharing the event stream; VS Code extension (diff review, inline permissions).
 
 ## Principles (unchanged from the design)

@@ -56,7 +56,7 @@
 | TUI | ✅ | Vim mode (`/vim`), Ctrl+R history search, Ctrl+O transcript viewer with search, bell/OSC 9/OSC 777 notifications, EN/ID UI strings (`tui.language`); image paste ⏳ |
 | Headless (text/json/stream-json, stream-json input) | ✅ | |
 | JSON-RPC server (stdio, Content-Length, WebSocket + token) | ✅ | |
-| SDKs: .NET, TypeScript, Python, Go, Java, Rust | ✅ | Rust: sync/thread-based, serde_json only, conformance tests + sample verified with Azure gpt-5-mini and DeepSeek; crates.io publish pending a token |
+| SDKs: .NET, TypeScript, Python, Go, Java, Rust | ✅ | Rust: sync/thread-based, serde_json only, conformance tests + sample verified with Azure gpt-5-mini and DeepSeek; published to crates.io as `dotcode-sdk` 0.1.0 |
 | OpenRPC schema | ✅ | Code generation from schema ⏳ |
 | Tests | ✅ | 81 xUnit + 2 TS + 2 Python + 2 Go + 2 Java + 2 Rust conformance, all passing |
 | NativeAOT binaries | ✅ | win-x64, linux-x64, osx-arm64 built and smoke-tested in CI |

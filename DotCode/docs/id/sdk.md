@@ -18,7 +18,7 @@ dotcode serve ─► Engine ─► provider LLM apa pun
 | Python | `dotcode-sdk` (PyPI) | [`sdk/python`](../../sdk/python) |
 | Go | `github.com/DotNetVibeCoderz/Vibe_Dev/DotCode/sdk/go` | [`sdk/go`](../../sdk/go) |
 | Java (17+) | `com.github.DotNetVibeCoderz:Vibe_Dev:dotcode-java-v0.1.2` (JitPack) | [`sdk/java`](../../sdk/java) |
-| Rust | `dotcode-sdk` (dependensi git: `{ git = "https://github.com/DotNetVibeCoderz/Vibe_Dev", branch = "main" }`) | [`sdk/rust`](../../sdk/rust) |
+| Rust | [`dotcode-sdk`](https://crates.io/crates/dotcode-sdk) (crates.io) | [`sdk/rust`](../../sdk/rust) |
 
 Konsep yang sama di semua SDK: **Client → Session → send / stream**, **tool kustom** yang diimplementasikan aplikasi Anda, **handler izin** (tanpa handler, sesi menolak secara default), handler pertanyaan dan review rencana, server MCP, serta konfigurasi provider per sesi (BYOK). Keenamnya lulus skenario konformansi yang sama.
 

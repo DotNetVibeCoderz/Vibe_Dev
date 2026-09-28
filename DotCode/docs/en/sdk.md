@@ -18,7 +18,7 @@ dotcode serve ─► Engine ─► any LLM provider
 | Python | `dotcode-sdk` (PyPI) | [`sdk/python`](../../sdk/python) |
 | Go | `github.com/DotNetVibeCoderz/Vibe_Dev/DotCode/sdk/go` | [`sdk/go`](../../sdk/go) |
 | Java (17+) | `com.github.DotNetVibeCoderz:Vibe_Dev:dotcode-java-v0.1.2` (JitPack) | [`sdk/java`](../../sdk/java) |
-| Rust | `dotcode-sdk` (git dependency: `{ git = "https://github.com/DotNetVibeCoderz/Vibe_Dev", branch = "main" }`) | [`sdk/rust`](../../sdk/rust) |
+| Rust | [`dotcode-sdk`](https://crates.io/crates/dotcode-sdk) (crates.io) | [`sdk/rust`](../../sdk/rust) |
 
 All SDKs share the same concepts: **Client → Session → send / stream**, **custom tools** implemented by your app, a **permission handler** (sessions are deny-by-default without one), question and plan-review handlers, MCP servers, and per-session provider configuration (BYOK). They pass the same conformance scenarios (`tests/…SdkConformanceTests`, `sdk/*/test*`).
 
