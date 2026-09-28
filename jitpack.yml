@@ -1,0 +1,6 @@
+# JitPack builds the DotCode Java SDK (DotCode/sdk/java) from any tag or commit of this repository.
+# Usage: repository https://jitpack.io, dependency com.github.DotNetVibeCoderz:Vibe_Dev:<tag>
+jdk:
+  - openjdk17
+install:
+  - cd DotCode/sdk/java && mvn -B -DskipTests install

@@ -8,9 +8,26 @@
   <packaging>jar</packaging>
   <name>DotCode SDK for Java</name>
   <description>Embed the DotCode multi-LLM coding agent (Anthropic, OpenAI, Azure, Gemini, DeepSeek, Ollama) in JVM apps. Built by Gravicode Studios, led by Kang Fadhil.</description>
-  <url>https://github.com/DotNetVibeCoderz/Vibe_Dev</url>
-  <licenses><license><name>MIT</name></license></licenses>
-  <developers><developer><name>Kang Fadhil</name><organization>Gravicode Studios</organization></developer></developers>
+  <url>https://github.com/DotNetVibeCoderz/Vibe_Dev/tree/main/DotCode</url>
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <name>Kang Fadhil</name>
+      <email>gravicode.research@gmail.com</email>
+      <organization>Gravicode Studios</organization>
+    </developer>
+  </developers>
+  <scm>
+    <connection>scm:git:https://github.com/DotNetVibeCoderz/Vibe_Dev.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/DotNetVibeCoderz/Vibe_Dev.git</developerConnection>
+    <url>https://github.com/DotNetVibeCoderz/Vibe_Dev</url>
+  </scm>
   <properties>
     <maven.compiler.release>17</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -19,21 +36,57 @@
   <build>
     <plugins>
       <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>exec-maven-plugin</artifactId>
-        <version>3.5.0</version>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <version>3.3.1</version>
         <executions>
           <execution>
-            <id>conformance</id>
-            <phase>integration-test</phase>
-            <goals><goal>java</goal></goals>
-            <configuration>
-              <mainClass>com.gravicode.dotcode.ConformanceTest</mainClass>
-              <classpathScope>test</classpathScope>
-            </configuration>
+            <id>attach-sources</id>
+            <goals><goal>jar-no-fork</goal></goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <version>3.11.2</version>
+        <configuration>
+          <doclint>none</doclint>
+          <quiet>true</quiet>
+        </configuration>
+        <executions>
+          <execution>
+            <id>attach-javadocs</id>
+            <goals><goal>jar</goal></goals>
           </execution>
         </executions>
       </plugin>
     </plugins>
   </build>
+  <profiles>
+    <!-- mvn verify -Pconformance : runs the SDK conformance scenarios against a built dotcode CLI -->
+    <profile>
+      <id>conformance</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>3.5.0</version>
+            <executions>
+              <execution>
+                <id>conformance</id>
+                <phase>integration-test</phase>
+                <goals><goal>java</goal></goals>
+                <configuration>
+                  <mainClass>com.gravicode.dotcode.ConformanceTest</mainClass>
+                  <classpathScope>test</classpathScope>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>
