@@ -1,0 +1,27 @@
+{
+  "cols": 110,
+  "rows": 38,
+  "title": "DotCode — transcript viewer, history search and vim mode (offline scripted model)",
+  "cwd": "${env:TUI_DEMO}/proj",
+  "outDir": "../../../docs/images",
+  "command": "${env:DOTCODE_EXE}",
+  "env": { "DOTCODE_CONFIG_DIR": "${env:TUI_DEMO}/cfg" },
+  "steps": [
+    { "waitFor": "for shortcuts", "timeout": 30000 },
+    { "type": "list the source files" }, { "key": "enter" },
+    { "waitGone": "esc to interrupt", "timeout": 30000 }, { "waitIdle": 800 },
+    { "type": "summarize the readme" }, { "key": "enter" },
+    { "waitGone": "esc to interrupt", "timeout": 30000 }, { "waitIdle": 800 },
+    { "key": "ctrl+o" }, { "waitIdle": 600 }, { "key": "g" }, { "waitIdle": 600 },
+    { "snapshot": "transcript-viewer" },
+    { "key": "esc" }, { "waitIdle": 400 },
+    { "key": "ctrl+r" }, { "type": "source" }, { "waitIdle": 600 },
+    { "snapshot": "history-search" },
+    { "key": "esc" }, { "waitIdle": 300 },
+    { "type": "/vim" }, { "key": "esc" }, { "key": "enter" }, { "waitIdle": 600 },
+    { "type": "explain the greeter class" }, { "key": "esc" }, { "type": "bcw" }, { "waitIdle": 300 },
+    { "type": "Greeter type" }, { "key": "esc" }, { "type": "0" }, { "waitIdle": 600 },
+    { "snapshot": "vim-mode" },
+    { "type": "/vim" }, { "key": "esc" }, { "key": "enter" }, { "waitIdle": 400 }
+  ]
+}

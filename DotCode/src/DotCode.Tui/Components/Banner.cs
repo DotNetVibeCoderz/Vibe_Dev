@@ -34,33 +34,34 @@ public static class Banner
         var cwd = DotCodePaths.IsUnder(runtime.Cwd, DotCodePaths.Home) ? "~" + Path.DirectorySeparatorChar + Path.GetRelativePath(DotCodePaths.Home, runtime.Cwd) : runtime.Cwd;
         var name = Environment.UserName;
 
+        var ui = Input.UiText.Current;
         var tips = new List<string>
         {
-            t.C("Tips for getting started", t.Brand),
+            t.C(ui.TipsTitle, t.Brand),
             runtime.Memory.Any(m => m.Scope is Engine.Context.MemoryScope.Project)
-                ? $"Run {t.B("/help")} to see commands and shortcuts"
-                : $"Run {t.B("/init")} to create a DOTCODE.md file with instructions",
-            $"Use {t.B("/model")} to switch between any configured LLM",
-            $"{t.B("shift+tab")} cycles permission modes · {t.B("/theme")} restyles",
+                ? string.Format(ui.TipHelp, t.B("/help"))
+                : string.Format(ui.TipInit, t.B("/init")),
+            string.Format(ui.TipModel, t.B("/model")),
+            string.Format(ui.TipModes, t.B("shift+tab"), t.B("/theme")),
         };
         var recent = SessionStore.List(runtime.Cwd, 3);
-        var activity = new List<string> { t.C("Recent activity", t.Brand) };
-        if (recent.Count == 0) activity.Add(t.Dim("No recent activity"));
+        var activity = new List<string> { t.C(ui.RecentActivity, t.Brand) };
+        if (recent.Count == 0) activity.Add(t.Dim(ui.NoRecentActivity));
         foreach (var r in recent)
             activity.Add(t.Dim(Ago(r.Modified)) + " " + TextWidth.Truncate(r.Title ?? r.FirstPrompt.Replace('\n', ' '), 38));
-        activity.Add(t.Dim("/resume for more"));
+        activity.Add(t.Dim(ui.ResumeForMore));
 
         var left = new List<string>
         {
             "",
-            t.B($"Welcome back {name}!"),
+            t.B(string.Format(ui.WelcomeBack, name)),
             "",
         };
         left.AddRange(Mascot(t));
         left.Add("");
         left.Add(t.Dim(model));
         left.Add(t.Dim(TruncateStart(cwd, width >= 80 ? Math.Min(44, (width - 2) / 2) - 2 : width - 6)));
-        left.Add(t.Faint(AppInfo.Credit));
+        left.Add(t.Faint(ui.Code == "id" ? AppInfo.CreditId : AppInfo.Credit));
 
         var lines = new List<string>();
         var b = t.Border;
@@ -151,29 +152,13 @@ public static class SpinnerLine
         }
         var stats = new List<string> { Util(elapsed) };
         if (tokens > 0) stats.Add($"{(receiving ? t.Glyphs.Down : t.Glyphs.Up)} {Engine.Util.TextUtil.FormatTokens(tokens)} tokens");
-        if (thinking) stats.Add("thinking");
+        if (thinking) stats.Add(Input.UiText.Current.Thinking);
         if (detail is not null) stats.Add(detail);
-        stats.Add(t.B("esc") + t.Dim(" to interrupt"));
+        stats.Add(t.B("esc") + t.Dim(Input.UiText.Current.EscToInterrupt));
         var line = t.C(glyph, t.Brand) + " " + shimmer + " " + t.Dim("(" + string.Join(t.Dim(" · "), stats.Select(s => s.Contains('\u001b') ? s : t.Dim(s))) + t.Dim(")"));
         return TextWidth.Truncate(line, width);
     }
 
     private static string Util(TimeSpan e) =>
         e.TotalHours >= 1 ? $"{(int)e.TotalHours}h {e.Minutes}m {e.Seconds}s" : e.TotalSeconds >= 60 ? $"{(int)e.TotalMinutes}m {e.Seconds}s" : $"{(int)e.TotalSeconds}s";
-
-    public static readonly string[] Tips =
-    [
-        "Press shift+tab to switch between default, accept-edits and plan mode",
-        "Use /model to switch to any configured LLM (Anthropic, OpenAI, Gemini, DeepSeek, Ollama…)",
-        "Start a line with ! to run a shell command directly",
-        "Type @ to mention files — their contents are attached automatically",
-        "Use /compact to summarize long conversations and free context",
-        "Press esc twice to rewind the conversation (and your code)",
-        "Hit ctrl+o to toggle verbose output for tool results",
-        "Create reusable prompts in .dotcode/commands/*.md",
-        "Add MCP servers with: dotcode mcp add <name> <command>",
-        "Queue follow-up messages while DotCode is working — just type and press enter",
-        "Try /theme to pick colors, glyphs and spinner styles",
-        "Use /agents to see available subagents; the model delegates big searches to them",
-    ];
-}
+}

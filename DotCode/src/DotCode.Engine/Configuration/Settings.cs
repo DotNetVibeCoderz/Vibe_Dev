@@ -142,6 +142,10 @@ public sealed class TuiSettings
     public bool? Compact { get; set; }
     /// <summary>Custom accent color (hex), overriding the theme's brand color.</summary>
     public string? Accent { get; set; }
+    /// <summary>UI language: en | id | auto (DOTCODE_LANG / OS culture). Default en.</summary>
+    public string? Language { get; set; }
+    /// <summary>bell | osc9 | osc777 | off — when DotCode needs input or finishes a long turn. Default bell.</summary>
+    public string? Notifications { get; set; }
 }
 
 public sealed class StatusLineSettings

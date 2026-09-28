@@ -58,7 +58,10 @@ Untuk migrasi, DotCode juga membaca `.claude/settings*.json` proyek dari Claude 
     "accent": "#D77757",                     // ganti warna aksen tema
     "reducedMotion": false,
     "showThinking": false,
-    "showTips": true
+    "showTips": true,
+    "vim": false,                            // tombol vim di prompt (/vim)
+    "language": "en",                        // bahasa antarmuka: en | id | auto
+    "notifications": "bell"                  // bell | osc9 | osc777 | off
   },
   "spinnerVerbs": ["Menyeduh", "Mengompilasi"],
   "statusLine": { "type": "command", "command": "~/.dotcode/statusline.sh" },

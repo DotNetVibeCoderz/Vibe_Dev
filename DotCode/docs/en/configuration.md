@@ -58,7 +58,10 @@ For migration, DotCode also reads Claude Code's project `.claude/settings*.json`
     "accent": "#D77757",                     // override the theme accent color
     "reducedMotion": false,
     "showThinking": false,
-    "showTips": true
+    "showTips": true,
+    "vim": false,                            // vim keybindings in the prompt (/vim)
+    "language": "en",                        // UI language: en | id | auto
+    "notifications": "bell"                  // bell | osc9 | osc777 | off
   },
   "spinnerVerbs": ["Brewing", "Compiling"],  // custom spinner verbs
   "statusLine": { "type": "command", "command": "~/.dotcode/statusline.sh" },

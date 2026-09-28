@@ -1,6 +1,10 @@
 using DotCode.Engine;
 using DotCode.Engine.Agent;
 using DotCode.Engine.Permissions;
+using DotCode.Abstractions;
+using DotCode.Tui.Components;
+using DotCode.Tui.Input;
+using DotCode.Tui.Rendering;
 
 namespace DotCode.Tui;
 
@@ -16,11 +20,12 @@ internal sealed partial class App
         if (ctrl && key.Key == ConsoleKey.C || key.KeyChar == '\u0003')
         {
             if (_modal is not null) { _modal.Cancel(); NextModal(); return; }
+            if (_search is not null) { _input.SetText(_search.Original); _search = null; return; }
             if (!_input.IsEmpty) { _input.Clear(); return; }
             if (_busy) { Interrupt(); return; }
             if ((DateTime.UtcNow - _lastCtrlC).TotalSeconds < 2) { _exit = true; return; }
             _lastCtrlC = DateTime.UtcNow;
-            Flash("Press Ctrl-C again to exit");
+            Flash(UiText.Current.PressCtrlCAgain);
             return;
         }
 
@@ -30,6 +35,16 @@ internal sealed partial class App
             return;
         }
 
+        if (_search is not null) { HandleSearchKey(key, ctrl); return; }
+        if (ctrl && key.Key == ConsoleKey.R)
+        {
+            _search = new HistorySearch(_history, _input.Text);
+            _suggestions.Clear();
+            _showShortcuts = false;
+            return;
+        }
+        if (ctrl && key.Key == ConsoleKey.O) { OpenTranscript(); return; }
+
         if (ctrl && key.Key == ConsoleKey.D && _input.IsEmpty) { _exit = true; return; }
 
         // Shift+Tab: cycle permission modes
@@ -37,6 +52,25 @@ internal sealed partial class App
         {
             _session.SetMode(_session.Mode.Next(_session.BypassAvailable, _session.AutoModeAvailable));
             return;
+        }
+
+        if (_vim is not null)
+        {
+            // Esc leaves insert mode — unless it is needed to close suggestions or interrupt a running turn.
+            if (_vim.State == VimState.Insert && key.Key == ConsoleKey.Escape && _suggestions.Count == 0 && !(_busy && _input.IsEmpty))
+            {
+                _vim.EnterNormal(_input);
+                return;
+            }
+            if (_vim.State == VimState.Normal)
+            {
+                switch (_vim.HandleNormal(key, _input))
+                {
+                    case VimMode.Result.Handled: return;
+                    case VimMode.Result.HistoryPrev: _input.HistoryPrev(); _input.SetCursor(0); return;
+                    case VimMode.Result.HistoryNext: _input.HistoryNext(); _input.SetCursor(0); return;
+                }
+            }
         }
 
         if (key.Key == ConsoleKey.Escape)
@@ -48,7 +82,7 @@ internal sealed partial class App
             _lastEsc = DateTime.UtcNow;
             if (!_input.IsEmpty)
             {
-                if (doubleTap) _input.Clear(); else Flash("Esc again to clear");
+                if (doubleTap) _input.Clear(); else Flash(UiText.Current.EscAgainToClear);
                 return;
             }
             if (doubleTap) OpenRewind();
@@ -59,7 +93,6 @@ internal sealed partial class App
         {
             switch (key.Key)
             {
-                case ConsoleKey.O: _verbose = !_verbose; Flash(_verbose ? "Verbose output on" : "Verbose output off"); return;
                 case ConsoleKey.T: _showTodos = !_showTodos; if (!_busy) ShowTodos(); return;
                 case ConsoleKey.L: _screen.ClearScreen(); _anyCommitted = false; return;
                 case ConsoleKey.A: _input.Home(); return;
@@ -108,6 +141,7 @@ internal sealed partial class App
                 _input.Clear();
                 _showShortcuts = false;
                 _suppressSuggestions = null;
+                _vim?.Reset();
                 Submit(text);
                 return;
             case ConsoleKey.Tab:
@@ -146,6 +180,94 @@ internal sealed partial class App
     private void NextModal()
     {
         _modal = _modalQueue.TryDequeue(out var next) ? next : null;
+    }
+
+    /// <summary>Ctrl+R reverse history search: typing refines, Ctrl+R finds older matches, Enter/Tab/→ accepts
+    /// the match into the prompt (without sending it), Esc/Ctrl+G restores the original input.</summary>
+    private void HandleSearchKey(ConsoleKeyInfo key, bool ctrl)
+    {
+        var search = _search!;
+        if (ctrl && key.Key == ConsoleKey.R) search.Older();
+        else if (key.Key == ConsoleKey.Escape || ctrl && key.Key == ConsoleKey.G)
+        {
+            _input.SetText(search.Original);
+            _search = null;
+            return;
+        }
+        else if (key.Key is ConsoleKey.Enter or ConsoleKey.Tab or ConsoleKey.RightArrow or ConsoleKey.LeftArrow)
+        {
+            _input.SetText(search.Match ?? search.Original);
+            _search = null;
+            _suppressSuggestions = _input.Text;
+            return;
+        }
+        else if (key.Key == ConsoleKey.Backspace) search.Backspace();
+        else if (key.KeyChar != '\0' && !char.IsControl(key.KeyChar)) search.Type(key.KeyChar.ToString());
+        _input.SetText(search.Match ?? search.Original);
+    }
+
+    private void OpenTranscript()
+    {
+        _search = null;
+        _modal = new TranscriptModal(BuildTranscriptLines(_screen.ContentWidth)) { Height = _screen.Height - 1 };
+    }
+
+    /// <summary>The conversation in full detail for the transcript viewer: thinking, every tool input and output.</summary>
+    private List<string> BuildTranscriptLines(int w)
+    {
+        var t = _theme;
+        var lines = new List<string>();
+        var results = new Dictionary<string, ToolResultPart>();
+        foreach (var m in _session.Messages)
+            foreach (var r in m.ToolResults) results[r.ToolUseId] = r;
+        void Gap() { if (lines.Count > 0) lines.Add(""); }
+
+        foreach (var m in _session.Messages)
+        {
+            if (m.Role == Role.User)
+            {
+                if (m.HasToolResults) continue;
+                var text = m.Content.OfType<TextPart>().FirstOrDefault()?.Text ?? "";
+                if (m.IsMeta)
+                {
+                    if (text.Length == 0) continue;
+                    Gap();
+                    foreach (var l in text.Trim().Split('\n').Take(12)) foreach (var wl in TextWidth.Wrap(l.TrimEnd('\r'), w - 4)) lines.Add("  " + t.Faint(wl));
+                    continue;
+                }
+                Gap();
+                lines.AddRange(_blocks.User(text, w));
+                continue;
+            }
+            foreach (var th in m.Content.OfType<ThinkingPart>())
+                if (th.Text.Trim().Length > 0) { Gap(); lines.AddRange(_blocks.Thinking(th.Text, w, expanded: true)); }
+            if (m.Text.Trim().Length > 0) { Gap(); lines.AddRange(_blocks.Assistant(m.Text, w)); }
+            foreach (var tu in m.ToolUses)
+            {
+                Gap();
+                var tool = _session.FindTool(tu.Name);
+                string display;
+                try { display = tool?.DisplayName(tu.Input, _session) ?? tu.Name; } catch { display = tu.Name; }
+                results.TryGetValue(tu.Id, out var res);
+                lines.Add(_blocks.ToolHeader(display, res is null ? ToolState.Running : res.IsError ? ToolState.Error : ToolState.Success, w));
+                foreach (var l in TextWidth.Wrap(Engine.Util.TextUtil.Truncate(tu.Input.GetRawText(), 4000), w - 7))
+                    lines.Add("     " + t.Dim(l));
+                if (res is null) continue;
+                var output = res.TextContent.TrimEnd();
+                var outLines = output.Length == 0 ? ["(no output)"] : output.Split('\n');
+                var first = true;
+                foreach (var l in outLines.Take(500))
+                    foreach (var wl in TextWidth.Wrap(l.TrimEnd('\r'), w - 6))
+                    {
+                        lines.Add(_blocks.ResultPrefix(first) + (res.IsError ? t.C(wl, t.Error) : wl));
+                        first = false;
+                    }
+                if (outLines.Length > 500) lines.Add(_blocks.ResultPrefix(false) + t.Dim($"… +{outLines.Length - 500} lines"));
+            }
+        }
+        // What is still streaming in the current turn.
+        if (_stream.Length > 0) { Gap(); lines.AddRange(_blocks.Assistant(_stream.ToString(), w)); }
+        return lines;
     }
 
     // ------------------------------------------------------------------ suggestions (/commands and @files)
@@ -261,7 +383,7 @@ internal sealed partial class App
 
     private void ShowTodos()
     {
-        if (_session.Todos.Count == 0) { Flash("No todos yet"); return; }
+        if (_session.Todos.Count == 0) { Flash(UiText.Current.NoTodos); return; }
         Commit(_blocks.Todos(_session.Todos, _screen.ContentWidth));
     }
 }

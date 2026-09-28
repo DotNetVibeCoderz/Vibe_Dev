@@ -10,7 +10,7 @@ DotCode: a clean-room .NET 10 / C# 14 re-implementation of the Claude Code exper
 
 ```bash
 dotnet build DotCode.slnx
-dotnet test tests/DotCode.Tests                                            # xUnit (64 tests)
+dotnet test tests/DotCode.Tests                                            # xUnit (69 tests)
 dotnet test tests/DotCode.Tests --filter "FullyQualifiedName~AgentLoopTests.Runs_tools_until_the_model_stops"
 dotnet run --project src/DotCode.Cli -- --model mock:echo                  # offline, no keys
 dotnet src/DotCode.Cli/bin/Debug/net10.0/dotcode.dll -p "hi" --model mock:echo

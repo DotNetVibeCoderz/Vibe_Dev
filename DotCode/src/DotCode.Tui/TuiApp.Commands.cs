@@ -48,6 +48,7 @@ internal sealed partial class App
         ("status", "Show DotCode status: version, model, account, connectivity, tools", false),
         ("theme", "Change the theme (colors, glyphs, spinner)", false),
         ("todos", "List current todo items", false),
+        ("vim", "Toggle vim keybindings for the prompt (esc = NORMAL, i = INSERT)", false),
         ("about", "About DotCode — Gravicode Studios", false),
     ];
 
@@ -112,7 +113,7 @@ internal sealed partial class App
                 foreach (var (n, d, _) in AllCommands().OrderBy(c => c.Name))
                     help.Add("  " + TextWidth.Pad(t.B("/" + n), 24) + t.Dim(" - " + TextUtil.FirstLine(d, w - 34)));
                 help.Add("");
-                help.Add(t.Dim("Keyboard: shift+tab modes · esc interrupt · esc esc rewind · ctrl+o verbose · ctrl+t todos · ? shortcuts"));
+                help.Add(t.Dim("Keyboard: shift+tab modes · esc interrupt · esc esc rewind · ctrl+o transcript · ctrl+r history search · ctrl+t todos · ? shortcuts"));
                 Out(help);
                 return true;
 
@@ -432,6 +433,17 @@ internal sealed partial class App
                 ShowTodos();
                 return true;
 
+            case "vim":
+            {
+                Echo();
+                var enable = _vim is null;
+                SettingsLoader.SetValue(DotCodePaths.UserSettings, "tui.vim", JsonValue.Create(enable));
+                _runtime.Reload();
+                ApplyUiSettings();
+                Out([enable ? Input.UiText.Current.VimOn : Input.UiText.Current.VimOff]);
+                return true;
+            }
+
             case "bashes":
                 Echo();
                 var ba = args.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -660,6 +672,9 @@ internal sealed partial class App
             ("Show tips", (tui.ShowTips != false).ToString().ToLowerInvariant(), "showTips"),
             ("Auto-compact", (_runtime.Settings.AutoCompact != false).ToString().ToLowerInvariant(), "autoCompact"),
             ("Verbose output", _verbose.ToString().ToLowerInvariant(), "verbose"),
+            ("Language", (tui.Language ?? "en") + "  · en | id | auto", "language"),
+            ("Vim mode", (tui.Vim == true).ToString().ToLowerInvariant(), "vim"),
+            ("Notifications", (tui.Notifications ?? "bell") + "  · bell | osc9 | osc777 | off", "notifications"),
             ("Output style", _session.OutputStyle ?? "default", "outputStyle"),
             ("Default permission mode", _runtime.Settings.Permissions?.DefaultMode ?? "default", "defaultMode"),
         };
@@ -678,9 +693,13 @@ internal sealed partial class App
                 case "showTips": Save("tui.showTips", tui.ShowTips == false); break;
                 case "autoCompact": Save("autoCompact", _runtime.Settings.AutoCompact == false); break;
                 case "verbose": _verbose = !_verbose; break;
+                case "language": Save("tui.language", Cycle(tui.Language, ["en", "id", "auto"])); break;
+                case "vim": Save("tui.vim", tui.Vim != true); break;
+                case "notifications": Save("tui.notifications", Cycle(tui.Notifications, ["bell", "osc9", "osc777", "off"])); break;
                 case "outputStyle": TryBuiltinCommand("output-style", "", "/output-style"); return false;
                 case "defaultMode": Save("permissions.defaultMode", Cycle(_runtime.Settings.Permissions?.DefaultMode, ["default", "acceptEdits", "auto", "plan"])); break;
             }
+            ApplyUiSettings();
             ApplyTheme(_theme.Name);
             OpenConfig();
             return false;

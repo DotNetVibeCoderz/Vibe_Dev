@@ -35,7 +35,8 @@ Indikator kerja memutar glyph (`·✢✳✶✻✽`), menampilkan kilau pada kata
 | `Ctrl+D` | Keluar (input kosong) |
 | `↑ / ↓` | Pindah baris di input multi-baris, selain itu riwayat prompt · navigasi menu |
 | `Tab` | Terima saran |
-| `Ctrl+O` | Output verbose (hasil tool lengkap, thinking) |
+| `Ctrl+O` | Buka penampil transkrip layar penuh (thinking, input dan output tool lengkap) |
+| `Ctrl+R` | Cari riwayat prompt (ketik untuk menyaring, `Ctrl+R` lagi untuk hasil lebih lama, `Enter` untuk memakai, `Esc` untuk batal) |
 | `Ctrl+T` | Tampilkan daftar tugas |
 | `Ctrl+L` | Bersihkan layar |
 | `Ctrl+A/E`, `Ctrl+B/F`, `Alt+B/F` | Awal/akhir baris, gerak per karakter/kata |
@@ -115,6 +116,27 @@ Tema kustom — `~/.dotcode/themes/senja.json`:
 ```json
 { "base": "dark", "displayName": "Senja", "colors": { "brand": "#FF7A59", "brandShimmer": "#FFC2AE", "userMessageBackground": "#2B1F2A" }, "border": "rounded", "spinner": "dots" }
 ```
+
+## Penampil transkrip, pencarian riwayat dan mode vim
+
+![Penampil transkrip](../images/transcript-viewer.png)
+
+**Penampil transkrip (`Ctrl+O`)** menampilkan seluruh percakapan secara lengkap: blok thinking, setiap pemanggilan tool beserta input JSON dan output lengkapnya (hingga 500 baris per hasil), serta teks yang masih mengalir. Tombol: `↑/↓` atau `j/k` gulir, `PgUp/PgDn` (`b`/`f`, `Spasi`) per halaman, `g`/`G` awal/akhir, `/` cari, `n`/`N` hasil berikut/sebelumnya, `Esc`, `q` atau `Ctrl+O` tutup. Output yang muncul selama penampil terbuka ditampilkan saat ditutup; dialog izin dari agen menutup penampil agar tidak tersembunyi. Untuk detail lebih di tampilan biasa, aktifkan *Verbose output* di `/config` (atau jalankan dengan `--verbose`).
+
+**Pencarian riwayat (`Ctrl+R`)** — seperti reverse search di shell: ketik sebagian prompt lama, tekan `Ctrl+R` lagi untuk hasil yang lebih lama, `Enter`/`Tab` memasukkan hasil ke prompt (tidak langsung dikirim), `Esc`/`Ctrl+G` mengembalikan teks semula.
+
+![Pencarian riwayat](../images/history-search.png)
+
+**Mode vim** — `/vim` (atau `"tui": { "vim": true }`) mengubah input prompt ke tombol vim. `Esc` masuk ke mode NORMAL, footer menampilkan `-- NORMAL --` / `-- INSERT --`. Didukung: `h l w b e W B E 0 ^ $ gg G`, hitungan (`3w`, `2dd`), operator `d c y` dengan gerakan atau ganda (`dw`, `cw`, `ce`, `d$`, `dd`, `cc`, `yy`), `x X s S D C r ~ p P u`, serta `i a I A o O`. `j`/`k` berpindah baris dan menelusuri riwayat prompt di baris pertama/terakhir. `Enter` mengirim di kedua mode; saat turn berjalan dengan prompt kosong, `Esc` tetap menghentikan.
+
+![Mode vim](../images/vim-mode.png)
+
+## Notifikasi dan bahasa
+
+- `"tui": { "notifications": "bell" }` (default) membunyikan bel terminal saat DotCode membutuhkan input Anda (izin, pertanyaan, rencana) atau menyelesaikan turn yang berlangsung 15 detik atau lebih. `"osc9"` mengirim notifikasi desktop (iTerm2, WezTerm, Windows Terminal, kitty…), `"osc777"` memakai format urxvt/foot/Ghostty, `"off"` menonaktifkan.
+- `"tui": { "language": "id" }` menampilkan antarmuka dalam Bahasa Indonesia (panel sambutan, footer, pintasan, tips, dialog izin, pencarian riwayat, penampil transkrip, ringkasan keluar). `"auto"` mengikuti `DOTCODE_LANG` atau bahasa OS; default `"en"`. Jawaban model tidak terpengaruh — cukup minta model menjawab dalam bahasa Anda.
+
+![Antarmuka Bahasa Indonesia](../images/ui-indonesian.png)
 
 ## Sesi
 

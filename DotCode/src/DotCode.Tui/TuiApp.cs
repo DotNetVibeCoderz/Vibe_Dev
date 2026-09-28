@@ -9,6 +9,7 @@ using DotCode.Engine.Permissions;
 using DotCode.Engine.Sessions;
 using DotCode.Tui.Components;
 using DotCode.Tui.Input;
+using DotCode.Tui.Input;
 using DotCode.Tui.Rendering;
 using DotCode.Tui.Themes;
 
@@ -113,6 +114,9 @@ internal sealed partial class App : IInteractionHandler
     private readonly Stopwatch _wall = Stopwatch.StartNew();
     private List<string>? _fileIndex;
     private bool _dirty = true;
+    private VimMode? _vim;
+    private HistorySearch? _search;
+    private readonly List<(List<string> Lines, bool Spacing)> _deferredCommits = [];
 
     public App(RuntimeOptions options, TuiLaunch launch)
     {
@@ -124,6 +128,7 @@ internal sealed partial class App : IInteractionHandler
     {
         Console.TreatControlCAsInput = true;
         _runtime = AgentRuntime.Create(_options);
+        ApplyUiSettings();
         _theme = Theme.Load(_launch.Theme ?? _runtime.Settings.Theme, _runtime.Settings.Tui);
         _blocks = new Blocks(_theme);
         _verbose = _options.Verbose;
@@ -249,7 +254,10 @@ internal sealed partial class App : IInteractionHandler
                 _dirty = true;
                 break;
             case ModalUiEvent m:
+                // A request from the agent takes over from the transcript viewer so it is never hidden.
+                if (_modal is TranscriptModal) _modal = null;
                 if (_modal is null) _modal = m.Modal; else _modalQueue.Enqueue(m.Modal);
+                Notify(UiText.Current.NotifyWaiting);
                 _dirty = true;
                 break;
             case ActionUiEvent act:
@@ -404,10 +412,37 @@ internal sealed partial class App : IInteractionHandler
         return lines;
     }
 
+    /// <summary>Applies UI language and vim mode from settings (startup and after /config changes).</summary>
+    private void ApplyUiSettings()
+    {
+        var tui = _runtime.Settings.Tui;
+        UiText.Current = UiText.For(tui?.Language);
+        if (tui?.Vim == true) _vim ??= new VimMode();
+        else _vim = null;
+    }
+
+    /// <summary>Terminal notification (bell by default; OSC 9 / OSC 777 desktop notifications where supported).</summary>
+    private void Notify(string message)
+    {
+        switch ((_runtime.Settings.Tui?.Notifications ?? "bell").ToLowerInvariant())
+        {
+            case "off" or "none" or "false": return;
+            case "osc9": _screen.Write($"\u001b]9;{message}\u0007"); return;
+            case "osc777": _screen.Write($"\u001b]777;notify;DotCode;{message}\u0007"); return;
+            default: _screen.Write("\u0007"); return;
+        }
+    }
+
     private void Commit(IEnumerable<string> lines, bool spacing = true)
     {
         var list = lines.ToList();
         if (list.Count == 0) return;
+        if (_modal is TranscriptModal)
+        {
+            _deferredCommits.Add((list, spacing));
+            _dirty = true;
+            return;
+        }
         if (spacing && _anyCommitted) list.Insert(0, "");
         _anyCommitted = true;
         _screen.Commit(list);
@@ -482,7 +517,7 @@ internal sealed partial class App : IInteractionHandler
         _verb = verbs[Random.Shared.Next(verbs.Length)];
         _verbChangedAt = DateTime.UtcNow;
         _charsSinceUsage = 0;
-        _tip = SpinnerLine.Tips[Random.Shared.Next(SpinnerLine.Tips.Length)];
+        _tip = UiText.Current.Tips[Random.Shared.Next(UiText.Current.Tips.Length)];
         _streamChars = 0;
         _turnTokens = 0;
         _retryDetail = null;
@@ -525,9 +560,13 @@ internal sealed partial class App : IInteractionHandler
         _retryDetail = null;
         CloseModals();
 
+        var interrupted = result is { StopReason: StopReason.Aborted } || result is null && _turnCts?.IsCancellationRequested == true;
         if (error is not null) Commit(_blocks.ErrorBlock($"Error: {error.Message}", w));
-        else if (result is { StopReason: StopReason.Aborted } || result is null && _turnCts?.IsCancellationRequested == true)
-            Commit([_blocks.ResultPrefix(true) + _theme.C("Interrupted", _theme.Error) + _theme.Dim(" · What should DotCode do instead?")]);
+        else if (interrupted)
+            Commit([_blocks.ResultPrefix(true) + _theme.C(UiText.Current.Interrupted, _theme.Error) + _theme.Dim(UiText.Current.WhatInstead)]);
+        // Long turns ring the terminal so the user can switch away and come back.
+        if (!interrupted && _queued.Count == 0 && (DateTime.UtcNow - _turnStart).TotalSeconds >= NotifyAfterSeconds)
+            Notify(UiText.Current.NotifyDone);
 
         _turnCts?.Dispose();
         _turnCts = null;
@@ -542,10 +581,16 @@ internal sealed partial class App : IInteractionHandler
         CloseModals();
     }
 
+    private const double NotifyAfterSeconds = 15;
+
+    /// <summary>Cancels pending agent dialogs (the transcript viewer, a user-opened view, stays open).</summary>
     private void CloseModals()
     {
-        _modal?.Cancel();
-        _modal = null;
+        if (_modal is not TranscriptModal)
+        {
+            _modal?.Cancel();
+            _modal = null;
+        }
         while (_modalQueue.TryDequeue(out var m)) m.Cancel();
     }
 
@@ -683,16 +728,17 @@ internal sealed partial class App : IInteractionHandler
     private void PrintExitSummary()
     {
         var t = _theme;
+        var ui = UiText.Current;
         var sb = new StringBuilder();
         if (_session.ModelCalls == 0) return;
-        sb.Append(t.Dim("Total cost:            ")).Append($"${_session.TotalCostUsd:0.0000}").Append("\r\n");
-        sb.Append(t.Dim("Total duration (API):  ")).Append(Engine.Util.TextUtil.FormatDuration(_session.ApiDuration)).Append("\r\n");
-        sb.Append(t.Dim("Total duration (wall): ")).Append(Engine.Util.TextUtil.FormatDuration(_wall.Elapsed)).Append("\r\n");
-        sb.Append(t.Dim("Total code changes:    ")).Append($"{_linesAdded} lines added, {_linesRemoved} lines removed").Append("\r\n");
-        sb.Append(t.Dim("Usage by model:")).Append("\r\n");
+        sb.Append(t.Dim(ui.TotalCost)).Append($"${_session.TotalCostUsd:0.0000}").Append("\r\n");
+        sb.Append(t.Dim(ui.DurationApi)).Append(Engine.Util.TextUtil.FormatDuration(_session.ApiDuration)).Append("\r\n");
+        sb.Append(t.Dim(ui.DurationWall)).Append(Engine.Util.TextUtil.FormatDuration(_wall.Elapsed)).Append("\r\n");
+        sb.Append(t.Dim(ui.CodeChanges)).Append(string.Format(ui.LinesChanged, _linesAdded, _linesRemoved)).Append("\r\n");
+        sb.Append(t.Dim(ui.UsageByModel)).Append("\r\n");
         foreach (var (model, (usage, cost)) in _session.UsageByModel)
             sb.Append($"    {model}:  {Engine.Util.TextUtil.FormatTokens(usage.InputTokens)} input, {Engine.Util.TextUtil.FormatTokens(usage.OutputTokens)} output, {Engine.Util.TextUtil.FormatTokens(usage.CacheReadTokens)} cache read, {Engine.Util.TextUtil.FormatTokens(usage.CacheWriteTokens)} cache write (${cost:0.0000})").Append("\r\n");
-        sb.Append(t.Dim($"Resume this session with: dotcode --resume {_session.Id}")).Append("\r\n");
+        sb.Append(t.Dim($"{ui.ResumeWith} dotcode --resume {_session.Id}")).Append("\r\n");
         _screen.Write(sb.ToString());
     }
 }

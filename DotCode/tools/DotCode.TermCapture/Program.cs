@@ -86,6 +86,7 @@ string KeySeq(string key) => key.ToLowerInvariant() switch
     "ctrl+o" => "\u000f",
     "ctrl+t" => "\u0014",
     "ctrl+l" => "\u000c",
+    "ctrl+r" => "\u0012",
     "space" => " ",
     _ => key,
 };

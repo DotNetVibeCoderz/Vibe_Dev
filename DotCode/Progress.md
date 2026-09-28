@@ -53,12 +53,12 @@
 | Skills, commands, subagents, output styles | ✅ | |
 | Plugins & marketplaces | ✅ | |
 | MCP client (stdio, Streamable HTTP, tools/prompts/resources) | ✅ | Legacy SSE transport ⏳ |
-| TUI | ✅ | Vim mode, Ctrl+R search, full-screen transcript ⏳ |
+| TUI | ✅ | Vim mode (`/vim`), Ctrl+R history search, Ctrl+O transcript viewer with search, bell/OSC 9/OSC 777 notifications, EN/ID UI strings (`tui.language`); image paste ⏳ |
 | Headless (text/json/stream-json, stream-json input) | ✅ | |
 | JSON-RPC server (stdio, Content-Length, WebSocket + token) | ✅ | |
 | SDKs: .NET, TypeScript, Python, Go, Java | ✅ | Rust ⏳ |
 | OpenRPC schema | ✅ | Code generation from schema ⏳ |
-| Tests | ✅ | 64 xUnit + 2 TS + 2 Python + 2 Go + 2 Java conformance, all passing |
+| Tests | ✅ | 69 xUnit + 2 TS + 2 Python + 2 Go + 2 Java conformance, all passing |
 | NativeAOT binaries | ✅ | win-x64, linux-x64, osx-arm64 built and smoke-tested in CI |
 | Sandboxing, worktrees, LSP tool, Desktop, IDE | ⏳ | See PLAN.md |
 

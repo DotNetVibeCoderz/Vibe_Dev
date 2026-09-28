@@ -1,6 +1,7 @@
 using DotCode.Abstractions;
 using DotCode.Engine.Permissions;
 using DotCode.Tui.Components;
+using DotCode.Tui.Input;
 using DotCode.Tui.Rendering;
 
 namespace DotCode.Tui;
@@ -16,6 +17,20 @@ internal sealed partial class App
         var t = _theme;
         var lines = new List<string>();
         (int Row, int Col)? cursor = null;
+
+        // The transcript viewer owns the whole screen; output committed meanwhile is held back until it closes.
+        if (_modal is TranscriptModal transcript)
+        {
+            transcript.Height = _screen.Height - 1;
+            _screen.Render(transcript.Render(t, _blocks, w), transcript.Cursor);
+            return;
+        }
+        if (_deferredCommits.Count > 0)
+        {
+            var deferred = _deferredCommits.ToList();
+            _deferredCommits.Clear();
+            foreach (var (block, spacing) in deferred) Commit(block, spacing);
+        }
 
         // Streaming assistant text (tail only; the full message is committed when complete).
         if (_stream.Length > 0)
@@ -64,10 +79,10 @@ internal sealed partial class App
             if (_showTodos && _session.Todos.Count > 0)
                 foreach (var l in _blocks.Todos(_session.Todos, w).Skip(1)) lines.Add(l);
             else if (elapsed.TotalSeconds > 4 && _runtime.Settings.Tui?.ShowTips != false)
-                lines.Add(_blocks.ResultPrefix(true) + t.Dim("Tip: " + _tip));
+                lines.Add(_blocks.ResultPrefix(true) + t.Dim(UiText.Current.TipPrefix + _tip));
         }
         foreach (var q in _queued)
-            lines.Add("  " + t.Dim(t.Glyphs.Prompt + " " + TextWidth.Truncate(q.Replace('\n', ' '), w - 14) + "  (queued)"));
+            lines.Add("  " + t.Dim(t.Glyphs.Prompt + " " + TextWidth.Truncate(q.Replace('\n', ' '), w - 14) + "  " + UiText.Current.Queued));
 
         if (_modal is not null)
         {
@@ -158,14 +173,21 @@ internal sealed partial class App
 
     private string Placeholder()
     {
-        if (_busy) return "Type to queue a message for when DotCode finishes…";
-        string[] ideas = ["Try \"explain this codebase\"", "Try \"write a test for <filepath>\"", "Try \"fix the failing build\"", "Try \"refactor <filepath> to be more readable\"", "Try \"how does <feature> work?\""];
+        if (_busy) return UiText.Current.QueuePlaceholder;
+        var ideas = UiText.Current.Ideas;
         return ideas[Math.Abs(_session.Id.GetHashCode()) % ideas.Length];
     }
 
     private void RenderBelowInput(List<string> lines, int w)
     {
         var t = _theme;
+        var ui = UiText.Current;
+        if (_search is { } search)
+        {
+            var status = search.Failed ? t.C($" ({ui.NoMatch})", t.Error) : "";
+            lines.Add("  " + TextWidth.Truncate(t.C(ui.SearchHistory, t.Suggestion) + search.Query + status + t.Dim("  · " + ui.SearchHint), w - 2));
+            return;
+        }
         UpdateSuggestions();
         if (_suggestions.Count > 0)
         {
@@ -183,15 +205,10 @@ internal sealed partial class App
 
         if (_showShortcuts)
         {
-            string[][] cols =
-            [
-                ["! for bash mode", "/ for commands", "@ for file paths", "# to memorize"],
-                ["double tap esc to clear input", "shift + tab to cycle modes", "ctrl + o for verbose output", "ctrl + t to show todos"],
-                ["\\⏎ or shift + ⏎ for newline", "ctrl + _ / ctrl + z to undo", "ctrl + l to clear screen", "ctrl + c twice to exit"],
-            ];
+            var cols = ui.Shortcuts;
             var cw = Math.Max(20, (w - 2) / 3);
-            for (var r = 0; r < 4; r++)
-                lines.Add("  " + string.Concat(cols.Select(c => TextWidth.Pad(t.Dim(c[r]), cw))));
+            for (var r = 0; r < cols[0].Length; r++)
+                lines.Add("  " + string.Concat(cols.Select(c => TextWidth.Pad(t.Dim(TextWidth.Truncate(c[r], cw - 1)), cw))));
             return;
         }
 
@@ -200,18 +217,24 @@ internal sealed partial class App
         if (_flash is not null) left = t.Dim(_flash);
         else left = _session.Mode switch
         {
-            PermissionMode.AcceptEdits => t.C($"{t.Glyphs.AcceptEdits} accept edits on", t.AutoAccept) + t.Dim(" (shift+tab to cycle)"),
-            PermissionMode.Plan => t.C($"{t.Glyphs.PlanMode} plan mode on", t.PlanMode) + t.Dim(" (shift+tab to cycle)"),
-            PermissionMode.BypassPermissions => t.C($"{t.Glyphs.Bypass} bypass permissions on", t.Error) + t.Dim(" (shift+tab to cycle)"),
-            PermissionMode.Auto => t.C($"{t.Glyphs.AcceptEdits} auto mode on", t.Warning) + t.Dim(" (shift+tab to cycle)"),
-            _ => _input.IsEmpty ? t.Dim("? for shortcuts") : "",
+            PermissionMode.AcceptEdits => t.C($"{t.Glyphs.AcceptEdits} {ui.AcceptEditsOn}", t.AutoAccept) + t.Dim(ui.CycleHint),
+            PermissionMode.Plan => t.C($"{t.Glyphs.PlanMode} {ui.PlanModeOn}", t.PlanMode) + t.Dim(ui.CycleHint),
+            PermissionMode.BypassPermissions => t.C($"{t.Glyphs.Bypass} {ui.BypassOn}", t.Error) + t.Dim(ui.CycleHint),
+            PermissionMode.Auto => t.C($"{t.Glyphs.AcceptEdits} {ui.AutoModeOn}", t.Warning) + t.Dim(ui.CycleHint),
+            _ => _input.IsEmpty && _vim is null ? t.Dim(ui.ShortcutsHint) : "",
         };
+        if (_vim is not null)
+        {
+            var tag = _vim.State == VimState.Normal ? "-- NORMAL --" : "-- INSERT --";
+            if (_vim.Pending.Length > 0) tag += " " + _vim.Pending;
+            left = t.C(tag, _vim.State == VimState.Normal ? t.Suggestion : t.Secondary) + (left.Length > 0 ? "  " + left : "");
+        }
         var window = _session.Model.Capabilities.ContextWindow;
         var used = _session.LastContextTokens;
         var threshold = (_runtime.Settings.AutoCompactThreshold ?? 0.85) * window;
         var pctLeft = threshold > 0 ? Math.Max(0, (int)Math.Round(100 - used * 100.0 / threshold)) : 100;
         var right = pctLeft <= 20 && used > 0
-            ? t.C($"Context left until auto-compact: {pctLeft}%", pctLeft <= 5 ? t.Error : t.Warning)
+            ? t.C(string.Format(ui.ContextLeft, pctLeft), pctLeft <= 5 ? t.Error : t.Warning)
             : t.Dim(_session.Model.Qualified + (_session.Effort is not (ReasoningEffort.Medium) ? $" · effort {_session.Effort.ToString().ToLowerInvariant()}" : ""));
         // Some terminals render the mode glyphs (⏵⏵/⏸) double-width: keep slack so the right side never wraps.
         var gap = w - 4 - TextWidth.Of(left) - TextWidth.Of(right);

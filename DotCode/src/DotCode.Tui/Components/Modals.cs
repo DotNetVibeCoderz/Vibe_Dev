@@ -33,19 +33,20 @@ public sealed class PermissionModal : Modal
         _tcs = tcs;
         _projectName = Path.GetFileName(projectRoot.TrimEnd(Path.DirectorySeparatorChar));
         var isEdit = request.ToolName is "Edit" or "Write" or "NotebookEdit";
-        _options.Add(("Yes", PermissionDecision.AllowOnce));
+        var ui = Input.UiText.Current;
+        _options.Add((ui.Yes, PermissionDecision.AllowOnce));
         if (isEdit)
-            _options.Add(("Yes, allow all edits during this session (shift+tab)", new PermissionDecision(PermissionDecisionKind.AllowSession)));
+            _options.Add((ui.YesAllEdits, new PermissionDecision(PermissionDecisionKind.AllowSession)));
         else if (request.SuggestedRule is { } rule)
         {
             var label = request.ToolName is "Bash" or "PowerShell"
-                ? $"Yes, and don't ask again for {Spec(rule)} commands in {_projectName}"
+                ? string.Format(ui.YesCommands, Spec(rule), _projectName)
                 : request.ToolName is "WebFetch"
-                    ? $"Yes, and don't ask again for {Spec(rule).Replace("domain:", "")}"
-                    : $"Yes, and don't ask again for {rule} in {_projectName}";
+                    ? string.Format(ui.YesDomain, Spec(rule).Replace("domain:", ""))
+                    : string.Format(ui.YesRule, rule, _projectName);
             _options.Add((label, new PermissionDecision(PermissionDecisionKind.AllowAlways, Rule: rule)));
         }
-        _options.Add(("No, and tell DotCode what to do differently (esc)", PermissionDecision.Deny()));
+        _options.Add((ui.No, PermissionDecision.Deny()));
     }
 
     private static string Spec(string rule)
@@ -89,9 +90,10 @@ public sealed class PermissionModal : Modal
         }
         content.Add("");
         var file = r.Input.GetString("file_path") is { } fp ? Path.GetFileName(fp) : null;
-        content.Add(r.ToolName is "Edit" or "NotebookEdit" && file is not null ? $"Do you want to make this edit to {t.B(file)}?"
-            : r.ToolName == "Write" && file is not null ? $"Do you want to create {t.B(file)}?"
-            : "Do you want to proceed?");
+        var ui = Input.UiText.Current;
+        content.Add(r.ToolName is "Edit" or "NotebookEdit" && file is not null ? string.Format(ui.MakeEdit, t.B(file))
+            : r.ToolName == "Write" && file is not null ? string.Format(ui.Create, t.B(file))
+            : ui.Proceed);
         for (var i = 0; i < _options.Count; i++)
         {
             var label = $"{i + 1}. {_options[i].Label}";

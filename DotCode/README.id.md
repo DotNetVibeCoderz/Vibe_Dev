@@ -19,7 +19,7 @@ DotCode membaca codebase Anda, mengedit file, menjalankan perintah dan test, lal
 
 ## Fitur utama
 
-- **UI terminal ala Claude Code** — markdown streaming, blok `● Tool(argumen)` / `⎿ hasil`, diff berwarna, spinner beranimasi dengan kata berkilau, daftar tugas, dialog izin dan rencana, menu `/`, sebutan file `@`, mode bash `!`, memori `#`, rewind Esc-Esc, riwayat prompt, 15 tema, set glyph untuk semua font (unicode / ascii / Nerd Font), tema kustom, status line.
+- **UI terminal ala Claude Code** — markdown streaming, blok `● Tool(argumen)` / `⎿ hasil`, diff berwarna, spinner beranimasi dengan kata berkilau, daftar tugas, dialog izin dan rencana, menu `/`, sebutan file `@`, mode bash `!`, memori `#`, rewind Esc-Esc, riwayat prompt dengan pencarian Ctrl+R, penampil transkrip Ctrl+O, mode vim, UI Inggris / Indonesia, notifikasi terminal, 15 tema, set glyph untuk semua font (unicode / ascii / Nerd Font), tema kustom, status line.
 - **Model apa pun, satu engine** — adapter Anthropic Messages, OpenAI Responses & Chat, Azure, Gemini, DeepSeek, Ollama, dan server kompatibel OpenAI (profil quirk), dengan prompt caching, round-trip reasoning, sanitasi skema, retry, rantai fallback, pelacakan biaya, serta text tool protocol untuk model tanpa function calling. Ganti model di tengah sesi dengan `/model`.
 - **Tool agen lengkap** — Read, Write, Edit, Glob, Grep, Bash (Git Bash di Windows), PowerShell, shell latar belakang, WebFetch, WebSearch, TodoWrite, subagent, Skill, AskUserQuestion, plan mode, notebook, tool & resource MCP.
 - **Aman secara default** — mode izin (default, acceptEdits, plan, bypass lewat `--dangerously-skip-permissions`), aturan kompatibel Claude Code, analisis perintah majemuk, checkpoint dan `/rewind`, hooks.

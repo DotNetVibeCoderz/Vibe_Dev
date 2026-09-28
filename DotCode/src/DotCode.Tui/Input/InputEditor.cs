@@ -191,6 +191,20 @@ public sealed class InputEditor
 
     public void Yank() => Insert(_killRing);
 
+    public void SetCursor(int position) => Cursor = Math.Clamp(position, 0, _text.Length);
+
+    /// <summary>Replaces [start, end) with <paramref name="replacement"/> as one undo step (no paste placeholders).
+    /// Used by vim mode operators.</summary>
+    public void Replace(int start, int end, string replacement, int? cursor = null)
+    {
+        start = Math.Clamp(start, 0, _text.Length);
+        end = Math.Clamp(end, start, _text.Length);
+        SaveUndo();
+        _text.Remove(start, end - start).Insert(start, replacement);
+        Cursor = Math.Clamp(cursor ?? start + replacement.Length, 0, _text.Length);
+        _historyIndex = -1;
+    }
+
     /// <summary>Line/column of the cursor within the (unwrapped) text.</summary>
     public (int Line, int Column) CursorPosition()
     {

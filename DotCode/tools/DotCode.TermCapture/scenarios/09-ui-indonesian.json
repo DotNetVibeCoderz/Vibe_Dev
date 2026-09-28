@@ -1,0 +1,14 @@
+{
+  "cols": 110,
+  "rows": 34,
+  "title": "DotCode — antarmuka Bahasa Indonesia (tui.language: id)",
+  "cwd": "${env:TUI_DEMO}/proj",
+  "outDir": "../../../docs/images",
+  "command": "${env:DOTCODE_EXE}",
+  "env": { "DOTCODE_CONFIG_DIR": "${env:TUI_DEMO}/cfg-id" },
+  "steps": [
+    { "waitFor": "untuk pintasan", "timeout": 30000 }, { "waitIdle": 600 },
+    { "type": "?" }, { "waitIdle": 600 },
+    { "snapshot": "ui-indonesian", "full": true }
+  ]
+}
