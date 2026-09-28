@@ -8,13 +8,39 @@ DotCode adalah alat *agentic coding* di terminal — implementasi ulang pengalam
 
 ## 1. Instalasi
 
-| Opsi | Perintah |
+**macOS / Linux**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/DotNetVibeCoderz/Vibe_Dev/main/DotCode/install/install.sh | sh
+```
+
+**Windows (PowerShell)**
+
+```powershell
+irm https://raw.githubusercontent.com/DotNetVibeCoderz/Vibe_Dev/main/DotCode/install/install.ps1 | iex
+```
+
+Installer memilih rilis terbaru untuk platform Anda dan memverifikasinya dengan `SHA256SUMS` milik rilis tersebut. Setelah itu installer memasang satu executable `dotcode` untuk pengguna Anda, tanpa hak admin: ke `~/.local/bin` di macOS/Linux, atau ke `%LOCALAPPDATA%\Programs\DotCode` di Windows (ditambahkan ke PATH). Opsi lewat variabel lingkungan:
+- `DOTCODE_VERSION=0.2.0` mengunci versi;
+- `DOTCODE_INSTALL_DIR=…` memilih folder;
+- `DOTCODE_NO_PATH=1` (Windows) tidak mengubah PATH.
+
+| Opsi lain | Perintah |
 |---|---|
-| Binary native (disarankan) | Unduh `dotcode` untuk OS Anda dari halaman *releases*, letakkan di `PATH` |
+| Unduh manual | Ambil `dotcode-<rid>.tar.gz` / `.zip` dari [releases](https://github.com/DotNetVibeCoderz/Vibe_Dev/releases?q=dotcode-v), cek dengan `sha256sum -c SHA256SUMS --ignore-missing` |
+| Scoop (Windows) | `scoop install https://raw.githubusercontent.com/DotNetVibeCoderz/Vibe_Dev/main/DotCode/packaging/scoop/dotcode.json` |
 | .NET global tool | `dotnet tool install -g DotCode.Cli` (butuh runtime .NET 10) |
 | Dari source | `git clone … && cd DotCode && dotnet publish src/DotCode.Cli -c Release -r <rid> -o out` |
 
-`<rid>`: `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64`, `osx-x64`, atau `osx-arm64`. Hasilnya satu executable NativeAOT (~14 MB) tanpa prasyarat runtime.
+`<rid>` yang tersedia: `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64` (glibc 2.35+, mis. Ubuntu 22.04, Debian 12, RHEL 9), `osx-x64`, dan `osx-arm64`. Masing-masing satu executable NativeAOT (~14 MB) tanpa prasyarat runtime. Untuk musl (Alpine), gunakan .NET tool atau build dari source.
+
+**Update:** `dotcode update` memasang rilis terbaru di tempat (checksum diverifikasi; `--check` hanya melapor, `--version X` mengunci versi). Instalasi .NET tool diperbarui dengan `dotnet tool update -g DotCode.Cli`.
+
+**Verifikasi unduhan:** setiap arsip rilis punya attestation build-provenance GitHub, dan rilis menyertakan SBOM SPDX (`dotcode-sbom.spdx.json`):
+
+```bash
+gh attestation verify dotcode-linux-x64.tar.gz --repo DotNetVibeCoderz/Vibe_Dev
+```
 
 Periksa instalasi:
 

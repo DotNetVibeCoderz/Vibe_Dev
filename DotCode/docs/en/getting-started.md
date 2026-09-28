@@ -8,13 +8,39 @@ DotCode is an agentic coding tool for your terminal — a .NET 10 re-implementat
 
 ## 1. Install
 
-| Option | Command |
+**macOS / Linux**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/DotNetVibeCoderz/Vibe_Dev/main/DotCode/install/install.sh | sh
+```
+
+**Windows (PowerShell)**
+
+```powershell
+irm https://raw.githubusercontent.com/DotNetVibeCoderz/Vibe_Dev/main/DotCode/install/install.ps1 | iex
+```
+
+The installers pick the latest release for your platform and verify it against the release's `SHA256SUMS`. They then install the single `dotcode` executable for your user, with no admin rights needed: to `~/.local/bin` on macOS/Linux or `%LOCALAPPDATA%\Programs\DotCode` on Windows, which is added to your PATH. Environment options:
+- `DOTCODE_VERSION=0.2.0` pins a version;
+- `DOTCODE_INSTALL_DIR=…` chooses the folder;
+- `DOTCODE_NO_PATH=1` (Windows) leaves PATH alone.
+
+| Other options | Command |
 |---|---|
-| Native binary (recommended) | Download `dotcode` for your OS from the releases page and put it on your `PATH` |
+| Manual download | Grab `dotcode-<rid>.tar.gz` / `.zip` from the [releases](https://github.com/DotNetVibeCoderz/Vibe_Dev/releases?q=dotcode-v) and check it with `sha256sum -c SHA256SUMS --ignore-missing` |
+| Scoop (Windows) | `scoop install https://raw.githubusercontent.com/DotNetVibeCoderz/Vibe_Dev/main/DotCode/packaging/scoop/dotcode.json` |
 | .NET global tool | `dotnet tool install -g DotCode.Cli` (requires the .NET 10 runtime) |
 | From source | `git clone … && cd DotCode && dotnet publish src/DotCode.Cli -c Release -r <rid> -o out` |
 
-`<rid>` is `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64`, `osx-x64` or `osx-arm64`. Publishing produces a single NativeAOT executable (~14 MB) with no runtime prerequisites.
+Prebuilt `<rid>`s: `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64` (glibc 2.35+, e.g. Ubuntu 22.04, Debian 12, RHEL 9), `osx-x64` and `osx-arm64`. Each is a single NativeAOT executable (~14 MB) with no runtime prerequisites. For musl (Alpine), use the .NET tool or build from source.
+
+**Updating:** `dotcode update` installs the latest release in place (checksum-verified; `--check` only reports, `--version X` pins). .NET tool installs update with `dotnet tool update -g DotCode.Cli`.
+
+**Verifying a download:** every release archive has a GitHub build-provenance attestation and the release ships an SPDX SBOM (`dotcode-sbom.spdx.json`):
+
+```bash
+gh attestation verify dotcode-linux-x64.tar.gz --repo DotNetVibeCoderz/Vibe_Dev
+```
 
 Check the installation:
 

@@ -49,7 +49,8 @@ Semua screenshot diambil dari sesi nyata (Azure OpenAI gpt-5-mini dan DeepSeek V
 ## Mulai cepat
 
 ```bash
-# 1. Instal: unduh binary dotcode untuk OS Anda (atau: dotnet tool install -g DotCode.Cli)
+# 1. Instal (macOS/Linux; Windows: irm https://raw.githubusercontent.com/DotNetVibeCoderz/Vibe_Dev/main/DotCode/install/install.ps1 | iex)
+curl -fsSL https://raw.githubusercontent.com/DotNetVibeCoderz/Vibe_Dev/main/DotCode/install/install.sh | sh
 # 2. Atur satu provider
 export DEEPSEEK_API_KEY=...        # atau ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY,
                                    # AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT, OLLAMA_HOST

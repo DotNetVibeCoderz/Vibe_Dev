@@ -49,7 +49,8 @@ All screenshots were captured from real sessions (Azure OpenAI gpt-5-mini and De
 ## Quick start
 
 ```bash
-# 1. Install: download the dotcode binary for your OS (or: dotnet tool install -g DotCode.Cli)
+# 1. Install (macOS/Linux; Windows: irm https://raw.githubusercontent.com/DotNetVibeCoderz/Vibe_Dev/main/DotCode/install/install.ps1 | iex)
+curl -fsSL https://raw.githubusercontent.com/DotNetVibeCoderz/Vibe_Dev/main/DotCode/install/install.sh | sh
 # 2. Configure a provider (any one of these works)
 export ANTHROPIC_API_KEY=...        # or OPENAI_API_KEY, GEMINI_API_KEY, DEEPSEEK_API_KEY,
                                     # AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT, OLLAMA_HOST

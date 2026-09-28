@@ -154,8 +154,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p pkg dist
-          cp out/${{ matrix.rid }}/dotcode* pkg/
-          rm -f pkg/*.pdb pkg/*.dbg pkg/*.dSYM
+          # Only the executable (publish also leaves .pdb / .dbg / .dSYM debug symbols next to it).
+          if [[ "${{ matrix.rid }}" == win-* ]]; then cp out/${{ matrix.rid }}/dotcode.exe pkg/; else cp out/${{ matrix.rid }}/dotcode pkg/; fi
           cp README.md LICENSE pkg/
           if [[ "${{ matrix.rid }}" == win-* ]]; then
             pwsh -NoProfile -Command "Compress-Archive -Path pkg/* -DestinationPath dist/dotcode-${{ matrix.rid }}.zip"
