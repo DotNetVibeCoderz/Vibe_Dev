@@ -60,6 +60,8 @@ public sealed class ModelRouter
             return (cfg.Type ?? DefaultProvider) switch
             {
                 "anthropic" => $"{DefaultProvider}:claude-sonnet-4-5",
+                "bedrock" or "vertex" => $"{DefaultProvider}:{(Environment.GetEnvironmentVariable("ANTHROPIC_MODEL") is { Length: > 0 } am ? am : DotCode.Providers.Anthropic.AnthropicProvider.PlatformModelId(cfg.Type!, "sonnet"))}",
+                "vertex-gemini" => $"{DefaultProvider}:gemini-2.5-pro",
                 "openai" => $"{DefaultProvider}:gpt-5",
                 "azure" => $"{DefaultProvider}:gpt-5-mini",
                 "gemini" => $"{DefaultProvider}:gemini-2.5-pro",
@@ -86,8 +88,13 @@ public sealed class ModelRouter
         {
             // Prefer the alias target's model on whichever configured provider speaks that protocol.
             var aref = ModelRef.Parse(alias, DefaultProvider);
-            var provider = Providers.ContainsKey(aref.Provider) ? aref.Provider : Providers.FirstOrDefault(p => p.Value.Type == aref.Provider).Key ?? aref.Provider;
-            reference = $"{provider}:{aref.Model}";
+            var provider = Providers.ContainsKey(aref.Provider) ? aref.Provider : Providers.FirstOrDefault(p => p.Value.Type == aref.Provider).Key;
+            // Claude through Bedrock or Vertex when no direct Anthropic provider is configured.
+            if (provider is null && aref.Provider == "anthropic"
+                && Providers.FirstOrDefault(p => p.Value.Type is "bedrock" or "vertex") is { Key: { } cloud, Value: { } cloudConfig }
+                && DotCode.Providers.Anthropic.AnthropicProvider.PlatformModelId(cloudConfig.Type, reference) is { } platformModel)
+                reference = $"{cloud}:{platformModel}";
+            else reference = $"{provider ?? aref.Provider}:{aref.Model}";
         }
 
         string providerName, model;
@@ -106,6 +113,11 @@ public sealed class ModelRouter
             providerName = DefaultProvider;
             model = reference;
         }
+
+        // "bedrock:sonnet" / "vertex:opus": family aliases become the platform's model id.
+        if (Providers.TryGetValue(providerName, out var platformConfig) && platformConfig.Type is "bedrock" or "vertex"
+            && DotCode.Providers.Anthropic.AnthropicProvider.PlatformModelId(platformConfig.Type, model) is { } platformId)
+            model = platformId;
 
         var instance = GetProvider(providerName);
         var caps = instance.GetCapabilities(model);

@@ -15,7 +15,7 @@ A .NET 10 port of the Claude Code experience, plus a harness SDK for .NET, TypeS
 
 ![DotCode building a .NET console app](docs/images/console-app-working.png)
 
-DotCode reads your codebase, edits files, runs commands and tests, and explains what it did — from a terminal UI that looks and feels like Claude Code (same layout, dialogs, diff view, spinner, shortcuts, slash commands and permission modes), but with your choice of model: **Anthropic, OpenAI, Azure OpenAI, Google Gemini, DeepSeek, Ollama (fully local) or any OpenAI-compatible server**. The same engine is exposed over JSON-RPC so your own applications can embed the agent.
+DotCode reads your codebase, edits files, runs commands and tests, and explains what it did — from a terminal UI that looks and feels like Claude Code (same layout, dialogs, diff view, spinner, shortcuts, slash commands and permission modes), but with your choice of model: **Anthropic (direct, Amazon Bedrock or Google Vertex AI), OpenAI, Azure OpenAI (API key or Entra ID), Google Gemini (API or Vertex AI), DeepSeek, Ollama (fully local) or any OpenAI-compatible server**. The same engine is exposed over JSON-RPC so your own applications can embed the agent.
 
 ## Highlights
 

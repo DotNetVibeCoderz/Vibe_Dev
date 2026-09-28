@@ -58,7 +58,7 @@ public static class ModelCatalog
 
         if (config?.Type is "ollama") caps = caps with { InputPricePerMTok = 0, OutputPricePerMTok = 0, CacheReadPricePerMTok = 0, Caching = CachingSupport.None, ContextWindow = config.NumCtx ?? Math.Min(caps.ContextWindow, 32_768) };
         if (config?.Type is "gemini") caps = caps with { SchemaProfile = JsonSchemaProfile.OpenApiSubset };
-        if (config?.Type is "anthropic" && caps.Caching != CachingSupport.ExplicitBreakpoints) caps = caps with { Caching = CachingSupport.ExplicitBreakpoints };
+        if (config?.Type is "anthropic" or "bedrock" or "vertex" && caps.Caching != CachingSupport.ExplicitBreakpoints) caps = caps with { Caching = CachingSupport.ExplicitBreakpoints };
 
         if (config?.ModelOverrides is { } overrides && (overrides.TryGetValue(modelId, out var o) || overrides.TryGetValue("*", out o)))
         {

@@ -2,33 +2,72 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using DotCode.Abstractions;
+using DotCode.Providers.Auth;
 using DotCode.Providers.Http;
 
 namespace DotCode.Providers.Gemini;
 
-/// <summary>Google Gemini (generateContent) adapter: schema sanitization to the OpenAPI subset, thought-signature
-/// round-trip, role conversion (assistant→model) and thinking budgets.</summary>
-public sealed class GeminiProvider(string id, ProviderConfig config) : IModelProvider
+/// <summary>Google Gemini (generateContent) adapter for the Gemini API (API key) and Vertex AI
+/// (<c>platform: vertex</c> or <c>type: vertex-gemini</c>, OAuth from Application Default Credentials): schema
+/// sanitization to the OpenAPI subset, thought-signature round-trip, role conversion (assistant→model), thinking budgets.</summary>
+public sealed class GeminiProvider : IModelProvider
 {
-    private readonly string _baseUrl = ProviderHttp.TrimSlash(ConfigValue.Expand(config.BaseUrl) ?? "https://generativelanguage.googleapis.com/v1beta");
+    private readonly string id;
+    private readonly ProviderConfig config;
+    private readonly string _baseUrl;
+    private readonly GoogleAuth? _google;
+
+    public bool Vertex { get; }
+
+    public GeminiProvider(string id, ProviderConfig config)
+    {
+        this.id = id;
+        this.config = config;
+        Vertex = string.Equals(config.Platform, "vertex", StringComparison.OrdinalIgnoreCase) || string.Equals(config.Type, "vertex-gemini", StringComparison.OrdinalIgnoreCase);
+        if (Vertex)
+        {
+            _google = new GoogleAuth(config.CredentialsFile);
+            var location = ConfigValue.Expand(config.Region) ?? Env("GOOGLE_CLOUD_LOCATION") ?? Env("CLOUD_ML_REGION") ?? "global";
+            var project = ConfigValue.Expand(config.Project) ?? Env("GOOGLE_CLOUD_PROJECT") ?? Env("GCLOUD_PROJECT") ?? _google.ProjectFromCredentials() ?? "PROJECT";
+            var host = location == "global" ? "https://aiplatform.googleapis.com" : $"https://{location}-aiplatform.googleapis.com";
+            _baseUrl = ProviderHttp.TrimSlash(ConfigValue.Expand(config.BaseUrl) ?? $"{host}/v1/projects/{project}/locations/{location}/publishers/google");
+        }
+        else _baseUrl = ProviderHttp.TrimSlash(ConfigValue.Expand(config.BaseUrl) ?? "https://generativelanguage.googleapis.com/v1beta");
+    }
+
+    private static string? Env(string name) => Environment.GetEnvironmentVariable(name) is { Length: > 0 } v ? v : null;
 
     public string Id => id;
 
-    public ModelCapabilities GetCapabilities(string modelId) => ModelCatalog.Lookup(modelId, config);
+    public ModelCapabilities GetCapabilities(string modelId) => ModelCatalog.Lookup(modelId, config) with { TokenCountingEndpoint = !Vertex };
 
     private HttpRequestMessage CreateRequest(HttpMethod method, string path)
     {
         var req = new HttpRequestMessage(method, _baseUrl + path);
-        var key = ConfigValue.Expand(config.ApiKey) ?? Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? Environment.GetEnvironmentVariable("GOOGLE_API_KEY");
-        if (!string.IsNullOrEmpty(key)) req.Headers.TryAddWithoutValidation("x-goog-api-key", key);
+        if (!Vertex)
+        {
+            var key = ConfigValue.Expand(config.ApiKey) ?? Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? Environment.GetEnvironmentVariable("GOOGLE_API_KEY");
+            if (!string.IsNullOrEmpty(key)) req.Headers.TryAddWithoutValidation("x-goog-api-key", key);
+        }
         if (config.Headers is not null)
             foreach (var (k, v) in config.Headers) req.Headers.TryAddWithoutValidation(k, ConfigValue.Expand(v));
         return req;
     }
 
+    /// <summary>Vertex AI: OAuth bearer token (cached, refreshed before expiry).</summary>
+    private async Task AuthorizeAsync(HttpRequestMessage req, CancellationToken ct)
+    {
+        if (_google is null) return;
+        if (_baseUrl.Contains("/projects/PROJECT/", StringComparison.Ordinal))
+            throw new ModelProviderException(id, "config", $"{id}: set \"project\" (or GOOGLE_CLOUD_PROJECT) for Gemini on Vertex AI.", false);
+        var token = await _google.GetTokenAsync(ct).ConfigureAwait(false);
+        req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token.Token);
+    }
+
     public async ValueTask<IReadOnlyList<ModelInfo>> ListModelsAsync(CancellationToken ct)
     {
         if (config.Models is { Count: > 0 } declared) return [.. declared.Select(m => new ModelInfo(id, m))];
+        if (Vertex) return [.. new[] { "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite" }.Select(m => new ModelInfo(id, m))];
         using var req = CreateRequest(HttpMethod.Get, "/models?pageSize=200");
         using var resp = await ProviderHttp.SendAsync(id, req, ct).ConfigureAwait(false);
         using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false), cancellationToken: ct).ConfigureAwait(false);
@@ -45,6 +84,7 @@ public sealed class GeminiProvider(string id, ProviderConfig config) : IModelPro
 
     public async ValueTask<int?> CountTokensAsync(ModelRequest request, CancellationToken ct)
     {
+        if (Vertex) return null;
         using var req = CreateRequest(HttpMethod.Post, $"/models/{request.Model}:countTokens");
         req.Content = ProviderHttp.JsonContent(w =>
         {
@@ -68,7 +108,15 @@ public sealed class GeminiProvider(string id, ProviderConfig config) : IModelPro
     {
         using var req = CreateRequest(HttpMethod.Post, $"/models/{request.Model}:streamGenerateContent?alt=sse");
         req.Content = ProviderHttp.JsonContent(w => WriteBody(w, request));
-        using var resp = await ProviderHttp.SendAsync(id, req, ct).ConfigureAwait(false);
+        await AuthorizeAsync(req, ct).ConfigureAwait(false);
+        HttpResponseMessage resp;
+        try { resp = await ProviderHttp.SendAsync(id, req, ct).ConfigureAwait(false); }
+        catch (ModelProviderException ex) when (ex.Code == "auth")
+        {
+            _google?.Invalidate();
+            throw;
+        }
+        using var _ = resp;
         await using var stream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
 
         var text = new StringBuilder();

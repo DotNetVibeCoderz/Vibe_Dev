@@ -2,25 +2,89 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using DotCode.Abstractions;
+using DotCode.Providers.Auth;
 using DotCode.Providers.Http;
 
 namespace DotCode.Providers.Anthropic;
 
-/// <summary>Anthropic Messages API adapter (also works with Anthropic-compatible gateways such as Bedrock/Vertex
-/// proxies and DeepSeek's <c>/anthropic</c> endpoint). Supports streaming, extended thinking with signature
-/// round-trip, explicit prompt-cache breakpoints, vision, PDFs and token counting.</summary>
-public sealed class AnthropicProvider(string id, ProviderConfig config) : IModelProvider
+/// <summary>Where the Anthropic Messages API is served from.</summary>
+public enum AnthropicPlatform { Direct, Bedrock, Vertex }
+
+/// <summary>Anthropic Messages API adapter for the Anthropic API (and compatible gateways such as DeepSeek's
+/// <c>/anthropic</c> endpoint), Amazon Bedrock (<c>type: bedrock</c>: SigV4 or Bedrock API key, AWS event-stream
+/// responses) and Google Vertex AI (<c>type: vertex</c>: OAuth from Application Default Credentials). Supports
+/// streaming, extended thinking with signature round-trip, explicit prompt-cache breakpoints, vision, PDFs and token
+/// counting (Anthropic API).</summary>
+public sealed class AnthropicProvider : IModelProvider
 {
     private const string ApiVersion = "2023-06-01";
-    private readonly string _baseUrl = ProviderHttp.TrimSlash(ConfigValue.Expand(config.BaseUrl) ?? "https://api.anthropic.com");
+    private readonly string id;
+    private readonly ProviderConfig config;
+    private readonly string _baseUrl;
+    private readonly GoogleAuth? _google;
+
+    public AnthropicPlatform Platform { get; }
+
+    public AnthropicProvider(string id, ProviderConfig config)
+    {
+        this.id = id;
+        this.config = config;
+        Platform = (config.Type ?? "").ToLowerInvariant() switch
+        {
+            "bedrock" or "anthropic-bedrock" => AnthropicPlatform.Bedrock,
+            "vertex" or "anthropic-vertex" => AnthropicPlatform.Vertex,
+            _ => AnthropicPlatform.Direct,
+        };
+        if (Platform == AnthropicPlatform.Vertex) _google = new GoogleAuth(config.CredentialsFile);
+        _baseUrl = ProviderHttp.TrimSlash(ConfigValue.Expand(config.BaseUrl) ?? Platform switch
+        {
+            AnthropicPlatform.Bedrock => $"https://bedrock-runtime.{BedrockRegion}.amazonaws.com",
+            AnthropicPlatform.Vertex => VertexLocation == "global" ? "https://aiplatform.googleapis.com" : $"https://{VertexLocation}-aiplatform.googleapis.com",
+            _ => "https://api.anthropic.com",
+        });
+    }
 
     public string Id => id;
 
-    public ModelCapabilities GetCapabilities(string modelId) => ModelCatalog.Lookup(modelId, config);
+    private string BedrockRegion => AwsAuth.Region(config) ?? "us-east-1";
+
+    private string VertexLocation => ConfigValue.Expand(config.Region) ?? Env("CLOUD_ML_REGION") ?? Env("GOOGLE_CLOUD_LOCATION") ?? "us-east5";
+
+    private string VertexProject => ConfigValue.Expand(config.Project) ?? Env("ANTHROPIC_VERTEX_PROJECT_ID") ?? Env("GOOGLE_CLOUD_PROJECT") ?? Env("GCLOUD_PROJECT")
+        ?? _google?.ProjectFromCredentials()
+        ?? throw new ModelProviderException(id, "config", $"{id}: set \"project\" (or ANTHROPIC_VERTEX_PROJECT_ID / GOOGLE_CLOUD_PROJECT) for Vertex AI.", false);
+
+    private static string? Env(string name) => Environment.GetEnvironmentVariable(name) is { Length: > 0 } v ? v : null;
+
+    /// <summary>Well-known Claude model ids per platform (Bedrock cross-region inference profiles; Vertex publisher
+    /// model ids), used for aliases (sonnet/opus/haiku) and model lists. Any other id can be used directly.</summary>
+    private static readonly Dictionary<string, (string Bedrock, string Vertex)> FamilyIds = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["sonnet"] = ("us.anthropic.claude-sonnet-4-5-20250929-v1:0", "claude-sonnet-4-5@20250929"),
+        ["opus"] = ("us.anthropic.claude-opus-4-5-20251101-v1:0", "claude-opus-4-5@20251101"),
+        ["haiku"] = ("us.anthropic.claude-haiku-4-5-20251001-v1:0", "claude-haiku-4-5@20251001"),
+    };
+
+    /// <summary>The platform model id for a model family alias (sonnet, opus, haiku).</summary>
+    public static string? PlatformModelId(string providerType, string family) =>
+        FamilyIds.TryGetValue(family, out var ids)
+            ? providerType.Equals("bedrock", StringComparison.OrdinalIgnoreCase) ? ids.Bedrock : providerType.Equals("vertex", StringComparison.OrdinalIgnoreCase) ? ids.Vertex : null
+            : null;
+
+    private static string[] BedrockModels => [.. FamilyIds.Values.Select(v => v.Bedrock), "global.anthropic.claude-sonnet-4-5-20250929-v1:0"];
+    private static string[] VertexModels => [.. FamilyIds.Values.Select(v => v.Vertex)];
+
+    public ModelCapabilities GetCapabilities(string modelId)
+    {
+        var caps = ModelCatalog.Lookup(modelId, config);
+        return Platform == AnthropicPlatform.Direct ? caps : caps with { TokenCountingEndpoint = false };
+    }
 
     public async ValueTask<IReadOnlyList<ModelInfo>> ListModelsAsync(CancellationToken ct)
     {
         if (config.Models is { Count: > 0 } declared) return [.. declared.Select(m => new ModelInfo(id, m))];
+        if (Platform == AnthropicPlatform.Bedrock) return [.. BedrockModels.Select(m => new ModelInfo(id, m))];
+        if (Platform == AnthropicPlatform.Vertex) return [.. VertexModels.Select(m => new ModelInfo(id, m))];
         using var req = CreateRequest(HttpMethod.Get, "/v1/models?limit=100");
         using var resp = await ProviderHttp.SendAsync(id, req, ct).ConfigureAwait(false);
         using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false), cancellationToken: ct).ConfigureAwait(false);
@@ -33,6 +97,7 @@ public sealed class AnthropicProvider(string id, ProviderConfig config) : IModel
 
     public async ValueTask<int?> CountTokensAsync(ModelRequest request, CancellationToken ct)
     {
+        if (Platform != AnthropicPlatform.Direct) return null;
         using var req = CreateRequest(HttpMethod.Post, "/v1/messages/count_tokens");
         req.Content = ProviderHttp.JsonContent(w => WriteBody(w, request, stream: false, countOnly: true));
         try
@@ -62,11 +127,103 @@ public sealed class AnthropicProvider(string id, ProviderConfig config) : IModel
         return req;
     }
 
+    /// <summary>The streaming request for the platform: URL, body variant and authentication (SigV4, OAuth or API key).</summary>
+    private async Task<HttpRequestMessage> CreateStreamRequestAsync(ModelRequest request, CancellationToken ct)
+    {
+        var body = ProviderHttp.JsonContent(w => WriteBody(w, request, stream: Platform != AnthropicPlatform.Bedrock, countOnly: false));
+        switch (Platform)
+        {
+            case AnthropicPlatform.Bedrock:
+            {
+                var req = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/model/{Uri.EscapeDataString(request.Model)}/invoke-with-response-stream") { Content = body };
+                req.Headers.TryAddWithoutValidation("Accept", "application/vnd.amazon.eventstream");
+                AddCustomHeaders(req);
+                // Bedrock API keys (bearer) take precedence; otherwise sign with AWS credentials.
+                if ((ConfigValue.Expand(config.ApiKey) ?? Env("AWS_BEARER_TOKEN_BEDROCK")) is { } bearer)
+                    req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + bearer);
+                else
+                {
+                    var creds = await AwsAuth.ResolveAsync(config, ct).ConfigureAwait(false)
+                                ?? throw new ModelProviderException(id, "auth", $"{id}: no AWS credentials found. Set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, configure a profile in ~/.aws (awsProfile / AWS_PROFILE), run `aws sso login`, or use a Bedrock API key (AWS_BEARER_TOKEN_BEDROCK).", false);
+                    AwsAuth.Sign(req, await body.ReadAsByteArrayAsync(ct).ConfigureAwait(false), creds, BedrockRegion, "bedrock");
+                }
+                return req;
+            }
+            case AnthropicPlatform.Vertex:
+            {
+                var req = new HttpRequestMessage(HttpMethod.Post,
+                    $"{_baseUrl}/v1/projects/{VertexProject}/locations/{VertexLocation}/publishers/anthropic/models/{request.Model}:streamRawPredict") { Content = body };
+                var token = await _google!.GetTokenAsync(ct).ConfigureAwait(false);
+                req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token.Token);
+                if (config.Betas is { Count: > 0 } betas) req.Headers.TryAddWithoutValidation("anthropic-beta", string.Join(',', betas));
+                AddCustomHeaders(req);
+                return req;
+            }
+            default:
+            {
+                var req = CreateRequest(HttpMethod.Post, "/v1/messages");
+                req.Content = body;
+                return req;
+            }
+        }
+    }
+
+    private void AddCustomHeaders(HttpRequestMessage req)
+    {
+        if (config.Headers is not null)
+            foreach (var (k, v) in config.Headers) req.Headers.TryAddWithoutValidation(k, ConfigValue.Expand(v));
+    }
+
+    /// <summary>Anthropic stream events as (event name, JSON): SSE for the API and Vertex, AWS event-stream frames
+    /// wrapping base64 event JSON for Bedrock.</summary>
+    private async IAsyncEnumerable<(string? Event, string Data)> RawEventsAsync(Stream stream, [EnumeratorCancellation] CancellationToken ct)
+    {
+        if (Platform != AnthropicPlatform.Bedrock)
+        {
+            await foreach (var sse in ProviderHttp.ReadSseAsync(stream, ct).ConfigureAwait(false)) yield return (sse.Event, sse.Data);
+            yield break;
+        }
+        await foreach (var frame in AwsEventStream.ReadAsync(stream, ct).ConfigureAwait(false))
+        {
+            var payload = Encoding.UTF8.GetString(frame.Payload);
+            if (frame.MessageType is "exception" or "error")
+            {
+                var kind = frame.ExceptionType ?? frame.Headers.GetValueOrDefault(":error-code") ?? "error";
+                var message = DotCodeJsonSafe(payload)?.GetString("message") ?? payload;
+                var (code, retryable) = kind switch
+                {
+                    "throttlingException" => ("rate_limit", true),
+                    "serviceUnavailableException" or "internalServerException" => ("server_error", true),
+                    "modelStreamErrorException" or "modelTimeoutException" => ("server_error", true),
+                    "validationException" when message.Contains("too long", StringComparison.OrdinalIgnoreCase) => ("context_length", false),
+                    "accessDeniedException" => ("auth", false),
+                    _ => ("invalid_request", false),
+                };
+                throw new ModelProviderException(id, code, $"{id}: Bedrock {kind}: {message}", retryable);
+            }
+            if (frame.EventType != "chunk") continue;
+            // {"bytes":"<base64 of an Anthropic stream event>"}
+            if (DotCodeJsonSafe(payload)?.GetString("bytes") is { } b64) yield return (null, Encoding.UTF8.GetString(Convert.FromBase64String(b64)));
+        }
+    }
+
+    private static JsonElement? DotCodeJsonSafe(string json)
+    {
+        try { return DotCodeJson.Parse(json); }
+        catch (JsonException) { return null; }
+    }
+
     public async IAsyncEnumerable<ModelEvent> StreamAsync(ModelRequest request, [EnumeratorCancellation] CancellationToken ct)
     {
-        using var req = CreateRequest(HttpMethod.Post, "/v1/messages");
-        req.Content = ProviderHttp.JsonContent(w => WriteBody(w, request, stream: true, countOnly: false));
-        using var resp = await ProviderHttp.SendAsync(id, req, ct).ConfigureAwait(false);
+        using var req = await CreateStreamRequestAsync(request, ct).ConfigureAwait(false);
+        HttpResponseMessage resp;
+        try { resp = await ProviderHttp.SendAsync(id, req, ct).ConfigureAwait(false); }
+        catch (ModelProviderException ex) when (ex.Code == "auth")
+        {
+            _google?.Invalidate();   // an expired or revoked token is fetched again on the next call
+            throw;
+        }
+        using var _ = resp;
         await using var stream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
 
         var blocks = new Dictionary<int, BlockState>();
@@ -74,7 +231,7 @@ public sealed class AnthropicProvider(string id, ProviderConfig config) : IModel
         var stop = StopReason.EndTurn;
         var stopped = false;
 
-        await foreach (var sse in ProviderHttp.ReadSseAsync(stream, ct).ConfigureAwait(false))
+        await foreach (var sse in RawEventsAsync(stream, ct).ConfigureAwait(false))
         {
             if (sse.Data.Length == 0 || sse.Data == "[DONE]") continue;
             using var doc = JsonDocument.Parse(sse.Data);
@@ -238,7 +395,25 @@ public sealed class AnthropicProvider(string id, ProviderConfig config) : IModel
         var cache = r.PromptCaching && caps.Caching == CachingSupport.ExplicitBreakpoints;
 
         w.WriteStartObject();
-        w.WriteString("model", r.Model);
+        // Bedrock and Vertex take the model from the URL and a platform-specific anthropic_version in the body.
+        switch (Platform)
+        {
+            case AnthropicPlatform.Bedrock:
+                w.WriteString("anthropic_version", "bedrock-2023-05-31");
+                if (config.Betas is { Count: > 0 } betas)
+                {
+                    w.WriteStartArray("anthropic_beta");
+                    foreach (var b in betas) w.WriteStringValue(b);
+                    w.WriteEndArray();
+                }
+                break;
+            case AnthropicPlatform.Vertex:
+                w.WriteString("anthropic_version", "vertex-2023-10-16");
+                break;
+            default:
+                w.WriteString("model", r.Model);
+                break;
+        }
         if (!countOnly)
         {
             w.WriteNumber("max_tokens", maxTokens);

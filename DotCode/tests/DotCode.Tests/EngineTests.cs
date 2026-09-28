@@ -518,4 +518,5 @@ public sealed class AgentLoopTests : IDisposable
 }
 
 [System.Text.Json.Serialization.JsonSerializable(typeof(string))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(Dictionary<string, string>))]
 internal sealed partial class TestJson : System.Text.Json.Serialization.JsonSerializerContext;

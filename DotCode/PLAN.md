@@ -26,7 +26,7 @@
 5. ~~**LSP tool**~~ ✅ done (v0.2) — definition, implementation, references, hover, symbols, diagnostics via typescript-language-server, pyright, gopls, rust-analyzer, csharp-ls, clangd, jdtls or configured servers; errors reported after edits.
 6. ~~**Observability**~~ ✅ done (v0.2) — OpenTelemetry OTLP/HTTP traces + metrics (opt-in), hash-chained audit log with `dotcode audit verify`.
 7. **TUI polish** — ✅ vim mode, Ctrl+R history search, transcript viewer (Ctrl+O), terminal bell/OSC notifications, bilingual UI strings (EN/ID) (v0.2) · ⏳ image paste, clickable file links.
-8. **Providers** — Bedrock/Vertex transports for Anthropic, Entra ID / ADC token providers, Gemini context caching, model capability auto-probing for compat servers, token counting via tokenizers.
+8. **Providers** — ✅ Amazon Bedrock (SigV4 / API key, event stream), Google Vertex AI (Claude + Gemini, ADC incl. service-account JWT), Azure OpenAI with Microsoft Entra ID (v0.2) · ⏳ live-account verification of those three, Gemini context caching, model capability auto-probing for compat servers, token counting via tokenizers.
 9. **SDKs** — ✅ Rust SDK on crates.io (v0.2) · ⏳ schema-driven code generation for all SDKs; WebSocket "connect" mode in TypeScript/Python/Go; in-process WASM/host bindings investigation.
 10. **Desktop & IDE** — ✅ VS Code extension (chat, diff review, inline permissions; v0.2) · ⏳ Marketplace/Open VSX publication, Avalonia app, JetBrains plugin.
 

@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using DotCode.Abstractions;
+using DotCode.Providers.Auth;
 using DotCode.Providers.Http;
 
 namespace DotCode.Providers.OpenAI;
@@ -22,6 +23,23 @@ public sealed class OpenAIResponsesProvider : IModelProvider
         _config = config;
         _baseUrl = ProviderHttp.TrimSlash(ConfigValue.Expand(config.BaseUrl) ?? "https://api.openai.com/v1");
         _azureAuth = config.Type == "azure" || (config.Quirks?.AuthHeader == "api-key");
+        if (string.Equals(config.Auth, "entra", StringComparison.OrdinalIgnoreCase)) _entra = new EntraAuth(config);
+    }
+
+    private readonly EntraAuth? _entra;
+
+    /// <summary>Sends with the API key already set, or with a Microsoft Entra bearer token (<c>auth: entra</c>).</summary>
+    private async Task<HttpResponseMessage> SendAuthorizedAsync(HttpRequestMessage req, CancellationToken ct)
+    {
+        if (_entra is null) return await ProviderHttp.SendAsync(_id, req, ct).ConfigureAwait(false);
+        req.Headers.Remove("Authorization");
+        req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + (await _entra.GetTokenAsync(ct).ConfigureAwait(false)).Token);
+        try { return await ProviderHttp.SendAsync(_id, req, ct).ConfigureAwait(false); }
+        catch (ModelProviderException ex) when (ex.Code == "auth")
+        {
+            _entra.Invalidate();
+            throw;
+        }
     }
 
     public string Id => _id;
@@ -32,7 +50,7 @@ public sealed class OpenAIResponsesProvider : IModelProvider
     {
         var req = new HttpRequestMessage(method, _baseUrl + path);
         var key = ConfigValue.Expand(_config.ApiKey) ?? Environment.GetEnvironmentVariable(_azureAuth ? "AZURE_OPENAI_API_KEY" : "OPENAI_API_KEY");
-        if (!string.IsNullOrEmpty(key))
+        if (_entra is null && !string.IsNullOrEmpty(key))
         {
             if (_azureAuth) req.Headers.TryAddWithoutValidation("api-key", key);
             else req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + key);
@@ -46,7 +64,7 @@ public sealed class OpenAIResponsesProvider : IModelProvider
     {
         if (_config.Models is { Count: > 0 } declared) return [.. declared.Select(m => new ModelInfo(_id, m))];
         using var req = CreateRequest(HttpMethod.Get, "/models");
-        using var resp = await ProviderHttp.SendAsync(_id, req, ct).ConfigureAwait(false);
+        using var resp = await SendAuthorizedAsync(req, ct).ConfigureAwait(false);
         using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false), cancellationToken: ct).ConfigureAwait(false);
         var list = new List<ModelInfo>();
         if (doc.RootElement.TryGetProperty("data", out var data))
@@ -59,7 +77,7 @@ public sealed class OpenAIResponsesProvider : IModelProvider
     {
         using var req = CreateRequest(HttpMethod.Post, "/responses");
         req.Content = ProviderHttp.JsonContent(w => WriteBody(w, request));
-        using var resp = await ProviderHttp.SendAsync(_id, req, ct).ConfigureAwait(false);
+        using var resp = await SendAuthorizedAsync(req, ct).ConfigureAwait(false);
         await using var stream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
 
         var usage = new Usage();

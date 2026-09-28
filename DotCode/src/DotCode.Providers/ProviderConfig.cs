@@ -30,6 +30,25 @@ public sealed class ProviderConfig
     public bool? UseBearerAuth { get; set; }
     /// <summary>Anthropic beta headers.</summary>
     public List<string>? Betas { get; set; }
+
+    // ---- cloud platforms (bedrock, vertex, azure with Entra ID)
+    /// <summary>AWS region (bedrock) or Google Cloud location (vertex; "global" allowed).</summary>
+    public string? Region { get; set; }
+    /// <summary>AWS profile from ~/.aws (bedrock; default AWS_PROFILE or "default").</summary>
+    public string? AwsProfile { get; set; }
+    /// <summary>Google Cloud project (vertex).</summary>
+    public string? Project { get; set; }
+    /// <summary>Google credentials file (vertex; default: GOOGLE_APPLICATION_CREDENTIALS / gcloud ADC).</summary>
+    public string? CredentialsFile { get; set; }
+    /// <summary>"key" (default) or "entra" — Microsoft Entra ID tokens instead of an API key (azure).</summary>
+    public string? Auth { get; set; }
+    /// <summary>Entra token scope (default https://cognitiveservices.azure.com/.default).</summary>
+    public string? Scope { get; set; }
+    public string? TenantId { get; set; }
+    public string? ClientId { get; set; }
+    public string? ClientSecret { get; set; }
+    /// <summary>gemini: "vertex" to call Gemini through Vertex AI (OAuth) instead of the Gemini API.</summary>
+    public string? Platform { get; set; }
 }
 
 public sealed class ModelOverride

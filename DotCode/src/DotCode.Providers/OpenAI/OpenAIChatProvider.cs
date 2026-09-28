@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using DotCode.Abstractions;
+using DotCode.Providers.Auth;
 using DotCode.Providers.Http;
 
 namespace DotCode.Providers.OpenAI;
@@ -27,6 +28,7 @@ public sealed class OpenAIChatProvider : IModelProvider
             _ => null,
         };
         _quirks = (config.Quirks ?? new OpenAIQuirks()).MergeOver(OpenAIQuirks.ForProfile(profile));
+        if (string.Equals(config.Auth, "entra", StringComparison.OrdinalIgnoreCase)) _entra = new EntraAuth(config);
         _baseUrl = ProviderHttp.TrimSlash(ConfigValue.Expand(config.BaseUrl) ?? config.Type switch
         {
             "deepseek" => "https://api.deepseek.com",
@@ -36,6 +38,22 @@ public sealed class OpenAIChatProvider : IModelProvider
     }
 
     public string Id => _id;
+
+    private readonly EntraAuth? _entra;
+
+    /// <summary>Sends with the API key already set, or with a Microsoft Entra bearer token (<c>auth: entra</c>).</summary>
+    private async Task<HttpResponseMessage> SendAuthorizedAsync(HttpRequestMessage req, CancellationToken ct)
+    {
+        if (_entra is not { } entra) return await ProviderHttp.SendAsync(_id, req, ct).ConfigureAwait(false);
+        req.Headers.Remove("Authorization");
+        req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + (await entra.GetTokenAsync(ct).ConfigureAwait(false)).Token);
+        try { return await ProviderHttp.SendAsync(_id, req, ct).ConfigureAwait(false); }
+        catch (ModelProviderException ex) when (ex.Code == "auth")
+        {
+            entra.Invalidate();
+            throw;
+        }
+    }
 
     public ModelCapabilities GetCapabilities(string modelId) => ModelCatalog.Lookup(modelId, _config);
 
@@ -50,7 +68,7 @@ public sealed class OpenAIChatProvider : IModelProvider
     private HttpRequestMessage CreateRequest(HttpMethod method, string path)
     {
         var req = new HttpRequestMessage(method, _baseUrl + path);
-        if (ApiKey is { Length: > 0 } key)
+        if (_entra is null && ApiKey is { Length: > 0 } key)
         {
             if (_quirks.AuthHeader == "api-key") req.Headers.TryAddWithoutValidation("api-key", key);
             else req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + key);
@@ -64,7 +82,7 @@ public sealed class OpenAIChatProvider : IModelProvider
     {
         if (_config.Models is { Count: > 0 } declared) return [.. declared.Select(m => new ModelInfo(_id, m))];
         using var req = CreateRequest(HttpMethod.Get, "/models");
-        using var resp = await ProviderHttp.SendAsync(_id, req, ct).ConfigureAwait(false);
+        using var resp = await SendAuthorizedAsync(req, ct).ConfigureAwait(false);
         using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false), cancellationToken: ct).ConfigureAwait(false);
         var list = new List<ModelInfo>();
         if (doc.RootElement.TryGetProperty("data", out var data))
@@ -77,7 +95,7 @@ public sealed class OpenAIChatProvider : IModelProvider
     {
         using var req = CreateRequest(HttpMethod.Post, "/chat/completions");
         req.Content = ProviderHttp.JsonContent(w => WriteBody(w, request));
-        using var resp = await ProviderHttp.SendAsync(_id, req, ct).ConfigureAwait(false);
+        using var resp = await SendAuthorizedAsync(req, ct).ConfigureAwait(false);
         await using var stream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
 
         var text = new StringBuilder();

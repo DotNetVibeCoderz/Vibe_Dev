@@ -15,7 +15,7 @@ Port pengalaman Claude Code ke .NET 10, lengkap dengan SDK harness untuk .NET, T
 
 ![DotCode membangun aplikasi konsol .NET](docs/images/console-app-working.png)
 
-DotCode membaca codebase Anda, mengedit file, menjalankan perintah dan test, lalu menjelaskan apa yang dilakukannya — dari UI terminal yang tampilan dan rasanya seperti Claude Code (tata letak, dialog, tampilan diff, spinner, pintasan, slash command, dan mode izin yang sama), namun dengan model pilihan Anda: **Anthropic, OpenAI, Azure OpenAI, Google Gemini, DeepSeek, Ollama (sepenuhnya lokal), atau server kompatibel OpenAI**. Engine yang sama diekspos lewat JSON-RPC sehingga aplikasi Anda sendiri dapat menyematkan agen ini.
+DotCode membaca codebase Anda, mengedit file, menjalankan perintah dan test, lalu menjelaskan apa yang dilakukannya — dari UI terminal yang tampilan dan rasanya seperti Claude Code (tata letak, dialog, tampilan diff, spinner, pintasan, slash command, dan mode izin yang sama), namun dengan model pilihan Anda: **Anthropic (langsung, Amazon Bedrock, atau Google Vertex AI), OpenAI, Azure OpenAI (API key atau Entra ID), Google Gemini (API atau Vertex AI), DeepSeek, Ollama (sepenuhnya lokal), atau server kompatibel OpenAI**. Engine yang sama diekspos lewat JSON-RPC sehingga aplikasi Anda sendiri dapat menyematkan agen ini.
 
 ## Fitur utama
 

@@ -34,6 +34,9 @@
 | OpenAI Responses / Chat, Azure | ✅ | Verified live on Azure |
 | DeepSeek | ✅ | `reasoning_content` round-trip within tool loops; verified live |
 | Gemini | ✅ | Contract-tested (no live key available) |
+| Amazon Bedrock (Claude) | ✅ | SigV4 (checked against the official AWS test vector) or Bedrock API key; env / `~/.aws` profiles / credential_process / AWS CLI SSO; AWS event-stream decoding with CRC checks; `CLAUDE_CODE_USE_BEDROCK`. Contract-tested + AOT smoke against a local fake endpoint; no live AWS account available |
+| Google Vertex AI (Claude, Gemini) | ✅ | ADC: access token, service-account RS256 JWT, authorized-user refresh, metadata server, gcloud; `CLAUDE_CODE_USE_VERTEX`. Contract-tested + AOT smoke; no live GCP account available |
+| Azure OpenAI with Entra ID | ✅ | `auth: entra`: client secret, workload identity, managed identity, Azure CLI; token cache. Contract-tested; no live Entra tenant available |
 | Ollama | ✅ | Contract-tested (no local Ollama during testing) |
 | OpenAI-compatible quirk profiles | ✅ | 10 built-in profiles |
 | Text tool protocol fallback | ✅ | Contract-tested |
@@ -58,7 +61,7 @@
 | JSON-RPC server (stdio, Content-Length, WebSocket + token) | ✅ | |
 | SDKs: .NET, TypeScript, Python, Go, Java, Rust | ✅ | Rust: sync/thread-based, serde_json only, conformance tests + sample verified with Azure gpt-5-mini and DeepSeek; published to crates.io as `dotcode-sdk` 0.1.0 |
 | OpenRPC schema | ✅ | Code generation from schema ⏳ |
-| Tests | ✅ | 94 xUnit + 2 TS + 2 Python + 2 Go + 2 Java + 2 Rust conformance, all passing |
+| Tests | ✅ | 103 xUnit + 2 TS + 2 Python + 2 Go + 2 Java + 2 Rust conformance, all passing |
 | NativeAOT binaries & release pipeline | ✅ | win-x64, win-arm64, linux-x64, linux-arm64 (glibc 2.35+), osx-x64, osx-arm64 built on native runners (osx-x64 cross + Rosetta smoke test) and smoke-tested with a mock-model prompt; `.zip`/`.tar.gz`, SHA256SUMS, SPDX SBOM, provenance attestations; `build_binaries` dry run verified |
 | Installers & updates | ✅ | `install.sh` (Linux/macOS/Git Bash), `install.ps1` (Windows): checksum-verified, per-user; tested against the real v0.1.0 release and a tampered fake release; `dotcode update` (verified self-update); Scoop manifest |
 | Git worktrees | ✅ | `--worktree [name]` (auto-removed when unchanged), `dotcode worktree list\|remove\|prune`, subagent `isolation: worktree`, SDK/protocol `worktree` option in all 5 SDKs |
