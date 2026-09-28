@@ -119,14 +119,17 @@ Contoh plugin di [`samples/plugins/gravicode-toolkit`](../../samples/plugins/gra
 
 ## Server MCP
 
-DotCode adalah klien Model Context Protocol (stdio dan Streamable HTTP). Tool tampil sebagai `mcp__<server>__<tool>`, prompt sebagai `/mcp__<server>__<prompt>`.
+DotCode adalah klien Model Context Protocol lewat stdio, Streamable HTTP, dan transport lama HTTP+SSE. Tool tampil sebagai `mcp__<server>__<tool>`, prompt sebagai `/mcp__<server>__<prompt>`.
 
 ```bash
 dotcode mcp add notes node samples/mcp-server-notes/server.mjs
 dotcode mcp add --scope project github --transport http https://api.githubcopilot.com/mcp/ -H "Authorization: Bearer $GH_TOKEN"
+dotcode mcp add --transport sse legacy http://localhost:3001/sse   # server HTTP+SSE versi lama
 dotcode mcp list
 dotcode mcp get notes
 dotcode mcp remove notes
 ```
+
+**Transport.** `"type": "stdio"` (default bila ada `command`), `"http"` (Streamable HTTP, spesifikasi terkini; default bila ada `url`) dan `"sse"` (transport HTTP+SSE 2024-11-05: stream GET mengumumkan `endpoint` tujuan POST). Server `http` yang menolak request Streamable HTTP dengan 400/404/405 otomatis dicoba ulang sebagai `sse`, jadi server lama tetap berfungsi; `/mcp` dan `dotcode mcp list` menampilkan transport yang dipakai. Bila proses server berhenti atau stream SSE putus, panggilan yang tertunda langsung gagal dengan "disconnected" alih-alih menggantung; gunakan `/mcp reconnect <nama>`.
 
 ![Server MCP notes](../images/mcp-notes.png)

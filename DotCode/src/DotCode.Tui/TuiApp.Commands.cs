@@ -327,7 +327,7 @@ internal sealed partial class App
                 {
                     var status = s.Status switch
                     {
-                        McpServerStatus.Connected => t.C(t.Glyphs.Check + " connected", t.Success) + t.Dim($" · {s.Client!.Tools.Count} tools{(s.Client.Prompts.Count > 0 ? $" · {s.Client.Prompts.Count} prompts" : "")}"),
+                        McpServerStatus.Connected => t.C(t.Glyphs.Check + " connected", t.Success) + t.Dim($" · {s.Client!.Transport} · {s.Client.Tools.Count} tools{(s.Client.Prompts.Count > 0 ? $" · {s.Client.Prompts.Count} prompts" : "")}"),
                         McpServerStatus.Pending => t.C("… connecting", t.Warning),
                         McpServerStatus.Disabled => t.Dim("○ disabled"),
                         _ => t.C(t.Glyphs.Cross + " failed", t.Error) + t.Dim(" · " + s.Error),

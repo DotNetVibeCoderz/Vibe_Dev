@@ -52,13 +52,13 @@
 | Hooks (9 events) | ✅ | Claude Code JSON contract |
 | Skills, commands, subagents, output styles | ✅ | |
 | Plugins & marketplaces | ✅ | |
-| MCP client (stdio, Streamable HTTP, tools/prompts/resources) | ✅ | Legacy SSE transport ⏳ |
+| MCP client (stdio, Streamable HTTP, legacy HTTP+SSE, tools/prompts/resources) | ✅ | `http` auto-falls back to SSE for 2024-11-05 servers; disconnects fail pending calls; verified against `@modelcontextprotocol/server-everything` in `sse` and `streamableHttp` modes |
 | TUI | ✅ | Vim mode (`/vim`), Ctrl+R history search, Ctrl+O transcript viewer with search, bell/OSC 9/OSC 777 notifications, EN/ID UI strings (`tui.language`); image paste ⏳ |
 | Headless (text/json/stream-json, stream-json input) | ✅ | |
 | JSON-RPC server (stdio, Content-Length, WebSocket + token) | ✅ | |
 | SDKs: .NET, TypeScript, Python, Go, Java | ✅ | Rust ⏳ |
 | OpenRPC schema | ✅ | Code generation from schema ⏳ |
-| Tests | ✅ | 78 xUnit + 2 TS + 2 Python + 2 Go + 2 Java conformance, all passing |
+| Tests | ✅ | 81 xUnit + 2 TS + 2 Python + 2 Go + 2 Java conformance, all passing |
 | NativeAOT binaries | ✅ | win-x64, linux-x64, osx-arm64 built and smoke-tested in CI |
 | Git worktrees | ✅ | `--worktree [name]` (auto-removed when unchanged), `dotcode worktree list\|remove\|prune`, subagent `isolation: worktree`, SDK/protocol `worktree` option in all 5 SDKs |
 | Shell sandbox | ✅ | `sandbox` settings, `/sandbox`: bubblewrap (Linux) and Seatbelt (macOS) confine writes, hide credentials, optional network deny, auto-allow sandboxed commands; Windows Job Object containment + limits; tested for real on Linux, macOS (CI) and Windows |

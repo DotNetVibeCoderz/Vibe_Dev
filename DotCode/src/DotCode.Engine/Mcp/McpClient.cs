@@ -42,16 +42,44 @@ public sealed class McpClient : IAsyncDisposable
         Config = config;
         _transport = transport;
         _transport.MessageReceived += OnMessage;
+        _transport.Closed += OnClosed;
     }
+
+    /// <summary>The connection is gone (process exited, SSE stream ended): fail every request still waiting.</summary>
+    private void OnClosed(string reason)
+    {
+        foreach (var id in _pending.Keys)
+            if (_pending.TryRemove(id, out var tcs)) tcs.TrySetException(new McpException($"MCP server '{Name}' disconnected: {reason}"));
+    }
+
+    /// <summary>Transport in use: stdio, http (Streamable HTTP) or sse (legacy HTTP+SSE, protocol 2024-11-05).</summary>
+    public string Transport { get; private set; } = "stdio";
 
     public static async Task<McpClient> ConnectAsync(string name, McpServerConfig config, string cwd, CancellationToken ct)
     {
-        IMcpTransport transport = config.EffectiveType switch
+        switch (config.EffectiveType)
         {
-            "http" or "streamable-http" or "sse" => new HttpTransport(config),
-            _ => new StdioTransport(config, cwd),
-        };
-        var client = new McpClient(name, config, transport);
+            case "sse":
+                return await ConnectWithAsync(name, config, new SseTransport(config), "sse", ct).ConfigureAwait(false);
+            case "http" or "streamable-http":
+                try
+                {
+                    return await ConnectWithAsync(name, config, new HttpTransport(config), "http", ct).ConfigureAwait(false);
+                }
+                catch (McpException ex) when (ex.Code is 400 or 404 or 405)
+                {
+                    // Backwards compatibility (per the MCP spec): a server that rejects the Streamable HTTP POST may
+                    // only speak the older HTTP+SSE transport, so open the SSE stream on the same URL instead.
+                    return await ConnectWithAsync(name, config, new SseTransport(config), "sse", ct).ConfigureAwait(false);
+                }
+            default:
+                return await ConnectWithAsync(name, config, new StdioTransport(config, cwd), "stdio", ct).ConfigureAwait(false);
+        }
+    }
+
+    private static async Task<McpClient> ConnectWithAsync(string name, McpServerConfig config, IMcpTransport transport, string kind, CancellationToken ct)
+    {
+        var client = new McpClient(name, config, transport) { Transport = kind };
         try
         {
             await transport.StartAsync(ct).ConfigureAwait(false);
@@ -309,6 +337,8 @@ public sealed class McpException(string message, int code = 0) : Exception(messa
 internal interface IMcpTransport : IAsyncDisposable
 {
     event Action<JsonElement>? MessageReceived;
+    /// <summary>Raised once when the connection ends unexpectedly.</summary>
+    event Action<string>? Closed;
     Task StartAsync(CancellationToken ct);
     Task SendAsync(JsonElement message, CancellationToken ct);
 }
@@ -346,17 +376,25 @@ internal sealed class StdioTransport(McpServerConfig config, string cwd) : IMcpT
 
     public string Stderr { get { lock (_stderr) return _stderr.ToString(); } }
 
+    public event Action<string>? Closed;
+    private bool _disposing;
+
     private async Task ReadLoop()
     {
         var reader = _process!.StandardOutput;
-        while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
+        try
         {
-            if (line.Length == 0 || line[0] != '{') continue;
-            JsonElement msg;
-            try { msg = DotCodeJson.Parse(line); }
-            catch (JsonException) { continue; }
-            MessageReceived?.Invoke(msg);
+            while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
+            {
+                if (line.Length == 0 || line[0] != '{') continue;
+                JsonElement msg;
+                try { msg = DotCodeJson.Parse(line); }
+                catch (JsonException) { continue; }
+                MessageReceived?.Invoke(msg);
+            }
         }
+        catch (Exception e) when (e is IOException or ObjectDisposedException) { }
+        if (!_disposing) Closed?.Invoke($"process exited{(Stderr.Length > 0 ? ": " + TextUtil.FirstLine(Stderr, 300) : "")}");
     }
 
     public async Task SendAsync(JsonElement message, CancellationToken ct)
@@ -374,6 +412,7 @@ internal sealed class StdioTransport(McpServerConfig config, string cwd) : IMcpT
 
     public ValueTask DisposeAsync()
     {
+        _disposing = true;
         if (_process is not null)
         {
             try { _process.StandardInput.Close(); } catch { }
@@ -389,6 +428,8 @@ internal sealed class HttpTransport(McpServerConfig config) : IMcpTransport
 {
     private string? _sessionId;
     public event Action<JsonElement>? MessageReceived;
+    // Each request is its own HTTP exchange; there is no long-lived connection to lose.
+    public event Action<string>? Closed { add { } remove { } }
 
     public Task StartAsync(CancellationToken ct) => Task.CompletedTask;
 
@@ -404,11 +445,11 @@ internal sealed class HttpTransport(McpServerConfig config) : IMcpTransport
             foreach (var (k, v) in config.Headers) req.Headers.TryAddWithoutValidation(k, ConfigValue.Expand(v));
         req.Content = new StringContent(message.GetRawText(), Encoding.UTF8, "application/json");
 
-        using var resp = await ProviderHttp.Client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        using var resp = await ProviderHttp.GetClient().SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
         if (resp.Headers.TryGetValues("Mcp-Session-Id", out var ids)) _sessionId = ids.FirstOrDefault();
         if (resp.StatusCode == System.Net.HttpStatusCode.Accepted) return;
         if (!resp.IsSuccessStatusCode)
-            throw new McpException($"MCP HTTP {(int)resp.StatusCode}: {await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false)}");
+            throw new McpException($"MCP HTTP {(int)resp.StatusCode}: {TextUtil.Truncate(await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false), 500)}", (int)resp.StatusCode);
 
         var mediaType = resp.Content.Headers.ContentType?.MediaType;
         await using var stream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
@@ -433,4 +474,115 @@ internal sealed class HttpTransport(McpServerConfig config) : IMcpTransport
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}
+
+/// <summary>Legacy HTTP+SSE transport (MCP protocol 2024-11-05): a long-lived GET opens an SSE stream whose first
+/// <c>endpoint</c> event names the URL to POST messages to; every server message (responses, requests,
+/// notifications) arrives on that stream as a <c>message</c> event.</summary>
+internal sealed class SseTransport(McpServerConfig config) : IMcpTransport
+{
+    private readonly CancellationTokenSource _cts = new();
+    private readonly TaskCompletionSource<Uri> _endpoint = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private HttpClient? _http;
+    private Task? _reader;
+    private volatile bool _closed;
+
+    public event Action<JsonElement>? MessageReceived;
+    public event Action<string>? Closed;
+
+    private void AddHeaders(HttpRequestMessage req)
+    {
+        if (config.Headers is not null)
+            foreach (var (k, v) in config.Headers) req.Headers.TryAddWithoutValidation(k, ConfigValue.Expand(v));
+    }
+
+    public async Task StartAsync(CancellationToken ct)
+    {
+        var url = new Uri(ConfigValue.Expand(config.Url) ?? throw new InvalidOperationException("MCP sse server requires a url"));
+        _http = ProviderHttp.GetClient();
+        var req = new HttpRequestMessage(HttpMethod.Get, url);
+        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+        req.Headers.CacheControl = new CacheControlHeaderValue { NoCache = true };
+        AddHeaders(req);
+        HttpResponseMessage resp;
+        try
+        {
+            resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        }
+        finally { req.Dispose(); }
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            resp.Dispose();
+            throw new McpException($"MCP SSE {(int)resp.StatusCode}: {TextUtil.Truncate(body, 500)}", (int)resp.StatusCode);
+        }
+        _reader = Task.Run(() => ReadLoopAsync(resp, url), CancellationToken.None);
+
+        // The endpoint event must arrive before anything can be sent.
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        await _endpoint.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+    }
+
+    private async Task ReadLoopAsync(HttpResponseMessage resp, Uri baseUrl)
+    {
+        var reason = "SSE stream ended";
+        try
+        {
+            using (resp)
+            await using (var stream = await resp.Content.ReadAsStreamAsync(_cts.Token).ConfigureAwait(false))
+            {
+                await foreach (var ev in ProviderHttp.ReadSseAsync(stream, _cts.Token).ConfigureAwait(false))
+                {
+                    if (ev.Event == "endpoint")
+                    {
+                        if (Uri.TryCreate(baseUrl, ev.Data.Trim(), out var endpoint)) _endpoint.TrySetResult(endpoint);
+                        continue;
+                    }
+                    if (ev.Event is not (null or "" or "message") || ev.Data.Length == 0) continue;
+                    try { MessageReceived?.Invoke(DotCodeJson.Parse(ev.Data)); }
+                    catch (JsonException) { }
+                }
+            }
+        }
+        catch (OperationCanceledException) when (_cts.IsCancellationRequested) { return; }
+        catch (Exception ex) when (ex is HttpRequestException or IOException) { reason = ex.Message; }
+        _closed = true;
+        _endpoint.TrySetException(new McpException($"MCP SSE stream closed before the endpoint event ({reason})"));
+        if (!_cts.IsCancellationRequested) Closed?.Invoke(reason);
+    }
+
+    public async Task SendAsync(JsonElement message, CancellationToken ct)
+    {
+        if (_closed) throw new McpException("MCP SSE connection is closed");
+        var endpoint = await _endpoint.Task.WaitAsync(ct).ConfigureAwait(false);
+        using var req = new HttpRequestMessage(HttpMethod.Post, endpoint)
+        {
+            Content = new StringContent(message.GetRawText(), Encoding.UTF8, "application/json"),
+        };
+        AddHeaders(req);
+        using var resp = await _http!.SendAsync(req, ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode)
+            throw new McpException($"MCP SSE POST {(int)resp.StatusCode}: {TextUtil.Truncate(await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false), 500)}", (int)resp.StatusCode);
+        // Responses normally arrive on the stream; tolerate servers that also answer in the POST body.
+        if (resp.Content.Headers.ContentType?.MediaType == "application/json")
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            if (body.Trim().Length > 0)
+            {
+                try { MessageReceived?.Invoke(DotCodeJson.Parse(body)); }
+                catch (JsonException) { }
+            }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _cts.CancelAsync().ConfigureAwait(false);
+        if (_reader is not null)
+        {
+            try { await _reader.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false); } catch { }
+        }
+        _cts.Dispose();
+    }
 }

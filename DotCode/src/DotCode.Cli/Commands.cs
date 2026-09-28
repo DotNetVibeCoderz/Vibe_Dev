@@ -81,7 +81,7 @@ public static class Commands
         {
             case "add":
             {
-                // dotcode mcp add [--scope user|project] [--transport stdio|http] [-e KEY=VAL] [-H "K: V"] <name> <command-or-url> [args...]
+                // dotcode mcp add [--scope user|project] [--transport stdio|http|sse] [-e KEY=VAL] [-H "K: V"] <name> <command-or-url> [args...]
                 var scope = "user";
                 string transport = "stdio";
                 var env = new Dictionary<string, string>();
@@ -105,7 +105,7 @@ public static class Commands
                         default: rest.Add(a[i]); break;
                     }
                 }
-                if (rest.Count < 2) { Console.Error.WriteLine("Usage: dotcode mcp add [--scope user|project] [--transport stdio|http] <name> <command|url> [args...]"); return 2; }
+                if (rest.Count < 2) { Console.Error.WriteLine("Usage: dotcode mcp add [--scope user|project] [--transport stdio|http|sse] <name> <command|url> [args...]"); return 2; }
                 var config = transport is "http" or "sse"
                     ? new McpServerConfig { Type = transport, Url = rest[1], Headers = headers.Count > 0 ? headers : null }
                     : new McpServerConfig { Type = "stdio", Command = rest[1], Args = rest.Skip(2).ToList(), Env = env.Count > 0 ? env : null };
@@ -147,7 +147,7 @@ public static class Commands
                     var target = s.Config.Url ?? $"{s.Config.Command} {string.Join(' ', s.Config.Args ?? [])}";
                     var status = s.Status switch
                     {
-                        McpServerStatus.Connected => $"✓ Connected ({s.Client!.Tools.Count} tools)",
+                        McpServerStatus.Connected => $"✓ Connected ({s.Client!.Transport}, {s.Client.Tools.Count} tools)",
                         McpServerStatus.Disabled => "○ Disabled",
                         _ => $"✗ Failed: {s.Error}",
                     };

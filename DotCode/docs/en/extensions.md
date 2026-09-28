@@ -128,11 +128,12 @@ The sample plugin in [`samples/plugins/gravicode-toolkit`](../../samples/plugins
 
 ## MCP servers
 
-DotCode is a Model Context Protocol client (stdio and Streamable HTTP). Tools appear as `mcp__<server>__<tool>`, prompts as `/mcp__<server>__<prompt>`, and resources through `ListMcpResourcesTool` / `ReadMcpResourceTool`.
+DotCode is a Model Context Protocol client over stdio, Streamable HTTP and the legacy HTTP+SSE transport. Tools appear as `mcp__<server>__<tool>`, prompts as `/mcp__<server>__<prompt>`, and resources through `ListMcpResourcesTool` / `ReadMcpResourceTool`.
 
 ```bash
 dotcode mcp add notes node samples/mcp-server-notes/server.mjs            # user scope (~/.dotcode/mcp.json)
 dotcode mcp add --scope project github --transport http https://api.githubcopilot.com/mcp/ -H "Authorization: Bearer $GH_TOKEN"
+dotcode mcp add --transport sse legacy http://localhost:3001/sse                 # older HTTP+SSE servers
 dotcode mcp add-json fs '{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","."]}'
 dotcode mcp list        # health check
 dotcode mcp get notes   # tools
@@ -141,5 +142,7 @@ dotcode --mcp-config servers.json --strict-mcp-config
 ```
 
 Sources, lowest to highest: `~/.dotcode/mcp.json`, enabled plugins, settings `mcpServers`, project `.mcp.json`, `--mcp-config`. Values support `${env:VAR}`. On Windows, `.cmd` shims such as `npx` are handled automatically. Servers connect in parallel at startup (timeout `MCP_TIMEOUT` ms); `/mcp` shows status and `/mcp reconnect <name>` retries.
+
+**Transports.** `"type": "stdio"` (default when `command` is set), `"http"` (Streamable HTTP, the current spec; default when `url` is set) and `"sse"` (the 2024-11-05 HTTP+SSE transport: a GET stream announces an `endpoint` to POST to). An `http` server that rejects the Streamable HTTP request with 400/404/405 is retried automatically as `sse`, so older servers work either way; `/mcp` and `dotcode mcp list` show which transport was used. If a server process exits or its SSE stream drops, pending calls fail immediately with "disconnected" instead of hanging; use `/mcp reconnect <name>`.
 
 ![MCP notes server](../images/mcp-notes.png)
