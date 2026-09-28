@@ -1,0 +1,30 @@
+{
+    "version": "0.1.0",
+    "description": "DotCode - agentic coding in your terminal with any LLM (Anthropic, OpenAI, Azure, Gemini, DeepSeek, Ollama). By Gravicode Studios, led by Kang Fadhil.",
+    "homepage": "https://github.com/DotNetVibeCoderz/Vibe_Dev/tree/main/DotCode",
+    "license": "MIT",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/DotNetVibeCoderz/Vibe_Dev/releases/download/dotcode-v0.1.0/dotcode-win-x64.zip",
+            "hash": "9bdd902c80b7832521f695f7ee09148084a79f37edd68e2f680d23242cddb6fa"
+        }
+    },
+    "bin": "dotcode.exe",
+    "checkver": {
+        "url": "https://api.github.com/repos/DotNetVibeCoderz/Vibe_Dev/releases",
+        "regex": "\"tag_name\":\\s*\"dotcode-v([\\d.]+)\""
+    },
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/DotNetVibeCoderz/Vibe_Dev/releases/download/dotcode-v$version/dotcode-win-x64.zip"
+            },
+            "arm64": {
+                "url": "https://github.com/DotNetVibeCoderz/Vibe_Dev/releases/download/dotcode-v$version/dotcode-win-arm64.zip"
+            }
+        },
+        "hash": {
+            "url": "$baseurl/SHA256SUMS"
+        }
+    }
+}

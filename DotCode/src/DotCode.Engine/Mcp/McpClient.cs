@@ -103,7 +103,7 @@ public sealed class McpClient : IAsyncDisposable
             w.WriteEndObject();
             w.WriteStartObject("clientInfo");
             w.WriteString("name", "dotcode");
-            w.WriteString("version", "0.1.0");
+            w.WriteString("version", AppInfo.Version);
             w.WriteEndObject();
         }, ct).ConfigureAwait(false);
         ServerName = result.GetProp("serverInfo")?.GetString("name");

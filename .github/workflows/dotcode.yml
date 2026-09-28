@@ -21,6 +21,10 @@ on:
         description: "Publish the Java SDK to Maven Central"
         type: boolean
         default: false
+      build_binaries:
+        description: "Build all release binaries, checksums and SBOM as workflow artifacts (no publishing)"
+        type: boolean
+        default: false
 
 defaults:
   run:
@@ -78,6 +82,8 @@ jobs:
           javac -d target/classes $(find src/main -name "*.java")
           javac -d target/test-classes -cp target/classes $(find src/test -name "*.java")
           java -cp target/classes:target/test-classes com.gravicode.dotcode.ConformanceTest
+      - name: Installer test (install.sh against a fake release)
+        run: sh install/test-install.sh
       - name: Rust SDK
         working-directory: DotCode/sdk/rust
         run: cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
@@ -97,32 +103,115 @@ jobs:
         run: dotnet test tests/DotCode.Tests -c Debug --filter "FullyQualifiedName~SandboxTests"
         env:
           DOTCODE_REQUIRE_SANDBOX: "1"
+      - name: Installer test (install.sh on macOS)
+        run: sh install/test-install.sh
 
   binaries:
     needs: test
-    if: startsWith(github.ref, 'refs/tags/dotcode-v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
+    if: startsWith(github.ref, 'refs/tags/dotcode-v') || (github.event_name == 'workflow_dispatch' && (inputs.publish || inputs.build_binaries))
     strategy:
+      fail-fast: false
       matrix:
         include:
+          # Native runners where available; Linux builds use 22.04 so the binaries run on glibc >= 2.35.
           - { os: windows-latest, rid: win-x64 }
-          - { os: ubuntu-latest, rid: linux-x64 }
+          - { os: windows-11-arm, rid: win-arm64 }
+          - { os: ubuntu-22.04, rid: linux-x64 }
+          - { os: ubuntu-22.04-arm, rid: linux-arm64 }
           - { os: macos-latest, rid: osx-arm64 }
+          - { os: macos-latest, rid: osx-x64 }     # cross-compiled; smoke-tested under Rosetta
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: DotCode/global.json
+      - name: Version
+        id: version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/dotcode-v* ]]; then v="${GITHUB_REF_NAME#dotcode-v}"
+          else v="$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props 2>/dev/null || sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' Directory.Build.props)-ci.${GITHUB_RUN_NUMBER}"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Building DotCode $v"
+      - name: Linux toolchain
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq clang zlib1g-dev
       - name: NativeAOT publish
         shell: bash
-        run: dotnet publish src/DotCode.Cli -c Release -r ${{ matrix.rid }} -o out/${{ matrix.rid }} -p:DebugType=none
+        run: dotnet publish src/DotCode.Cli -c Release -r ${{ matrix.rid }} -o out/${{ matrix.rid }} -p:DebugType=none -p:Version=${{ steps.version.outputs.version }}
       - name: Smoke test
         shell: bash
-        run: ./out/${{ matrix.rid }}/dotcode --version
+        env:
+          DOTCODE_CONFIG_DIR: ${{ runner.temp }}/dotcode-cfg
+        run: |
+          exe=./out/${{ matrix.rid }}/dotcode
+          run() { if [ "${{ matrix.rid }}" = osx-x64 ]; then arch -x86_64 "$@"; else "$@"; fi; }
+          run $exe --version
+          run $exe --version | grep -q "${{ steps.version.outputs.version }}"
+          run $exe -p "hello" --model mock:echo < /dev/null | grep -q "Echo: hello"
+      - name: Package
+        shell: bash
+        run: |
+          mkdir -p pkg dist
+          cp out/${{ matrix.rid }}/dotcode* pkg/
+          rm -f pkg/*.pdb pkg/*.dbg pkg/*.dSYM
+          cp README.md LICENSE pkg/
+          if [[ "${{ matrix.rid }}" == win-* ]]; then
+            pwsh -NoProfile -Command "Compress-Archive -Path pkg/* -DestinationPath dist/dotcode-${{ matrix.rid }}.zip"
+          else
+            chmod 755 pkg/dotcode
+            tar -czf dist/dotcode-${{ matrix.rid }}.tar.gz -C pkg .
+          fi
+          ls -la dist
       - uses: actions/upload-artifact@v4
         with:
           name: dotcode-${{ matrix.rid }}
-          path: DotCode/out/${{ matrix.rid }}/dotcode*
+          path: DotCode/dist/*
+
+  assets:
+    # Collects the archives, writes SHA256SUMS and an SPDX SBOM; release builds also get build-provenance attestations.
+    needs: binaries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dotcode-*
+          path: assets
+          merge-multiple: true
+      - name: Installer test (install.sh against a fake release)
+        run: sh install/test-install.sh
+      - name: Checksums
+        working-directory: assets
+        run: |
+          sha256sum dotcode-* > SHA256SUMS
+          cat SHA256SUMS
+      - name: SBOM (SPDX)
+        uses: anchore/sbom-action@v0
+        with:
+          path: DotCode
+          format: spdx-json
+          output-file: assets/dotcode-sbom.spdx.json
+          upload-artifact: false
+      - name: Attest build provenance
+        if: startsWith(github.ref, 'refs/tags/dotcode-v')
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            assets/dotcode-*.zip
+            assets/dotcode-*.tar.gz
+      - name: Add installers
+        run: cp DotCode/install/install.sh DotCode/install/install.ps1 assets/
+        working-directory: .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: assets/*
 
   nuget:
     needs: test
@@ -172,7 +261,7 @@ jobs:
         run: bash sdk/java/publish-central.sh
 
   release:
-    needs: [binaries, nuget]
+    needs: [assets, nuget]
     if: startsWith(github.ref, 'refs/tags/dotcode-v')
     runs-on: ubuntu-latest
     permissions:
@@ -182,13 +271,39 @@ jobs:
         working-directory: .
     steps:
       - uses: actions/download-artifact@v4
-        with: { path: dist }
-      - name: Zip binaries
-        working-directory: dist
-        run: for d in dotcode-*; do (cd "$d" && zip -r "../$d.zip" .); done
+        with: { name: release-assets, path: dist }
+      - uses: actions/download-artifact@v4
+        with: { name: nuget-packages, path: dist/nuget }
+      - name: Release notes
+        run: |
+          v="${GITHUB_REF_NAME#dotcode-v}"
+          cat > notes.md <<EOF
+          ## Install DotCode $v
+
+          **macOS / Linux**
+          \`\`\`bash
+          curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/DotCode/install/install.sh | sh
+          \`\`\`
+          **Windows (PowerShell)**
+          \`\`\`powershell
+          irm https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/DotCode/install/install.ps1 | iex
+          \`\`\`
+          **.NET tool:** \`dotnet tool install -g DotCode.Cli\` · **Update:** \`dotcode update\`
+
+          Every archive is listed in \`SHA256SUMS\` (the installers and \`dotcode update\` verify it) and has a build-provenance
+          attestation: \`gh attestation verify dotcode-linux-x64.tar.gz --repo ${GITHUB_REPOSITORY}\`. SBOM: \`dotcode-sbom.spdx.json\`.
+
+          *Built by Gravicode Studios, led by Kang Fadhil.*
+          EOF
       - uses: softprops/action-gh-release@v2
         with:
           name: DotCode ${{ github.ref_name }}
+          body_path: notes.md
           files: |
-            dist/*.zip
-            dist/nuget-packages/*.nupkg
+            dist/dotcode-*.zip
+            dist/dotcode-*.tar.gz
+            dist/SHA256SUMS
+            dist/dotcode-sbom.spdx.json
+            dist/install.sh
+            dist/install.ps1
+            dist/nuget/*.nupkg

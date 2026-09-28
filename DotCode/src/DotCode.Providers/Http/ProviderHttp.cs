@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Reflection;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
@@ -21,11 +22,22 @@ public static class ProviderHttp
             EnableMultipleHttp2Connections = true,
         };
         var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
-        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("DotCode", "0.1.0"));
+        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("DotCode", ProductVersion));
         return client;
     });
 
     public static HttpClient Client => SharedClient.Value;
+
+    /// <summary>Build version (for the User-Agent), without SourceLink's "+commit" suffix.</summary>
+    private static string ProductVersion
+    {
+        get
+        {
+            var v = typeof(ProviderHttp).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0";
+            var plus = v.IndexOf('+');
+            return plus > 0 ? v[..plus] : v;
+        }
+    }
 
     /// <summary>Test hook: replace the transport (mock servers in contract tests).</summary>
     public static HttpMessageHandler? OverrideHandler { get; set; }

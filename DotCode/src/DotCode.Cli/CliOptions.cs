@@ -173,6 +173,7 @@ public sealed class CliOptions
           sessions                                 List recent sessions for this directory
           theme list|set <name>                    List or set the UI theme
           doctor                                   Check the installation and configuration
+          update [--check] [--version X]           Update the DotCode binary to the latest release
           audit verify|path [file]                 Verify the hash chain of the audit log
           worktree list|remove <name>|prune         Manage DotCode git worktrees
         """;

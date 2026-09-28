@@ -67,6 +67,9 @@ public static class Commands
             case "doctor":
                 return await Doctor(options, ct);
 
+            case "update":
+                return await Update(a, ct);
+
             default:
                 Console.Error.WriteLine($"Unknown command: {command}");
                 return 2;
@@ -252,6 +255,43 @@ public static class Commands
                 Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(settings, SettingsJsonContext.Default.Settings));
                 return 0;
             }
+        }
+    }
+
+    /// <summary>dotcode update [--check] [--version X] [--prerelease]</summary>
+    private static async Task<int> Update(List<string> a, CancellationToken ct)
+    {
+        var checkOnly = a.Contains("--check");
+        var pre = a.Contains("--prerelease");
+        var versionIndex = a.IndexOf("--version");
+        var wanted = versionIndex >= 0 && versionIndex + 1 < a.Count ? a[versionIndex + 1] : null;
+        Console.WriteLine($"Current version: {AppInfo.Version} ({Releases.CurrentRid()})");
+        ReleaseInfo? release;
+        try { release = await Releases.FindAsync(wanted, pre, ct); }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            Console.Error.WriteLine($"error: could not check for updates: {ex.Message}");
+            return 1;
+        }
+        if (release is null) { Console.Error.WriteLine(wanted is null ? "No DotCode release found." : $"Release {wanted} not found."); return 1; }
+        var newer = Releases.IsNewer(release.Version, AppInfo.Version);
+        Console.WriteLine($"{(wanted is null ? "Latest" : "Requested")} release: {release.Version}  {release.HtmlUrl}");
+        if (wanted is null && !newer) { Console.WriteLine("DotCode is up to date."); return 0; }
+        if (checkOnly) { Console.WriteLine($"Run `dotcode update` to install {release.Version}."); return 0; }
+
+        var (native, path, hint) = Releases.InstallKind();
+        if (!native || path is null) { Console.WriteLine(hint); return 0; }
+        try
+        {
+            var message = await Releases.InstallAsync(release, Releases.CurrentRid(), path, m => Console.WriteLine(m), ct);
+            Console.WriteLine(message);
+            return 0;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"error: update failed: {ex.Message}");
+            if (ex is UnauthorizedAccessException) Console.Error.WriteLine($"  {path} is not writable; re-run the installer or use sudo.");
+            return 1;
         }
     }
 

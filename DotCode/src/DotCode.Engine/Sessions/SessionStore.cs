@@ -34,7 +34,7 @@ public sealed class SessionStore : IDisposable
             w.WriteString("sessionId", id);
             w.WriteString("cwd", cwd);
             w.WriteString("model", model);
-            w.WriteString("version", "0.1.0");
+            w.WriteString("version", AppInfo.Version);
             w.WriteString("created", DateTimeOffset.UtcNow.ToString("O"));
             if (Util.ProcessRunner.TryRun("git", "rev-parse --abbrev-ref HEAD", cwd, 1500) is { } branch) w.WriteString("gitBranch", branch);
         });

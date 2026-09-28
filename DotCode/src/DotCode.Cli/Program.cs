@@ -5,6 +5,7 @@ using DotCode.Engine.Agent;
 using DotCode.Engine.Sessions;
 
 Console.OutputEncoding = new UTF8Encoding(false);
+DotCode.Engine.Util.Releases.CleanupPreviousUpdate();
 if (!Console.IsInputRedirected) Console.InputEncoding = new UTF8Encoding(false);
 
 CliOptions options;
