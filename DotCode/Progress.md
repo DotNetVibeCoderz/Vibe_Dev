@@ -17,7 +17,7 @@
 | Tested by building apps, documents, scripts, with MCP, skills, plugins | ✅ | .NET console app, landing page (HTML/CSS/JS), Python & PowerShell scripts, CSV insights Markdown report (skill), notes MCP server, marketplace plugin command — see screenshots |
 | Tested with real LLMs | ✅ | Azure OpenAI gpt-5-mini (Responses API), DeepSeek V4 Flash (Chat), DeepSeek via Anthropic Messages endpoint; all four SDK samples |
 | UI/UX closely matching Claude Code incl. animations/loading, with selectable themes (colors, font) | ✅ | Spinner with shimmer + blinking tool dots, same layout/dialogs/shortcuts; 15 themes, custom JSON themes, glyph sets for fonts (unicode/ascii/nerd), accent, spinner & input styles, reduced motion |
-| Publish to NuGet, PyPI, npm | 🟡 | Packages build (`artifacts/`); publishing awaits confirmation of package names/ownership |
+| Publish to NuGet, PyPI, npm | ✅ | NuGet: `DotCode.Cli` (dotnet tool), `DotCode.Sdk`, `DotCode.Engine`, `DotCode.Providers`, `DotCode.Protocol`, `DotCode.Tui`, `DotCode.Abstractions` 0.1.0 via GitHub Actions (tag `dotcode-v0.1.0`, secret `NUGET_API_KEY`) · npm `dotcode-sdk@0.1.0` · PyPI `dotcode-sdk 0.1.0` · GitHub Release with NativeAOT binaries (win-x64, linux-x64, osx-arm64) |
 | `--dangerously-skip-permissions` | ✅ | Plus `--allow-dangerously-skip-permissions`, managed `disableBypassPermissionsMode` |
 | Go SDK (added request) | ✅ | `sdk/go` + conformance tests + `samples/sdk/go` |
 | Java SDK (added request) | ✅ | `sdk/java` (zero-dependency, JDK 17+) + conformance tests + `samples/sdk/java` |
@@ -55,7 +55,7 @@
 | SDKs: .NET, TypeScript, Python, Go, Java | ✅ | Rust ⏳ |
 | OpenRPC schema | ✅ | Code generation from schema ⏳ |
 | Tests | ✅ | 57 xUnit + 2 TS + 2 Python + 2 Go + 2 Java conformance, all passing |
-| NativeAOT publish win-x64 | ✅ | Linux/macOS builds need their own OS (CI) ⏳ |
+| NativeAOT binaries | ✅ | win-x64, linux-x64, osx-arm64 built and smoke-tested in CI |
 | Sandboxing, auto mode, worktrees, LSP tool, OpenTelemetry, Desktop, IDE | ⏳ | See PLAN.md |
 
 ## Real-LLM test log (2026-09-28)
