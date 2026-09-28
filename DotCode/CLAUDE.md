@@ -10,7 +10,7 @@ DotCode: a clean-room .NET 10 / C# 14 re-implementation of the Claude Code exper
 
 ```bash
 dotnet build DotCode.slnx
-dotnet test tests/DotCode.Tests                                            # xUnit (85 tests)
+dotnet test tests/DotCode.Tests                                            # xUnit (94 tests)
 dotnet test tests/DotCode.Tests --filter "FullyQualifiedName~AgentLoopTests.Runs_tools_until_the_model_stops"
 dotnet run --project src/DotCode.Cli -- --model mock:echo                  # offline, no keys
 dotnet src/DotCode.Cli/bin/Debug/net10.0/dotcode.dll -p "hi" --model mock:echo
@@ -23,7 +23,7 @@ cd sdk/rust && cargo test                          # needs the CLI built (or DOT
 # Java (JDK 17+, no deps): javac -d target/classes $(find src/main -name "*.java") … then run com.gravicode.dotcode.ConformanceTest (see .github/workflows/dotcode.yml)
 ```
 
-Release: tag `dotcode-v*` → CI builds AOT binaries + pushes NuGet; `DotCode/sdk/go/v*` tags publish the Go module; `dotcode-java-v*` tags are built by JitPack (`../jitpack.yml`); Maven Central via `sdk/java/publish-central.sh` once the namespace is verified. npm/PyPI/crates.io are published manually (`npm publish`, `twine upload`, `cargo publish` in `sdk/rust`; bump the version first — published versions are permanent).
+Release: tag `dotcode-v*` → CI builds AOT binaries for 6 RIDs (+ SHA256SUMS, SBOM, attestations; dry run: `gh workflow run dotcode.yml -f build_binaries=true`) + pushes NuGet; `install/install.sh|ps1` and `dotcode update` consume those releases; `DotCode/sdk/go/v*` tags publish the Go module; `dotcode-java-v*` tags are built by JitPack (`../jitpack.yml`); Maven Central via `sdk/java/publish-central.sh` once the namespace is verified. npm/PyPI/crates.io are published manually (`npm publish`, `twine upload`, `cargo publish` in `sdk/rust`; bump the version first — published versions are permanent).
 
 Use `DOTCODE_CONFIG_DIR=<tmp>` when running the CLI in tests/demos so `~/.dotcode` (the user's real config) isn't touched. In this Bash environment `dotcode -p` should get `< /dev/null`.
 

@@ -19,7 +19,7 @@
 
 ## Next up (priority order)
 
-1. **Release engineering** — CI matrix (win/linux/macOS × x64/arm64) producing NativeAOT binaries, signing, SBOM, installers (winget, Homebrew, scoop, apt), `curl | bash` script, per-platform npm/PyPI packages that bundle the binary so SDK users don't install the CLI separately.
+1. **Release engineering** — ✅ 6 NativeAOT platforms (win/linux/macOS × x64/arm64), SHA256SUMS, SPDX SBOM, build-provenance attestations, `install.sh` / `install.ps1`, `dotcode update`, Scoop manifest (v0.2) · ⏳ code signing (Authenticode, Apple notarization), winget/Homebrew/apt, musl builds, per-platform npm/PyPI packages bundling the binary.
 2. **Sandboxing** — ✅ Linux bubblewrap, macOS sandbox-exec, Windows Job Objects for Bash/PowerShell, auto-allow when isolated, escape hatch, network allow/deny (v0.2) · ⏳ per-domain network allowlist (proxy), Windows file-system isolation (AppContainer), seccomp filters.
 3. ~~**Auto mode**~~ ✅ done (v0.2) — classifier model that approves low-risk actions automatically.
 4. **Git worktrees & parallel agents** — ✅ `--worktree`, `dotcode worktree`, subagent `isolation: worktree`, SDK `worktree` option (v0.2) · ⏳ agent view, cross-session messaging.
