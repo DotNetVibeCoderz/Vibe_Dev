@@ -5,7 +5,7 @@
 # DotCode
 
 **Agentic coding di terminal Anda — dengan LLM apa pun.**
-Port pengalaman Claude Code ke .NET 10, lengkap dengan SDK harness untuk .NET, TypeScript, Python, Go, dan Java.
+Port pengalaman Claude Code ke .NET 10, lengkap dengan SDK harness untuk .NET, TypeScript, Python, Go, Java, dan Rust.
 
 *Dibuat oleh **Gravicode Studios**, dipimpin oleh **Kang Fadhil**.*
 
@@ -25,7 +25,7 @@ DotCode membaca codebase Anda, mengedit file, menjalankan perintah dan test, lal
 - **Aman secara default** — mode izin (default, acceptEdits, plan, bypass lewat `--dangerously-skip-permissions`), aturan kompatibel Claude Code, analisis perintah majemuk, checkpoint dan `/rewind`, hooks.
 - **Dapat diperluas dan kompatibel** — skills (`SKILL.md`), command kustom, subagent, hooks, output style, plugin & marketplace, server MCP (stdio / HTTP). Membaca `CLAUDE.md`, `AGENTS.md`, dan `.claude/`.
 - **Headless & CI** — `dotcode -p` dengan output text / json / stream-json.
-- **SDK harness** — `dotcode serve` (JSON-RPC 2.0 via stdio atau WebSocket) dengan SDK **.NET** (juga in-process), **TypeScript**, **Python**, **Go**, dan **Java**: tool kustom, handler izin, event streaming, BYOK.
+- **SDK harness** — `dotcode serve` (JSON-RPC 2.0 via stdio atau WebSocket) dengan SDK **.NET** (juga in-process), **TypeScript**, **Python**, **Go**, **Java**, dan **Rust**: tool kustom, handler izin, event streaming, BYOK.
 - **Cepat dan kecil** — binary tunggal NativeAOT (~14 MB, langsung jalan).
 
 ## Screenshot

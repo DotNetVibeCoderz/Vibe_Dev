@@ -56,9 +56,9 @@
 | TUI | ✅ | Vim mode (`/vim`), Ctrl+R history search, Ctrl+O transcript viewer with search, bell/OSC 9/OSC 777 notifications, EN/ID UI strings (`tui.language`); image paste ⏳ |
 | Headless (text/json/stream-json, stream-json input) | ✅ | |
 | JSON-RPC server (stdio, Content-Length, WebSocket + token) | ✅ | |
-| SDKs: .NET, TypeScript, Python, Go, Java | ✅ | Rust ⏳ |
+| SDKs: .NET, TypeScript, Python, Go, Java, Rust | ✅ | Rust: sync/thread-based, serde_json only, conformance tests + sample verified with Azure gpt-5-mini and DeepSeek; crates.io publish pending a token |
 | OpenRPC schema | ✅ | Code generation from schema ⏳ |
-| Tests | ✅ | 81 xUnit + 2 TS + 2 Python + 2 Go + 2 Java conformance, all passing |
+| Tests | ✅ | 81 xUnit + 2 TS + 2 Python + 2 Go + 2 Java + 2 Rust conformance, all passing |
 | NativeAOT binaries | ✅ | win-x64, linux-x64, osx-arm64 built and smoke-tested in CI |
 | Git worktrees | ✅ | `--worktree [name]` (auto-removed when unchanged), `dotcode worktree list\|remove\|prune`, subagent `isolation: worktree`, SDK/protocol `worktree` option in all 5 SDKs |
 | Shell sandbox | ✅ | `sandbox` settings, `/sandbox`: bubblewrap (Linux) and Seatbelt (macOS) confine writes, hide credentials, optional network deny, auto-allow sandboxed commands; Windows Job Object containment + limits; tested for real on Linux, macOS (CI) and Windows |

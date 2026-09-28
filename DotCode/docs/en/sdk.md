@@ -5,7 +5,7 @@
 The same engine that powers the terminal UI is available to your applications. Every SDK is a thin JSON-RPC 2.0 client of `dotcode serve` (the pattern used by the GitHub Copilot SDK); the .NET SDK can also run the engine in-process.
 
 ```
-Your app (.NET / TypeScript / Python / Go / Java)
+Your app (.NET / TypeScript / Python / Go / Java / Rust)
      │ SDK client
      ▼ JSON-RPC 2.0 over stdio (NDJSON) or WebSocket
 dotcode serve ─► Engine ─► any LLM provider
@@ -18,6 +18,7 @@ dotcode serve ─► Engine ─► any LLM provider
 | Python | `dotcode-sdk` (PyPI) | [`sdk/python`](../../sdk/python) |
 | Go | `github.com/DotNetVibeCoderz/Vibe_Dev/DotCode/sdk/go` | [`sdk/go`](../../sdk/go) |
 | Java (17+) | `com.github.DotNetVibeCoderz:Vibe_Dev:dotcode-java-v0.1.2` (JitPack) | [`sdk/java`](../../sdk/java) |
+| Rust | `dotcode-sdk` (git dependency: `{ git = "https://github.com/DotNetVibeCoderz/Vibe_Dev", branch = "main" }`) | [`sdk/rust`](../../sdk/rust) |
 
 All SDKs share the same concepts: **Client → Session → send / stream**, **custom tools** implemented by your app, a **permission handler** (sessions are deny-by-default without one), question and plan-review handlers, MCP servers, and per-session provider configuration (BYOK). They pass the same conformance scenarios (`tests/…SdkConformanceTests`, `sdk/*/test*`).
 
@@ -114,7 +115,22 @@ try (var client = DotCodeClient.start(new DotCodeClient.Options())) {
 }
 ```
 
-Runnable versions of all five live in [`samples/sdk`](../../samples/sdk).
+## Rust
+
+Synchronous and thread-based (no async runtime needed; use `spawn_blocking` from async code). Only `serde`/`serde_json`.
+
+```rust
+let client = Client::new(ClientOptions::default())?;
+let session = client.create_session(SessionOptions::default()
+    .model("azure:gpt-5-mini")
+    .tool(Tool::new("get_exchange_rate", "Exchange rate", json!({"type": "object"}), |_| Ok("1 USD = 16,250 IDR".into())).read_only())
+    .on_permission_request(|_| PermissionDecision::allow()))?;
+let mut stream = session.stream("How many IDR is 250 USD?");
+for e in stream.by_ref() { if e.kind == "assistant.text.delta" { print!("{}", e.text.unwrap_or_default()) } }
+stream.result()?;
+```
+
+Runnable versions of all six live in [`samples/sdk`](../../samples/sdk).
 
 ## Session options (all SDKs)
 

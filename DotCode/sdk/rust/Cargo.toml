@@ -1,0 +1,22 @@
+[package]
+name = "dotcode-sdk"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Rust SDK for DotCode: embed a multi-LLM coding agent (Anthropic, OpenAI, Azure, Gemini, DeepSeek, Ollama) via JSON-RPC to `dotcode serve`. By Gravicode Studios."
+license = "MIT"
+repository = "https://github.com/DotNetVibeCoderz/Vibe_Dev"
+homepage = "https://github.com/DotNetVibeCoderz/Vibe_Dev/tree/main/DotCode"
+documentation = "https://docs.rs/dotcode-sdk"
+readme = "README.md"
+keywords = ["ai", "agent", "llm", "coding-agent", "sdk"]
+categories = ["development-tools", "api-bindings"]
+authors = ["Gravicode Studios (led by Kang Fadhil)"]
+exclude = ["target/"]
+
+[lib]
+name = "dotcode_sdk"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

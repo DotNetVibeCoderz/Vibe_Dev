@@ -75,6 +75,12 @@ jobs:
           javac -d target/classes $(find src/main -name "*.java")
           javac -d target/test-classes -cp target/classes $(find src/test -name "*.java")
           java -cp target/classes:target/test-classes com.gravicode.dotcode.ConformanceTest
+      - name: Rust SDK
+        working-directory: DotCode/sdk/rust
+        run: cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+      - name: Rust SDK sample (build)
+        working-directory: DotCode/samples/sdk/rust
+        run: cargo build
 
   sandbox-macos:
     # The shell sandbox uses sandbox-exec (Seatbelt) on macOS: run its tests for real on a macOS runner.

@@ -5,7 +5,7 @@
 # DotCode
 
 **Agentic coding in your terminal — with any LLM.**
-A .NET 10 port of the Claude Code experience, plus a harness SDK for .NET, TypeScript, Python, Go and Java.
+A .NET 10 port of the Claude Code experience, plus a harness SDK for .NET, TypeScript, Python, Go, Java and Rust.
 
 *Built by **Gravicode Studios**, led by **Kang Fadhil**.*
 
@@ -25,7 +25,7 @@ DotCode reads your codebase, edits files, runs commands and tests, and explains 
 - **Safe by default** — permission modes (default, acceptEdits, plan, bypass via `--dangerously-skip-permissions`), Claude Code–compatible rules (`Bash(npm test:*)`, `Edit(/src/**)`, `WebFetch(domain:…)`), compound-command analysis, checkpoints and `/rewind`, hooks.
 - **Extensible and compatible** — skills (`SKILL.md`), custom commands, subagents, hooks, output styles, plugins & marketplaces, MCP servers (stdio / HTTP). Reads `CLAUDE.md`, `AGENTS.md` and `.claude/` so existing setups keep working.
 - **Headless & CI** — `dotcode -p` with text / json / stream-json output.
-- **Harness SDK** — `dotcode serve` (JSON-RPC 2.0 over stdio or WebSocket) with SDKs for **.NET** (also in-process), **TypeScript**, **Python**, **Go** and **Java**: custom tools, permission handlers, streaming events, BYOK.
+- **Harness SDK** — `dotcode serve` (JSON-RPC 2.0 over stdio or WebSocket) with SDKs for **.NET** (also in-process), **TypeScript**, **Python**, **Go**, **Java** and **Rust**: custom tools, permission handlers, streaming events, BYOK.
 - **Fast and small** — NativeAOT single binary (~14 MB, instant start), source-generated JSON, no vendor SDK dependencies.
 
 ## Screenshots
@@ -94,7 +94,7 @@ async with DotCodeClient() as client:
     print((await session.send("How many IDR is 250 USD?"))["result"])
 ```
 
-Same API in [.NET](docs/en/sdk.md#net), [TypeScript](docs/en/sdk.md#typescript), [Go](docs/en/sdk.md#go) and [Java](docs/en/sdk.md#java).
+Same API in [.NET](docs/en/sdk.md#net), [TypeScript](docs/en/sdk.md#typescript), [Go](docs/en/sdk.md#go), [Java](docs/en/sdk.md#java) and [Rust](docs/en/sdk.md#rust).
 
 ## Documentation
 

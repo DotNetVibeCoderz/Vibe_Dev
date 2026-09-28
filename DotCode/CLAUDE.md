@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-DotCode: a clean-room .NET 10 / C# 14 re-implementation of the Claude Code experience (terminal agent) that works with any LLM, plus a harness SDK (.NET, TypeScript, Python, Go, Java) over JSON-RPC. Built by Gravicode Studios (led by Kang Fadhil) — keep that credit in UI/docs. Never copy Claude Code source; behavior is derived from public docs. `solution-design.md` (Indonesian) is the design; `PLAN.md`/`Progress.md` track roadmap/status (update Progress.md when finishing features). Docs are bilingual: every page in `docs/en/` has a counterpart in `docs/id/` — keep them in sync.
+DotCode: a clean-room .NET 10 / C# 14 re-implementation of the Claude Code experience (terminal agent) that works with any LLM, plus a harness SDK (.NET, TypeScript, Python, Go, Java, Rust) over JSON-RPC. Built by Gravicode Studios (led by Kang Fadhil) — keep that credit in UI/docs. Never copy Claude Code source; behavior is derived from public docs. `solution-design.md` (Indonesian) is the design; `PLAN.md`/`Progress.md` track roadmap/status (update Progress.md when finishing features). Docs are bilingual: every page in `docs/en/` has a counterpart in `docs/id/` — keep them in sync.
 
 ## Commands
 
@@ -19,6 +19,7 @@ PATH="$PATH:/c/Program Files (x86)/Microsoft Visual Studio/Installer" dotnet pub
 cd sdk/typescript && npm run build && npm test     # SDK tests spawn src/DotCode.Cli/bin/Debug/net10.0/dotcode.dll
 cd sdk/python/tests && PYTHONPATH=../src python -m unittest -v
 cd sdk/go && go test ./...
+cd sdk/rust && cargo test                          # needs the CLI built (or DOTCODE_CLI_PATH)
 # Java (JDK 17+, no deps): javac -d target/classes $(find src/main -name "*.java") … then run com.gravicode.dotcode.ConformanceTest (see .github/workflows/dotcode.yml)
 ```
 

@@ -5,7 +5,7 @@
 Engine yang sama yang menjalankan UI terminal tersedia untuk aplikasi Anda. Setiap SDK adalah klien JSON-RPC 2.0 tipis untuk `dotcode serve` (pola yang sama dengan GitHub Copilot SDK); SDK .NET juga dapat menjalankan engine langsung di dalam proses.
 
 ```
-Aplikasi Anda (.NET / TypeScript / Python / Go / Java)
+Aplikasi Anda (.NET / TypeScript / Python / Go / Java / Rust)
      │ klien SDK
      ▼ JSON-RPC 2.0 via stdio (NDJSON) atau WebSocket
 dotcode serve ─► Engine ─► provider LLM apa pun
@@ -18,8 +18,9 @@ dotcode serve ─► Engine ─► provider LLM apa pun
 | Python | `dotcode-sdk` (PyPI) | [`sdk/python`](../../sdk/python) |
 | Go | `github.com/DotNetVibeCoderz/Vibe_Dev/DotCode/sdk/go` | [`sdk/go`](../../sdk/go) |
 | Java (17+) | `com.github.DotNetVibeCoderz:Vibe_Dev:dotcode-java-v0.1.2` (JitPack) | [`sdk/java`](../../sdk/java) |
+| Rust | `dotcode-sdk` (dependensi git: `{ git = "https://github.com/DotNetVibeCoderz/Vibe_Dev", branch = "main" }`) | [`sdk/rust`](../../sdk/rust) |
 
-Konsep yang sama di semua SDK: **Client → Session → send / stream**, **tool kustom** yang diimplementasikan aplikasi Anda, **handler izin** (tanpa handler, sesi menolak secara default), handler pertanyaan dan review rencana, server MCP, serta konfigurasi provider per sesi (BYOK). Kelimanya lulus skenario konformansi yang sama.
+Konsep yang sama di semua SDK: **Client → Session → send / stream**, **tool kustom** yang diimplementasikan aplikasi Anda, **handler izin** (tanpa handler, sesi menolak secara default), handler pertanyaan dan review rencana, server MCP, serta konfigurasi provider per sesi (BYOK). Keenamnya lulus skenario konformansi yang sama.
 
 Server dicari lewat `cliPath`, `DOTCODE_CLI_PATH`, atau `dotcode` di `PATH`.
 
@@ -61,7 +62,22 @@ await client.close();
 
 ## .NET, Go, dan Java
 
-Lihat contoh lengkap di [halaman bahasa Inggris](../en/sdk.md) dan contoh yang bisa dijalankan di [`samples/sdk`](../../samples/sdk) (kelima bahasa telah diuji dengan LLM sungguhan).
+Lihat contoh lengkap di [halaman bahasa Inggris](../en/sdk.md) dan contoh yang bisa dijalankan di [`samples/sdk`](../../samples/sdk) (keenam bahasa telah diuji dengan LLM sungguhan).
+
+## Rust
+
+Sinkron dan berbasis thread (tidak butuh runtime async; dari kode async gunakan `spawn_blocking`). Dependensinya hanya `serde`/`serde_json`.
+
+```rust
+let client = Client::new(ClientOptions::default())?;
+let session = client.create_session(SessionOptions::default()
+    .model("azure:gpt-5-mini")
+    .tool(Tool::new("get_exchange_rate", "Kurs mata uang", json!({"type": "object"}), |_| Ok("1 USD = 16.250 IDR".into())).read_only())
+    .on_permission_request(|_| PermissionDecision::allow()))?;
+let mut stream = session.stream("Berapa rupiah untuk 250 USD?");
+for e in stream.by_ref() { if e.kind == "assistant.text.delta" { print!("{}", e.text.unwrap_or_default()) } }
+stream.result()?;
+```
 
 ## Opsi sesi
 
