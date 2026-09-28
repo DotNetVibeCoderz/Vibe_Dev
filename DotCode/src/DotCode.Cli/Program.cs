@@ -40,10 +40,23 @@ if (options.Print || options.Command is not null)
     };
 }
 
+DotCode.Engine.Util.WorktreeInfo? worktree = null;
 try
 {
     if (options.Command is { } command)
         return await Commands.RunAsync(command, options, cts.Token);
+
+    if (options.Worktree)
+    {
+        worktree = DotCode.Engine.Util.Worktrees.Create(options.Runtime.Cwd, options.WorktreeName);
+        // Keep the same relative subdirectory inside the worktree (repo/src → worktree/src).
+        var relative = Path.GetRelativePath(worktree.RepoRoot, options.Runtime.Cwd);
+        var inside = relative != "." && !relative.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(relative)
+            && !relative.StartsWith(".dotcode", StringComparison.Ordinal) ? Path.Combine(worktree.Path, relative) : worktree.Path;
+        options.Runtime.Cwd = Directory.Exists(inside) ? inside : worktree.Path;
+        options.Runtime.Worktree = worktree;
+        Console.Error.WriteLine($"{(worktree.Reused ? "Resuming" : "Created")} worktree {worktree.Path} (branch {worktree.Branch})");
+    }
 
     if (options.Print)
     {
@@ -74,6 +87,7 @@ catch (InvalidOperationException ex)
 }
 finally
 {
+    if (worktree is not null) Commands.FinishSessionWorktree(worktree);
     await DotCode.Engine.Observability.OtlpExporter.StopAsync();
 }
 

@@ -83,7 +83,8 @@ public sealed class AgentTool : Tool
           "description":{"type":"string","description":"A short (3-5 word) description of the task"},
           "prompt":{"type":"string","description":"The task for the agent to perform"},
           "subagent_type":{"type":"string","description":"The type of specialized agent to use (default general-purpose)"},
-          "model":{"type":"string","description":"Optional model override (role or provider:model)"}},
+          "model":{"type":"string","description":"Optional model override (role or provider:model)"},
+          "isolation":{"type":"string","enum":["worktree"],"description":"Run the subagent in a fresh git worktree (isolated checkout on its own branch); unchanged worktrees are removed automatically"}},
          "required":["description","prompt"]}
         """);
     public override bool IsReadOnly(JsonElement input) => true;
@@ -108,7 +109,18 @@ public sealed class AgentTool : Tool
         try { model = session.Runtime.Router.Resolve(modelRef, session.Model.Qualified); }
         catch (InvalidOperationException) { model = session.Model; }
 
-        await using var child = session.CreateSubagent(def, ctx.ToolUseId, model);
+        WorktreeInfo? worktree = null;
+        if ((input.GetString("isolation") ?? def.Isolation) is "worktree")
+        {
+            try
+            {
+                worktree = Worktrees.Create(session.Cwd, $"agent-{type.Replace(':', '-')}-{Guid.NewGuid().ToString("n")[..6]}");
+                session.Permissions.AddWorkingDirectory(worktree.Path);
+            }
+            catch (InvalidOperationException ex) { return ToolResult.Error($"Could not create a git worktree for the subagent: {ex.Message}"); }
+        }
+
+        await using var child = session.CreateSubagent(def, ctx.ToolUseId, model, worktree);
         var sw = Stopwatch.StartNew();
         session.Emit(new SubagentStartedEvent(ctx.ToolUseId, type, Str(input, "description"), model.Qualified));
         var toolUses = 0;
@@ -118,11 +130,33 @@ public sealed class AgentTool : Tool
             if (e is ToolStartedEvent) Interlocked.Increment(ref toolUses);
             before.Emit(e);
         });
-        var result = await child.RunTurnAsync(Str(input, "prompt"), null, ct).ConfigureAwait(false);
+        TurnResult result;
+        string? worktreeNote = null;
+        try
+        {
+            result = await child.RunTurnAsync(Str(input, "prompt"), null, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (worktree is not null) worktreeNote = FinishWorktree(worktree);
+        }
         session.Emit(new SubagentCompletedEvent(ctx.ToolUseId, type, child.TotalUsage, sw.ElapsedMilliseconds, toolUses));
-        if (result.IsError) return ToolResult.Error($"Subagent failed: {result.Error}");
-        var text = result.Text.Length > 0 ? result.Text : "(subagent returned no text)";
+        if (result.IsError) return ToolResult.Error($"Subagent failed: {result.Error}{worktreeNote}");
+        var text = (result.Text.Length > 0 ? result.Text : "(subagent returned no text)") + worktreeNote;
         return ToolResult.Ok(text, $"Done ({TextUtil.Plural(toolUses, "tool use")} · {TextUtil.FormatTokens(child.TotalUsage.TotalTokens)} tokens · {TextUtil.FormatDuration(sw.Elapsed)})", display: "");
+    }
+
+    /// <summary>Removes the subagent's worktree when nothing changed; otherwise keeps it and tells the caller where it is.</summary>
+    private static string FinishWorktree(WorktreeInfo wt)
+    {
+        var (dirty, commits) = Worktrees.Changes(wt);
+        if (!dirty && commits == 0)
+        {
+            Worktrees.Remove(wt.RepoRoot, wt.Name);
+            return "\n\n[The subagent's worktree made no changes and was removed.]";
+        }
+        var what = string.Join(", ", new[] { commits > 0 ? TextUtil.Plural(commits, "commit") : null, dirty ? "uncommitted changes" : null }.Where(x => x is not null));
+        return $"\n\n[Worktree kept: {wt.Path} on branch {wt.Branch} ({what}). Review with `git diff {wt.BaseCommit[..Math.Min(12, wt.BaseCommit.Length)]}...{wt.Branch}` (commit pending changes in the worktree first), merge with `git merge {wt.Branch}`, and remove it with `dotcode worktree remove {wt.Name}`.]";
     }
 }
 

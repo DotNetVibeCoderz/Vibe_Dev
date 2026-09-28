@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DotCode.Abstractions;
+using DotCode.Engine.Util;
 using DotCode.Engine;
 using DotCode.Engine.Agent;
 using DotCode.Engine.Permissions;
@@ -217,6 +218,8 @@ internal sealed class ServerSession : IAsyncDisposable
                     h.TurnCts?.Cancel();
                     await h.Session.DisposeAsync().ConfigureAwait(false);
                     await h.Runtime.DisposeAsync().ConfigureAwait(false);
+                    // A worktree the session never changed is cleaned up; one with work in it is kept for the host.
+                    if (h.Runtime.Options.Worktree is { } wt && !Worktrees.HasChanges(wt)) Worktrees.Remove(wt.RepoRoot, wt.Name);
                 }
                 return DotCodeJson.EmptyObject;
             }
@@ -372,6 +375,17 @@ internal sealed class ServerSession : IAsyncDisposable
     private JsonElement CreateSession(JsonElement p, bool resume)
     {
         var options = Clone(_defaults, p);
+        // "worktree": true | "name" — run the session in a git worktree (.dotcode/worktrees/<name>).
+        if (p.GetProp("worktree") is { } wtParam && wtParam.ValueKind is JsonValueKind.True or JsonValueKind.String)
+        {
+            try
+            {
+                var wt = Worktrees.Create(options.Cwd, wtParam.ValueKind == JsonValueKind.String ? wtParam.GetString() : null);
+                options.Cwd = wt.Path;
+                options.Worktree = wt;
+            }
+            catch (InvalidOperationException ex) { throw new JsonRpcException(JsonRpcException.InvalidParams, ex.Message); }
+        }
         var runtime = AgentRuntime.Create(options);
         AgentSession session;
         try
@@ -451,6 +465,14 @@ internal sealed class ServerSession : IAsyncDisposable
         w.WriteNumber("messageCount", session.Messages.Count);
         w.WriteNumber("totalCostUsd", session.TotalCostUsd);
         if (session.Store?.FilePath is { } path) w.WriteString("transcriptPath", path);
+        if (session.Runtime.Options.Worktree is { } wt)
+        {
+            w.WriteStartObject("worktree");
+            w.WriteString("name", wt.Name);
+            w.WriteString("path", wt.Path);
+            w.WriteString("branch", wt.Branch);
+            w.WriteEndObject();
+        }
         w.WriteStartArray("tools");
         foreach (var t in session.GetTools()) w.WriteStringValue(t.Name);
         w.WriteEndArray();

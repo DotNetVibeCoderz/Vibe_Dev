@@ -120,7 +120,8 @@ public abstract class ShellToolBase : Tool
     }
 }
 
-/// <summary>Per-session shell working directory (persists across Bash/PowerShell calls, shared with subagents).</summary>
+/// <summary>Per-session shell working directory (persists across Bash/PowerShell calls, shared with subagents in the
+/// same checkout; a subagent in its own worktree gets its own).</summary>
 public static class ShellState
 {
     private static readonly ConditionalWeakTable<AgentSession, StrongBox<string>> Cwds = new();
@@ -128,7 +129,7 @@ public static class ShellState
     public static string GetCwd(AgentSession session)
     {
         var root = session;
-        while (root.Parent is not null) root = root.Parent;
+        while (root.Parent is not null && root.Worktree == root.Parent.Worktree) root = root.Parent;
         var box = Cwds.GetValue(root, s => new StrongBox<string>(s.Cwd));
         return Directory.Exists(box.Value!) ? box.Value! : root.Cwd;
     }
@@ -136,7 +137,7 @@ public static class ShellState
     public static void SetCwd(AgentSession session, string cwd)
     {
         var root = session;
-        while (root.Parent is not null) root = root.Parent;
+        while (root.Parent is not null && root.Worktree == root.Parent.Worktree) root = root.Parent;
         Cwds.GetValue(root, s => new StrongBox<string>(s.Cwd)).Value = cwd;
     }
 }

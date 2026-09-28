@@ -59,6 +59,12 @@ internal sealed class InProcessSession : IDotCodeSession, IInteractionHandler
         };
         options.AllowedTools.AddRange(o.AllowedTools);
         options.DisallowedTools.AddRange(o.DisallowedTools);
+        if (o.Worktree || o.WorktreeName is { Length: > 0 })
+        {
+            var wt = DotCode.Engine.Util.Worktrees.Create(options.Cwd, o.WorktreeName);
+            options.Cwd = wt.Path;
+            options.Worktree = wt;
+        }
         var runtime = AgentRuntime.Create(options);
         return new InProcessSession(runtime, runtime.CreateSession(), o);
     }
@@ -112,5 +118,6 @@ internal sealed class InProcessSession : IDotCodeSession, IInteractionHandler
     {
         await _session.DisposeAsync().ConfigureAwait(false);
         await _runtime.DisposeAsync().ConfigureAwait(false);
+        if (_runtime.Options.Worktree is { } wt && !DotCode.Engine.Util.Worktrees.HasChanges(wt)) DotCode.Engine.Util.Worktrees.Remove(wt.RepoRoot, wt.Name);
     }
 }

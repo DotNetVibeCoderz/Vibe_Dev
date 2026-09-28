@@ -118,7 +118,7 @@ Runnable versions of all five live in [`samples/sdk`](../../samples/sdk).
 
 ## Session options (all SDKs)
 
-`model`, `fallbackModel`, `cwd`, `permissionMode`, `systemPrompt`, `appendSystemPrompt`, `allowedTools`, `disallowedTools`, `builtinTools` (restrict built-ins), `tools` (host tools), `mcpServers`, `settings` (inline settings JSON, e.g. `{"providers":{…}}` for BYOK), `maxTurns`, `effort`, `persistSession`, `noMcp`, plus `onPermissionRequest`, `onQuestion`, `onPlanReview`, `onEvent`.
+`model`, `fallbackModel`, `cwd`, `permissionMode`, `systemPrompt`, `appendSystemPrompt`, `allowedTools`, `disallowedTools`, `builtinTools` (restrict built-ins), `tools` (host tools), `mcpServers`, `settings` (inline settings JSON, e.g. `{"providers":{…}}` for BYOK), `maxTurns`, `effort`, `persistSession`, `noMcp`, `worktree` (`true` or a name — run in a git worktree, see [worktrees](worktrees.md)), plus `onPermissionRequest`, `onQuestion`, `onPlanReview`, `onEvent`.
 
 Session methods: `send`, `stream`, `abort`, `setModel`, `setPermissionMode`, `compact`, `messages`, `close`. Client methods: `createSession`, `resumeSession`, `listModels`, `listSessions`, `close`.
 

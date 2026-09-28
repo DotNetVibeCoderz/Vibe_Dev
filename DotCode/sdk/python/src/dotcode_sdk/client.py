@@ -7,7 +7,7 @@ import inspect
 import json
 import os
 import shutil
-from typing import Any, AsyncIterator, Callable, Dict, List, Optional
+from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Union
 
 from .types import (
     AgentEvent,
@@ -178,6 +178,7 @@ class DotCodeClient:
                              tools: Optional[List[Tool]] = None, mcp_servers: Optional[Dict[str, Any]] = None,
                              settings: Optional[Dict[str, Any]] = None, max_turns: Optional[int] = None,
                              effort: Optional[str] = None, persist_session: bool = True, no_mcp: bool = False,
+                             worktree: Optional[Union[bool, str]] = None,
                              on_permission_request: Optional[PermissionHandler] = None,
                              on_question: Optional[QuestionHandler] = None,
                              on_plan_review: Optional[Callable[[str], Any]] = None,
@@ -191,7 +192,7 @@ class DotCodeClient:
             "allowedTools": allowed_tools, "disallowedTools": disallowed_tools, "tools": builtin_tools,
             "hostTools": [t.to_wire() for t in tools] if tools else None,
             "mcpServers": mcp_servers, "settings": settings, "maxTurns": max_turns, "effort": effort,
-            "persistSession": persist_session, "noMcp": no_mcp,
+            "persistSession": persist_session, "noMcp": no_mcp, "worktree": worktree or None,
         }
         params = {k: v for k, v in params.items() if v is not None}
         if resume_session_id:

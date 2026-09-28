@@ -55,9 +55,12 @@ name: code-reviewer
 description: Reviewer kode ahli. Gunakan setelah menulis atau mengubah kode.
 tools: Read, Grep, Glob, Bash
 model: inherit          # inherit | fast | planner | subagent | provider:model
+isolation: worktree     # opsional: bekerja di git worktree sendiri
 ---
 Anda adalah reviewer kode senior. …
 ```
+
+Dengan `isolation: worktree` (atau input tool `"isolation": "worktree"`) subagent mendapat git worktree baru di branch sendiri — lihat [Git worktree](worktree.md).
 
 ## Hooks
 

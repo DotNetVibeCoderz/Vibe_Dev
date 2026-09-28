@@ -56,11 +56,12 @@ name: code-reviewer
 description: Expert code reviewer. Use after writing or modifying code.
 tools: Read, Grep, Glob, Bash
 model: inherit          # inherit | fast | planner | subagent | provider:model
+isolation: worktree     # optional: work in its own git worktree
 ---
 You are a senior code reviewer. …
 ```
 
-The model delegates through the `Agent` tool (`subagent_type`). Subagents have their own context window; only their final report returns. `/agents` lists them.
+The model delegates through the `Agent` tool (`subagent_type`). Subagents have their own context window; only their final report returns. `/agents` lists them. With `isolation: worktree` (or the tool input `"isolation": "worktree"`) the subagent gets a fresh git worktree on its own branch — see [Git worktrees](worktrees.md).
 
 ## Hooks
 

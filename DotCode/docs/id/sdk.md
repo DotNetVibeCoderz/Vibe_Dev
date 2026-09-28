@@ -65,7 +65,7 @@ Lihat contoh lengkap di [halaman bahasa Inggris](../en/sdk.md) dan contoh yang b
 
 ## Opsi sesi
 
-`model`, `fallbackModel`, `cwd`, `permissionMode`, `systemPrompt`, `appendSystemPrompt`, `allowedTools`, `disallowedTools`, `builtinTools`, `tools`, `mcpServers`, `settings` (JSON pengaturan inline, mis. `{"providers":{…}}`), `maxTurns`, `effort`, `persistSession`, `noMcp`, serta `onPermissionRequest`, `onQuestion`, `onPlanReview`, `onEvent`.
+`model`, `fallbackModel`, `cwd`, `permissionMode`, `systemPrompt`, `appendSystemPrompt`, `allowedTools`, `disallowedTools`, `builtinTools`, `tools`, `mcpServers`, `settings` (JSON pengaturan inline, mis. `{"providers":{…}}`), `maxTurns`, `effort`, `persistSession`, `noMcp`, `worktree` (`true` atau nama — jalan di git worktree, lihat [worktree](worktree.md)), serta `onPermissionRequest`, `onQuestion`, `onPlanReview`, `onEvent`.
 
 ## Protokol
 

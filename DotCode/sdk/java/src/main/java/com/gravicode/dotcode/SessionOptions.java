@@ -26,6 +26,7 @@ public final class SessionOptions {
     Integer maxTurns;
     boolean persistSession = true;
     boolean noMcp;
+    Object worktree;
     Function<PermissionRequest, PermissionDecision> onPermissionRequest;
     Function<List<UserQuestion>, List<Map<String, String>>> onQuestion;
     Predicate<String> onPlanReview;
@@ -52,6 +53,10 @@ public final class SessionOptions {
     public SessionOptions maxTurns(int v) { maxTurns = v; return this; }
     public SessionOptions persistSession(boolean v) { persistSession = v; return this; }
     public SessionOptions noMcp(boolean v) { noMcp = v; return this; }
+    /** Run in a fresh git worktree (.dotcode/worktrees/&lt;generated&gt;); removed on close when unchanged. */
+    public SessionOptions worktree(boolean v) { worktree = v ? Boolean.TRUE : null; return this; }
+    /** Run in the named git worktree (created or reused). */
+    public SessionOptions worktree(String name) { worktree = name; return this; }
     /** Approves tool calls. Without it the session is deny-by-default. */
     public SessionOptions onPermissionRequest(Function<PermissionRequest, PermissionDecision> v) { onPermissionRequest = v; return this; }
     public SessionOptions onQuestion(Function<List<UserQuestion>, List<Map<String, String>>> v) { onQuestion = v; return this; }
@@ -76,6 +81,7 @@ public final class SessionOptions {
         m.put("maxTurns", maxTurns);
         m.put("persistSession", persistSession);
         if (noMcp) m.put("noMcp", true);
+        if (worktree != null) m.put("worktree", worktree);
         return m;
     }
 }

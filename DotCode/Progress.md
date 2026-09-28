@@ -58,9 +58,10 @@
 | JSON-RPC server (stdio, Content-Length, WebSocket + token) | ✅ | |
 | SDKs: .NET, TypeScript, Python, Go, Java | ✅ | Rust ⏳ |
 | OpenRPC schema | ✅ | Code generation from schema ⏳ |
-| Tests | ✅ | 69 xUnit + 2 TS + 2 Python + 2 Go + 2 Java conformance, all passing |
+| Tests | ✅ | 72 xUnit + 2 TS + 2 Python + 2 Go + 2 Java conformance, all passing |
 | NativeAOT binaries | ✅ | win-x64, linux-x64, osx-arm64 built and smoke-tested in CI |
-| Sandboxing, worktrees, LSP tool, Desktop, IDE | ⏳ | See PLAN.md |
+| Git worktrees | ✅ | `--worktree [name]` (auto-removed when unchanged), `dotcode worktree list\|remove\|prune`, subagent `isolation: worktree`, SDK/protocol `worktree` option in all 5 SDKs |
+| Sandboxing, LSP tool, Desktop, IDE | ⏳ | See PLAN.md |
 
 ## Real-LLM test log (2026-09-28)
 

@@ -33,6 +33,9 @@ public static class Commands
             case "audit":
                 return Audit(a, cwd);
 
+            case "worktree" or "worktrees":
+                return Worktree(a, cwd);
+
             case "theme":
                 if (a.Count >= 2 && a[0] == "set")
                 {
@@ -249,6 +252,74 @@ public static class Commands
                 Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(settings, SettingsJsonContext.Default.Settings));
                 return 0;
             }
+        }
+    }
+
+    private static int Worktree(List<string> a, string cwd)
+    {
+        var repo = Worktrees.RepoRoot(cwd);
+        if (repo is null) { Console.Error.WriteLine("error: not inside a git repository"); return 1; }
+        var list = Worktrees.List(cwd);
+        switch (a.FirstOrDefault() ?? "list")
+        {
+            case "list" or "ls":
+                if (list.Count == 0) { Console.WriteLine("No DotCode worktrees. Start one with: dotcode --worktree [name]"); return 0; }
+                foreach (var (name, path, branch) in list)
+                {
+                    var status = Worktrees.Git(path, "status --porcelain").Output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
+                    var ahead = Worktrees.Git(repo, $"rev-list --count HEAD..{branch}").Output.Trim();
+                    Console.WriteLine($"  {name,-28} {branch,-36} {(status > 0 ? $"{status} changed file(s)" : "clean")}, {ahead} commit(s) ahead");
+                }
+                return 0;
+            case "remove" or "rm" when a.Count >= 2:
+            {
+                var name = a[1];
+                if (!list.Any(w => w.Name == name)) { Console.Error.WriteLine($"error: no DotCode worktree named '{name}'"); return 1; }
+                var keepBranch = a.Contains("--keep-branch");
+                if (!Worktrees.Remove(repo, name, deleteBranch: !keepBranch)) { Console.Error.WriteLine($"error: could not remove worktree '{name}'"); return 1; }
+                Console.WriteLine($"Removed worktree {name}{(keepBranch ? $" (kept branch {Worktrees.BranchPrefix}{name})" : "")}");
+                return 0;
+            }
+            case "prune":
+            {
+                // Remove worktrees without uncommitted changes whose branch has nothing that is not already in HEAD.
+                var removed = 0;
+                foreach (var (name, path, branch) in list)
+                {
+                    var dirty = Worktrees.Git(path, "status --porcelain").Output.Trim().Length > 0;
+                    var ahead = Worktrees.Git(repo, $"rev-list --count HEAD..{branch}").Output.Trim();
+                    if (dirty || ahead != "0") { Console.WriteLine($"  kept    {name} ({(dirty ? "uncommitted changes" : ahead + " unmerged commit(s)")})"); continue; }
+                    if (Worktrees.Remove(repo, name)) { Console.WriteLine($"  removed {name}"); removed++; }
+                }
+                Console.WriteLine($"{removed} worktree(s) removed.");
+                return 0;
+            }
+            default:
+                Console.Error.WriteLine("usage: dotcode worktree list | remove <name> [--keep-branch] | prune");
+                return 2;
+        }
+    }
+
+    /// <summary>End of a --worktree session: an untouched worktree is removed, otherwise it is kept with next steps.</summary>
+    public static void FinishSessionWorktree(WorktreeInfo wt)
+    {
+        try
+        {
+            var (dirty, commits) = Worktrees.Changes(wt);
+            if (!dirty && commits == 0)
+            {
+                Worktrees.Remove(wt.RepoRoot, wt.Name);
+                Console.Error.WriteLine($"Removed worktree {wt.Name} (no changes).");
+                return;
+            }
+            var what = string.Join(", ", new[] { commits > 0 ? $"{commits} commit(s)" : null, dirty ? "uncommitted changes" : null }.Where(x => x is not null));
+            Console.Error.WriteLine($"Worktree kept: {wt.Path} (branch {wt.Branch}: {what}).");
+            Console.Error.WriteLine($"  Continue:  dotcode --worktree {wt.Name} -c");
+            Console.Error.WriteLine($"  Merge:     git merge {wt.Branch}   ·   Remove: dotcode worktree remove {wt.Name}");
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            Console.Error.WriteLine($"warning: could not check worktree {wt.Name}: {ex.Message}");
         }
     }
 

@@ -120,6 +120,8 @@ export interface SessionOptions {
   effort?: ReasoningEffort;
   persistSession?: boolean;
   noMcp?: boolean;
+  /** Run in a fresh git worktree (`true`) or a named one (`"name"`); removed on close when unchanged. */
+  worktree?: boolean | string;
   /** Called when a tool needs approval. Without it the session is deny-by-default. */
   onPermissionRequest?: (request: PermissionRequest) => Promise<PermissionDecision> | PermissionDecision;
   onQuestion?: (questions: UserQuestion[]) => Promise<UserQuestionAnswer[]> | UserQuestionAnswer[];

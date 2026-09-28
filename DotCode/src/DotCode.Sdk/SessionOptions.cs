@@ -53,6 +53,10 @@ public sealed class SessionOptions
     public string? Effort { get; init; }
     public bool PersistSession { get; init; } = true;
     public bool NoMcp { get; init; }
+    /// <summary>Run the session in a fresh git worktree (<c>.dotcode/worktrees/&lt;name&gt;</c>); removed on close when unchanged.</summary>
+    public bool Worktree { get; init; }
+    /// <summary>Worktree name (implies <see cref="Worktree"/>; an existing worktree with this name is reused).</summary>
+    public string? WorktreeName { get; init; }
 
     /// <summary>Called when a tool needs approval. Without a handler the session is deny-by-default.</summary>
     public Func<PermissionRequest, CancellationToken, Task<PermissionDecision>>? OnPermissionRequest { get; init; }
@@ -74,6 +78,8 @@ public sealed class SessionOptions
         if (Effort is not null) w.WriteString("effort", Effort);
         w.WriteBoolean("persistSession", PersistSession);
         if (NoMcp) w.WriteBoolean("noMcp", true);
+        if (WorktreeName is { Length: > 0 } wtName) w.WriteString("worktree", wtName);
+        else if (Worktree) w.WriteBoolean("worktree", true);
         if (SettingsJson is not null) { w.WritePropertyName("settings"); DotCodeJson.Parse(SettingsJson).WriteTo(w); }
         WriteList(w, "allowedTools", AllowedTools);
         WriteList(w, "disallowedTools", DisallowedTools);

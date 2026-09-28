@@ -138,6 +138,7 @@ function toWire(o: SessionOptions, defaultCwd?: string) {
     effort: o.effort,
     persistSession: o.persistSession ?? true,
     noMcp: o.noMcp,
+    worktree: o.worktree,
   };
 }
 

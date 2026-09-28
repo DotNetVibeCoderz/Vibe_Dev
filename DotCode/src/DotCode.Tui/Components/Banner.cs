@@ -60,6 +60,7 @@ public static class Banner
         left.AddRange(Mascot(t));
         left.Add("");
         left.Add(t.Dim(model));
+        if (runtime.Options.Worktree is { } wt) left.Add(t.C($"worktree {wt.Name} · {wt.Branch}", t.Suggestion));
         left.Add(t.Dim(TruncateStart(cwd, width >= 80 ? Math.Min(44, (width - 2) / 2) - 2 : width - 6)));
         left.Add(t.Faint(ui.Code == "id" ? AppInfo.CreditId : AppInfo.Credit));
 

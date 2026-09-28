@@ -89,7 +89,18 @@ public sealed class PermissionEngine
         }
     }
 
-    public bool IsInWorkingDirs(string path) => WorkingDirectories.Any(d => DotCodePaths.IsUnder(path, d));
+    public bool IsInWorkingDirs(string path)
+    {
+        lock (_gate) return WorkingDirectories.Any(d => DotCodePaths.IsUnder(path, d));
+    }
+
+    /// <summary>Adds a working directory at runtime (/add-dir, subagent worktrees).</summary>
+    public void AddWorkingDirectory(string dir)
+    {
+        var full = Path.GetFullPath(dir);
+        lock (_gate)
+            if (!WorkingDirectories.Any(d => DotCodePaths.IsUnder(full, d))) WorkingDirectories.Add(full);
+    }
 
     private static readonly string[] SecretPatterns = [".env", ".env.*", "*.pem", "*.key", "id_rsa", "id_ed25519", "*.pfx", "credentials.json", "secrets.json"];
 

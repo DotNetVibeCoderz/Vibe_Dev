@@ -31,4 +31,6 @@ public sealed class RuntimeOptions
     /// <summary>Skip loading MCP servers entirely (fast startup, tests).</summary>
     public bool NoMcp { get; set; }
     public string? RecordTo { get; set; }
+    /// <summary>Set by --worktree: the session runs inside this git worktree (Cwd points at it).</summary>
+    public Util.WorktreeInfo? Worktree { get; set; }
 }

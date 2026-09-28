@@ -112,6 +112,7 @@
           "outputStyle": { "type": "string" },
           "persistSession": { "type": "boolean" },
           "noMcp": { "type": "boolean" },
+          "worktree": { "oneOf": [{ "type": "boolean" }, { "type": "string" }], "description": "Run in a git worktree (.dotcode/worktrees/<name>); true = generated name. Removed on session.close when unchanged." },
           "strictMcpConfig": { "type": "boolean" },
           "addDirs": { "type": "array", "items": { "type": "string" } }
         }
@@ -121,6 +122,7 @@
         "properties": {
           "sessionId": { "type": "string" }, "model": { "type": "string" }, "cwd": { "type": "string" }, "permissionMode": { "type": "string" },
           "messageCount": { "type": "integer" }, "totalCostUsd": { "type": "number" }, "transcriptPath": { "type": "string" },
+          "worktree": { "type": "object", "properties": { "name": { "type": "string" }, "path": { "type": "string" }, "branch": { "type": "string" } } },
           "tools": { "type": "array", "items": { "type": "string" } }
         }
       },

@@ -19,13 +19,16 @@ public sealed class CliOptions
     public bool Version { get; set; }
     public bool Help { get; set; }
     public bool IncludePartialMessages { get; set; }
+    /// <summary>--worktree [name]: run the session in a git worktree (.dotcode/worktrees/&lt;name&gt;).</summary>
+    public bool Worktree { get; set; }
+    public string? WorktreeName { get; set; }
     public RuntimeOptions Runtime { get; } = new();
 
     public static CliOptions Parse(string[] args)
     {
         var o = new CliOptions();
         var positional = new List<string>();
-        var subcommands = new HashSet<string> { "serve", "mcp", "plugin", "plugins", "config", "models", "doctor", "sessions", "update", "version", "help", "theme", "audit" };
+        var subcommands = new HashSet<string> { "serve", "mcp", "plugin", "plugins", "config", "models", "doctor", "sessions", "update", "version", "help", "theme", "audit", "worktree", "worktrees" };
         for (var i = 0; i < args.Length; i++)
         {
             var a = args[i];
@@ -88,6 +91,11 @@ public sealed class CliOptions
                 case "--no-session-persistence": o.Runtime.PersistSession = false; break;
                 case "--record": o.Runtime.RecordTo = Next(); break;
                 case "--cwd": o.Runtime.Cwd = Path.GetFullPath(Next()); break;
+                case "-w" or "--worktree":
+                    o.Worktree = true;
+                    // Optional name; a prompt (spaces, punctuation) is never taken as the name.
+                    if (i + 1 < args.Length && DotCode.Engine.Util.Worktrees.IsValidName(args[i + 1]) && !subcommands.Contains(args[i + 1])) o.WorktreeName = args[++i];
+                    break;
                 default:
                     // A subcommand owns every argument after it (e.g. "mcp add --scope project ...").
                     if (!a.StartsWith('-') && positional.Count == 0 && !o.Print && subcommands.Contains(a))
@@ -140,6 +148,8 @@ public sealed class CliOptions
           --disallowedTools <rules...>             Deny rules, e.g. "Bash(rm *)"
           --tools <names...>                       Restrict the built-in tool set
           --add-dir <dirs...>                      Additional working directories
+          -w, --worktree [name]                    Work in a git worktree (.dotcode/worktrees/<name>, branch dotcode/<name>);
+                                                   removed on exit when nothing changed
           --system-prompt <text>                   Replace the default system prompt
           --append-system-prompt <text>            Append to the default system prompt
           --settings <file-or-json>                Load extra settings (file path or inline JSON)
@@ -164,5 +174,6 @@ public sealed class CliOptions
           theme list|set <name>                    List or set the UI theme
           doctor                                   Check the installation and configuration
           audit verify|path [file]                 Verify the hash chain of the audit log
+          worktree list|remove <name>|prune         Manage DotCode git worktrees
         """;
 }

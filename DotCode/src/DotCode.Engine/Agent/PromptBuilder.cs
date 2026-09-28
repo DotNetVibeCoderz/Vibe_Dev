@@ -117,7 +117,7 @@ public static class PromptBuilder
 
         var env = new StringBuilder();
         env.Append("Here is useful information about the environment you are running in:\n<env>\n");
-        env.Append("Working directory: ").Append(runtime.Cwd).Append('\n');
+        env.Append("Working directory: ").Append(session.Cwd).Append('\n');
         env.Append("Is directory a git repo: ").Append(runtime.Git.IsRepo ? "Yes" : "No").Append('\n');
         if (session.Permissions.WorkingDirectories.Count > 1)
             env.Append("Additional working directories: ").Append(string.Join(", ", session.Permissions.WorkingDirectories.Skip(1))).Append('\n');
@@ -127,6 +127,10 @@ public static class PromptBuilder
         env.Append("Today's date: ").Append(DateTime.Now.ToString("yyyy-MM-dd")).Append('\n');
         env.Append("Model: ").Append(session.Model.Qualified).Append('\n');
         env.Append("</env>\n");
+        if (session.Worktree is { } wt)
+            env.Append($"\nYou are working in an isolated git worktree ({wt.Path}, branch {wt.Branch}) created from {wt.BaseCommit[..Math.Min(12, wt.BaseCommit.Length)]}. Changes here do not touch the main checkout. Keep all work inside this directory and commit it to {wt.Branch} before you finish; mention the branch in your final report.\n");
+        else if (runtime.Options.Worktree is { } sessionWt)
+            env.Append($"\nThis session runs in a git worktree of {sessionWt.RepoRoot} (branch {sessionWt.Branch}), isolated from the main checkout. Work only inside the working directory.\n");
         if (OperatingSystem.IsWindows() && toolNames.Contains("Bash"))
             env.Append("Note: the Bash tool runs Git Bash on Windows (POSIX syntax, paths like /c/Users/...). Use the PowerShell tool for Windows-specific tasks.\n");
 

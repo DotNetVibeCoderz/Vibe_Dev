@@ -12,7 +12,7 @@
 | **M1 — Core MVP** | Agent loop, core tools, permissions & modes, JSONL sessions, compaction, `DOTCODE.md`, Anthropic + OpenAI + Ollama, headless `-p`, slash commands, hooks, MCP stdio | ✅ Done |
 | **M2 — UX parity** | Full TUI (diffs, dialogs, todos, status line, `@`/`!`/`#`, themes, pickers), `/resume`, `/rewind`, checkpoints, plan mode, Gemini + DeepSeek + compat, graceful degradation, `/context`, `/model` | ✅ Done (incl. vim mode, transcript viewer, Ctrl+R, EN/ID UI) |
 | **M3 — Protocol & SDK** | `dotcode serve` (stdio + WebSocket), OpenRPC schema, SDKs for .NET (in-proc + remote), TypeScript, Python, **Go**, **Java**; host tools, permission callbacks, conformance tests, docs | ✅ Done |
-| **M4 — Extensibility** | Skills, subagents, plugins + marketplaces, output styles, MCP HTTP, WebFetch/WebSearch, auto mode | ✅ Done · worktrees, LSP tool, OS sandboxing pending |
+| **M4 — Extensibility** | Skills, subagents, plugins + marketplaces, output styles, MCP HTTP, WebFetch/WebSearch, auto mode | ✅ Done (incl. git worktrees) · LSP tool, OS sandboxing pending |
 | **M5 — Automation & enterprise** | Managed settings, budgets, fallback chains, OpenTelemetry, audit log ✅ · agent view/daemon, `/loop`, `/schedule`, workflows, CI actions, Rust SDK | 🟡 Partial |
 | **M6 — Desktop & IDE** | Avalonia desktop app (true font selection), VS Code extension, JetBrains plugin — all thin protocol clients | ⏳ Planned |
 | **M7 — Optional** | Web/cloud runner, computer use, artifacts, voice, channels, agent teams | ⏳ Backlog |
@@ -22,7 +22,7 @@
 1. **Release engineering** — CI matrix (win/linux/macOS × x64/arm64) producing NativeAOT binaries, signing, SBOM, installers (winget, Homebrew, scoop, apt), `curl | bash` script, per-platform npm/PyPI packages that bundle the binary so SDK users don't install the CLI separately.
 2. **Sandboxing** — Windows Job Objects / AppContainer, Linux bubblewrap/seccomp, macOS sandbox-exec for Bash/PowerShell; network allowlists.
 3. ~~**Auto mode**~~ ✅ done (v0.2) — classifier model that approves low-risk actions automatically.
-4. **Git worktrees & parallel agents** — `--worktree`, agent view, cross-session messaging.
+4. **Git worktrees & parallel agents** — ✅ `--worktree`, `dotcode worktree`, subagent `isolation: worktree`, SDK `worktree` option (v0.2) · ⏳ agent view, cross-session messaging.
 5. **LSP tool** — diagnostics, go-to-definition, references via language servers (OmniSharp/Roslyn LSP, tsserver, pyright, gopls).
 6. ~~**Observability**~~ ✅ done (v0.2) — OpenTelemetry OTLP/HTTP traces + metrics (opt-in), hash-chained audit log with `dotcode audit verify`.
 7. **TUI polish** — ✅ vim mode, Ctrl+R history search, transcript viewer (Ctrl+O), terminal bell/OSC notifications, bilingual UI strings (EN/ID) (v0.2) · ⏳ image paste, clickable file links.

@@ -44,7 +44,7 @@ dotcode -p "refactor everything" --dangerously-skip-permissions   # sandboxes/CI
 
 ## Useful flags
 
-`--model`, `--fallback-model`, `--max-turns`, `--effort`, `--system-prompt`, `--append-system-prompt`, `--tools`, `--add-dir`, `--mcp-config`, `--no-session-persistence`, `--settings '{"…":…}'`, `--record script.json`.
+`--model`, `--fallback-model`, `--max-turns`, `--effort`, `--system-prompt`, `--append-system-prompt`, `--tools`, `--add-dir`, `--worktree [name]`, `--mcp-config`, `--no-session-persistence`, `--settings '{"…":…}'`, `--record script.json`.
 
 Exit code: `0` success, `1` error, `2` usage error, `130` interrupted.
 

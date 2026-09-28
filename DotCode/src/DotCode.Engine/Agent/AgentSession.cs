@@ -55,7 +55,10 @@ public sealed partial class AgentSession : IAsyncDisposable
 
     public AgentRuntime Runtime { get; }
     public string Id { get; }
-    public string Cwd => Runtime.Cwd;
+    public string Cwd => Worktree?.Path ?? Runtime.Cwd;
+    /// <summary>Set for subagents isolated in their own git worktree (<c>isolation: worktree</c>); tools resolve paths
+    /// and run commands there instead of the main checkout.</summary>
+    public Util.WorktreeInfo? Worktree { get; init; }
     public List<Message> Messages { get; } = [];
     public List<TodoItem> Todos { get; private set; } = [];
     public PermissionMode Mode { get; private set; }
@@ -637,8 +640,8 @@ public sealed partial class AgentSession : IAsyncDisposable
     }
 
     /// <summary>Creates a child session for a subagent (shares permissions, checkpoints, sink and interaction).</summary>
-    public AgentSession CreateSubagent(AgentDefinition definition, string toolUseId, ResolvedModel model) =>
-        new(Runtime, Guid.NewGuid().ToString(), model, this) { AgentDefinition = definition, ParentToolUseId = toolUseId };
+    public AgentSession CreateSubagent(AgentDefinition definition, string toolUseId, ResolvedModel model, Util.WorktreeInfo? worktree = null) =>
+        new(Runtime, Guid.NewGuid().ToString(), model, this) { AgentDefinition = definition, ParentToolUseId = toolUseId, Worktree = worktree ?? Worktree };
 
     public async Task FireSessionStartAsync(string source, CancellationToken ct)
     {

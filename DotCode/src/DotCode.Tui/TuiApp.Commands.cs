@@ -270,7 +270,7 @@ internal sealed partial class App
                 if (args.Length == 0) { Out([t.C("Usage: /add-dir <path>", t.Error)]); return true; }
                 var dir = DotCodePaths.Resolve(args, _runtime.Cwd);
                 if (!Directory.Exists(dir)) { Out([t.C($"Directory not found: {dir}", t.Error)]); return true; }
-                _session.Permissions.WorkingDirectories.Add(dir);
+                _session.Permissions.AddWorkingDirectory(dir);
                 Out([$"Added {t.B(dir)} as a working directory for this session"]);
                 return true;
 

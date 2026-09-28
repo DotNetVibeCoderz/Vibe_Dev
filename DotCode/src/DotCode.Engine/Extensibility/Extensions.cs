@@ -32,6 +32,8 @@ public sealed record AgentDefinition(string Name, string Description, string Sys
     /// <summary>"inherit", a role (fast/planner/subagent) or provider:model.</summary>
     public string? Model { get; init; }
     public string? Color { get; init; }
+    /// <summary>"worktree": run in a fresh git worktree (isolated checkout on its own branch).</summary>
+    public string? Isolation { get; init; }
     public string QualifiedName => PluginName is null ? Name : $"{PluginName}:{Name}";
 }
 
@@ -192,6 +194,7 @@ public sealed class ExtensionRegistry
                     DisallowedTools = fm.GetList("disallowedTools") ?? fm.GetList("disallowed-tools"),
                     Model = fm.Get("model"),
                     Color = fm.Get("color"),
+                    Isolation = fm.Get("isolation"),
                 };
                 Agents[agent.QualifiedName] = agent;
             }

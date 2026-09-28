@@ -37,6 +37,9 @@ type SessionOptions struct {
 	Effort         string
 	PersistSession *bool
 	NoMcp          bool
+	// Worktree runs the session in a fresh git worktree; WorktreeName picks (or reuses) a named one.
+	Worktree     bool
+	WorktreeName string
 
 	// OnPermissionRequest approves tool calls. Without it the session is deny-by-default.
 	OnPermissionRequest func(PermissionRequest) PermissionDecision
@@ -86,6 +89,11 @@ func (o SessionOptions) wire(defaultCwd string) map[string]any {
 	}
 	if o.NoMcp {
 		m["noMcp"] = true
+	}
+	if o.WorktreeName != "" {
+		m["worktree"] = o.WorktreeName
+	} else if o.Worktree {
+		m["worktree"] = true
 	}
 	if len(o.Tools) > 0 {
 		tools := make([]map[string]any, 0, len(o.Tools))
