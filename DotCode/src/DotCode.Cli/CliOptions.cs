@@ -25,7 +25,7 @@ public sealed class CliOptions
     {
         var o = new CliOptions();
         var positional = new List<string>();
-        var subcommands = new HashSet<string> { "serve", "mcp", "plugin", "plugins", "config", "models", "doctor", "sessions", "update", "version", "help", "theme" };
+        var subcommands = new HashSet<string> { "serve", "mcp", "plugin", "plugins", "config", "models", "doctor", "sessions", "update", "version", "help", "theme", "audit" };
         for (var i = 0; i < args.Length; i++)
         {
             var a = args[i];
@@ -163,5 +163,6 @@ public sealed class CliOptions
           sessions                                 List recent sessions for this directory
           theme list|set <name>                    List or set the UI theme
           doctor                                   Check the installation and configuration
+          audit verify|path [file]                 Verify the hash chain of the audit log
         """;
 }

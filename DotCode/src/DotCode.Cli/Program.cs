@@ -72,6 +72,10 @@ catch (InvalidOperationException ex)
     Console.Error.WriteLine($"error: {ex.Message}");
     return 1;
 }
+finally
+{
+    await DotCode.Engine.Observability.OtlpExporter.StopAsync();
+}
 
 static AgentSession OpenSession(AgentRuntime runtime, CliOptions options)
 {

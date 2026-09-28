@@ -4,6 +4,7 @@ using System.Text.Json;
 using DotCode.Abstractions;
 using DotCode.Engine.Extensibility;
 using DotCode.Engine.Hooks;
+using DotCode.Engine.Observability;
 using DotCode.Engine.Permissions;
 using DotCode.Engine.Sessions;
 using DotCode.Engine.Tools;
@@ -215,6 +216,15 @@ public sealed partial class AgentSession : IAsyncDisposable
         _stopHookRetries = 0;
         var turnId = Guid.NewGuid().ToString("n");
         if (!IsSubagent) Checkpoints.CurrentTurnId = turnId;
+        using var activity = Telemetry.Source.StartActivity(IsSubagent ? "dotcode.subagent" : "dotcode.turn");
+        activity?.SetTag("session.id", Parent?.Id ?? Id);
+        activity?.SetTag("dotcode.turn.id", turnId);
+        activity?.SetTag("gen_ai.request.model", Model.Qualified);
+        activity?.SetTag("dotcode.permission.mode", Mode.ToSetting());
+        if (activity is not null && OtelConfig.Resolve(Runtime.Settings)?.LogPrompts == true) activity.SetTag("dotcode.prompt", AuditLog.Redact(prompt));
+        if (!IsSubagent && !isMeta && Runtime.Settings.Audit?.IncludePrompts == true)
+            try { Runtime.Audit?.Write("user_prompt", Id, Runtime.Cwd, w => w.WriteString("prompt", AuditLog.Redact(TextUtil.Truncate(prompt, 8000)))); }
+            catch (IOException) { }
 
         try
         {
@@ -325,6 +335,31 @@ public sealed partial class AgentSession : IAsyncDisposable
         TurnResult Finish(StopReason reason, string text, bool isError, string? error)
         {
             var result = new TurnResult(reason, text, turnUsage, turnCost, sw.Elapsed, isError, error, calls);
+            if (activity is not null)
+            {
+                activity.SetTag("dotcode.stop_reason", reason.ToString());
+                activity.SetTag("dotcode.model_calls", calls);
+                activity.SetTag("gen_ai.usage.input_tokens", turnUsage.InputTokens);
+                activity.SetTag("gen_ai.usage.output_tokens", turnUsage.OutputTokens);
+                activity.SetTag("dotcode.cost_usd", (double)turnCost);
+                if (isError) activity.SetStatus(ActivityStatusCode.Error, error);
+            }
+            if (!IsSubagent) Telemetry.Turns.Add(1, new KeyValuePair<string, object?>("stop_reason", reason.ToString()));
+            if (!IsSubagent && Runtime.Audit is { } audit)
+                try
+                {
+                    audit.Write("turn_end", Id, Runtime.Cwd, w =>
+                    {
+                        w.WriteString("turn_id", turnId);
+                        w.WriteString("stop_reason", reason.ToString());
+                        w.WriteNumber("model_calls", calls);
+                        w.WriteNumber("input_tokens", turnUsage.InputTokens);
+                        w.WriteNumber("output_tokens", turnUsage.OutputTokens);
+                        w.WriteNumber("cost_usd", turnCost);
+                        if (error is not null) w.WriteString("error", error);
+                    });
+                }
+                catch (IOException) { }
             Emit(new TurnCompletedEvent(reason, text, turnUsage, turnCost, (long)sw.Elapsed.TotalMilliseconds, calls, isError));
             if (!IsSubagent && Title is null && !isError && calls > 0) _ = GenerateTitleAsync();
             CheckBudget();
@@ -337,6 +372,7 @@ public sealed partial class AgentSession : IAsyncDisposable
 
     private void RecordUsage(Usage usage, decimal cost)
     {
+        Telemetry.RecordUsage(Model.Qualified, Model.ProviderName, usage, cost);
         TotalUsage += usage;
         TotalCostUsd += cost;
         var key = Model.Qualified;
@@ -350,6 +386,7 @@ public sealed partial class AgentSession : IAsyncDisposable
     internal void RecordAuxiliaryUsage(Usage usage, ResolvedModel model)
     {
         var cost = model.Capabilities.EstimateCost(usage);
+        Telemetry.RecordUsage(model.Qualified, model.ProviderName, usage, cost);
         var root = this;
         while (root.Parent is not null) root = root.Parent;
         root.RecordChildUsage(usage, cost, model.Qualified);
@@ -400,6 +437,10 @@ public sealed partial class AgentSession : IAsyncDisposable
             var usage = Usage.Zero;
             StopReason? reason = null;
             var callWatch = Stopwatch.StartNew();
+            using var activity = Telemetry.Source.StartActivity($"chat {Model.Model}", ActivityKind.Client);
+            activity?.SetTag("gen_ai.operation.name", "chat");
+            activity?.SetTag("gen_ai.system", Model.ProviderName);
+            activity?.SetTag("gen_ai.request.model", Model.Model);
             try
             {
                 await foreach (var ev in Model.Provider.StreamAsync(request, ct).ConfigureAwait(false))
@@ -420,6 +461,14 @@ public sealed partial class AgentSession : IAsyncDisposable
                 if (reason is null) throw new ModelProviderException(Model.ProviderName, "network", "Stream ended unexpectedly", true);
                 ModelCalls++;
                 ApiDuration += callWatch.Elapsed;
+                Telemetry.LlmDuration.Record(callWatch.Elapsed.TotalMilliseconds,
+                    new KeyValuePair<string, object?>("gen_ai.request.model", Model.Qualified), new("outcome", "ok"));
+                if (activity is not null)
+                {
+                    activity.SetTag("gen_ai.response.finish_reasons", reason.Value.ToString());
+                    activity.SetTag("gen_ai.usage.input_tokens", usage.InputTokens);
+                    activity.SetTag("gen_ai.usage.output_tokens", usage.OutputTokens);
+                }
                 // Order: thinking, text, tool calls (stable for all providers).
                 var ordered = parts.OfType<ThinkingPart>().Cast<ContentPart>()
                     .Concat(parts.Where(p => p is not ThinkingPart and not ToolUsePart))
@@ -429,6 +478,10 @@ public sealed partial class AgentSession : IAsyncDisposable
             }
             catch (ModelProviderException ex) when (!ct.IsCancellationRequested)
             {
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Code);
+                activity?.SetTag("error.type", ex.Code);
+                Telemetry.LlmDuration.Record(callWatch.Elapsed.TotalMilliseconds,
+                    new KeyValuePair<string, object?>("gen_ai.request.model", Model.Qualified), new("outcome", ex.Code));
                 if (ex.Code == "context_length" && !compactedForLength)
                 {
                     compactedForLength = true;

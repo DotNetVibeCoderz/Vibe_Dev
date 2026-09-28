@@ -4,9 +4,11 @@ using DotCode.Engine;
 using DotCode.Engine.Agent;
 using DotCode.Engine.Configuration;
 using DotCode.Engine.Extensibility;
+using DotCode.Engine.Observability;
 using DotCode.Engine.Permissions;
 using DotCode.Engine.Util;
 using DotCode.Providers;
+using DotCode.Providers.Http;
 
 namespace DotCode.Tests;
 
@@ -196,11 +198,11 @@ public sealed class AgentLoopTests : IDisposable
         try { Directory.Delete(_dir, true); } catch (IOException) { }
     }
 
-    private AgentRuntime Runtime(string script, string? mode = null, bool bypass = false)
+    private AgentRuntime Runtime(string script, string? mode = null, bool bypass = false, string extraSettings = "")
     {
         var scriptPath = Path.Combine(_dir, "script.json");
         File.WriteAllText(scriptPath, script);
-        var settings = $$$"""{"providers":{"mock":{"type":"mock","script":{{{JsonSerializer.Serialize(scriptPath, TestJson.Default.String)}}}}},"autoCompact":false}""";
+        var settings = $$$"""{"providers":{"mock":{"type":"mock","script":{{{JsonSerializer.Serialize(scriptPath, TestJson.Default.String)}}}}},"autoCompact":false{{{extraSettings}}}}""";
         return AgentRuntime.Create(new RuntimeOptions
         {
             Cwd = _dir, Model = "mock:scripted", SettingsJson = settings, NoMcp = true, PersistSession = false,
@@ -404,6 +406,90 @@ public sealed class AgentLoopTests : IDisposable
         Assert.Equal(PermissionMode.Auto, PermissionModes.Parse("auto"));
         Assert.Equal(PermissionMode.Auto, PermissionMode.AcceptEdits.Next(includeBypass: false, includeAuto: true));
         Assert.Equal(PermissionMode.Plan, PermissionMode.AcceptEdits.Next(includeBypass: false));
+    }
+
+    [Fact]
+    public async Task Audit_log_records_tool_calls_and_detects_tampering()
+    {
+        var target = Path.Combine(_dir, "a.txt").Replace("\\", "\\\\");
+        var log = Path.Combine(_dir, "audit.jsonl");
+        var logJson = JsonSerializer.Serialize(log, TestJson.Default.String);
+        await using (var runtime = Runtime($$$"""
+            {"responses":[
+              {"toolCalls":[{"name":"Write","input":{"file_path":"{{{target}}}","content":"api_key=supersecretvalue123"}}]},
+              {"toolCalls":[{"name":"Read","input":{"file_path":"{{{target}}}"}}]},
+              {"text":"done"}
+            ]}
+            """, bypass: true, extraSettings: $$$""","audit":{"enabled":true,"path":{{{logJson}}},"includePrompts":true}"""))
+        {
+            await runtime.CreateSession(persist: false).RunTurnAsync("write a file");
+        }
+
+        var lines = File.ReadAllLines(log);
+        Assert.Equal(["user_prompt", "tool_call", "tool_call", "turn_end"], lines.Select(l => DotCodeJson.Parse(l).GetString("event")));
+        Assert.Equal("Write", DotCodeJson.Parse(lines[1]).GetString("tool"));
+        Assert.Equal("mode", DotCodeJson.Parse(lines[1]).GetString("decision"));
+        Assert.DoesNotContain("supersecretvalue123", File.ReadAllText(log));
+        Assert.True(AuditLog.Verify(log).Ok);
+
+        File.WriteAllLines(log, [lines[0], lines[1].Replace("\"Write\"", "\"Read\""), .. lines[2..]]);
+        var edited = AuditLog.Verify(log);
+        Assert.False(edited.Ok);
+        Assert.Equal(2, edited.BrokenAtLine);
+
+        File.WriteAllLines(log, [lines[0], .. lines[2..]]);
+        Assert.Equal(2, AuditLog.Verify(log).BrokenAtLine);
+    }
+
+    [Fact]
+    public void Audit_redaction_masks_common_secrets()
+    {
+        var text = AuditLog.Redact("curl -H 'Authorization: Bearer abcdef123456' sk-ant-abcdefghijklmnop ghp_abcdefghijklmnopqrstuvwxyz password=hunter22");
+        Assert.DoesNotContain("abcdefghijklmnop", text);
+        Assert.DoesNotContain("hunter22", text);
+        Assert.DoesNotContain("ghp_abcdefghijklmnopqrstuvwxyz", text);
+        Assert.Contains("curl", text);
+    }
+
+    [Fact]
+    public async Task Otlp_exporter_sends_turn_model_and_tool_spans_and_metrics()
+    {
+        var handler = new CapturingHandler();
+        ProviderHttp.OverrideHandler = handler;
+        try
+        {
+            OtlpExporter.Start(new OtelConfig("http://collector.test:4318", new Dictionary<string, string> { ["x-api-key"] = "k" }, "dotcode-test", false));
+            await using (var runtime = Runtime("""
+                {"responses":[{"toolCalls":[{"name":"Glob","input":{"pattern":"*.none"}}]},{"text":"ok"}]}
+                """, bypass: true))
+            {
+                await runtime.CreateSession(persist: false).RunTurnAsync("look");
+            }
+            await OtlpExporter.StopAsync();
+        }
+        finally { ProviderHttp.OverrideHandler = null; }
+
+        var traces = string.Concat(handler.Requests.Where(r => r.Path == "/v1/traces").Select(r => r.Body));
+        var metrics = string.Concat(handler.Requests.Where(r => r.Path == "/v1/metrics").Select(r => r.Body));
+        Assert.Contains("\"dotcode.turn\"", traces);
+        Assert.Contains("\"chat scripted\"", traces);
+        Assert.Contains("\"execute_tool Glob\"", traces);
+        Assert.Contains("dotcode-test", traces);
+        Assert.Contains("\"dotcode.tool.calls\"", metrics);
+        Assert.Contains("\"dotcode.turns\"", metrics);
+        Assert.All(handler.Requests, r => Assert.Equal("k", r.ApiKey));
+    }
+
+    private sealed class CapturingHandler : HttpMessageHandler
+    {
+        public List<(string Path, string Body, string? ApiKey)> Requests { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(ct);
+            lock (Requests) Requests.Add((request.RequestUri!.AbsolutePath, body, request.Headers.TryGetValues("x-api-key", out var v) ? v.First() : null));
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+        }
     }
 
     [Fact]

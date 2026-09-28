@@ -72,7 +72,9 @@ For migration, DotCode also reads Claude Code's project `.claude/settings*.json`
   "promptCaching": true,
   "budget": { "maxUsdPerSession": 5, "action": "warn" },
   "allowedProviders": ["ollama"],            // organization policy: only these providers
-  "webSearch": { "provider": "tavily", "apiKey": "${env:TAVILY_API_KEY}" }
+  "webSearch": { "provider": "tavily", "apiKey": "${env:TAVILY_API_KEY}" },
+  "audit": { "enabled": true, "path": "~/.dotcode/audit/audit.jsonl", "includePrompts": false },   // see observability.md
+  "otel": { "enabled": true, "endpoint": "http://localhost:4318", "headers": {}, "serviceName": "dotcode" }
 }
 ```
 
@@ -98,6 +100,7 @@ Loaded into every conversation, in this order: managed `DOTCODE.md`; user `~/.do
 | `~/.dotcode/projects/<project>/checkpoints/` | File snapshots used by `/rewind` |
 | `~/.dotcode/history.jsonl` | Prompt history (↑/↓) |
 | `~/.dotcode/mcp.json` | User-scope MCP servers (`dotcode mcp add`) |
+| `~/.dotcode/audit/audit-YYYY-MM.jsonl` | Hash-chained audit log (when `audit.enabled`) |
 | `.mcp.json` | Project-scope MCP servers |
 | `~/.dotcode/plugins/` | Installed plugins and marketplaces |
 | `~/.dotcode/themes/*.json` | Custom themes |

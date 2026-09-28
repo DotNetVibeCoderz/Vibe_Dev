@@ -30,6 +30,9 @@ public static class Commands
             case "config":
                 return Config(a, cwd);
 
+            case "audit":
+                return Audit(a, cwd);
+
             case "theme":
                 if (a.Count >= 2 && a[0] == "set")
                 {
@@ -247,6 +250,24 @@ public static class Commands
                 return 0;
             }
         }
+    }
+
+    private static int Audit(List<string> a, string cwd)
+    {
+        var sub = a.FirstOrDefault() ?? "verify";
+        var file = a.Skip(1).FirstOrDefault();
+        if (file is null)
+        {
+            var configured = new SettingsLoader(cwd).Load().Audit?.Path;
+            file = DotCode.Engine.Observability.AuditLog.Create(new Settings { Audit = new AuditSettings { Enabled = true, Path = configured } })?.FilePath;
+        }
+        if (file is null) { Console.Error.WriteLine("error: no audit log path"); return 1; }
+        if (sub == "path") { Console.WriteLine(file); return 0; }
+        var result = DotCode.Engine.Observability.AuditLog.Verify(file);
+        Console.WriteLine(result.Ok
+            ? $"✓ {file}: {result.Message}"
+            : $"✗ {file}: {(result.BrokenAtLine is { } l ? $"line {l}: " : "")}{result.Message} ({result.Entries} valid entries before it)");
+        return result.Ok ? 0 : 1;
     }
 
     private static async Task<int> Doctor(CliOptions options, CancellationToken ct)

@@ -42,6 +42,8 @@
 | Built-in tools (17) | ✅ | Read, Write, Edit, NotebookEdit, Glob, Grep, Bash, PowerShell, BashOutput, KillShell, WebFetch, WebSearch, TodoWrite, Agent, Skill, AskUserQuestion, ExitPlanMode (+ MCP resource tools) |
 | Permission engine & modes | ✅ | Claude Code rule syntax, compound command analysis |
 | Auto mode (classifier) | ✅ | `--permission-mode auto`, fail-safe (unclear → ask), prompt-injection hint, cached verdicts, cost tracked; verified live: curl\|bash → deny, force push → ask, python one-liner → allow |
+| Audit log (hash chain, redaction, `dotcode audit verify`) | ✅ | Opt-in `audit` setting; records tool calls with permission decision source, turn ends, optional prompts |
+| OpenTelemetry (OTLP/HTTP JSON) | ✅ | Built-in AOT-safe exporter; `dotcode.turn` → `chat` → `execute_tool` spans, token/cost/tool/latency metrics; `OTEL_*` env vars |
 | Settings hierarchy (user/project/local/CLI/managed) | ✅ | `.claude/` compat |
 | Memory files & `@` imports | ✅ | |
 | Sessions, resume, fork, export | ✅ | |
@@ -56,9 +58,9 @@
 | JSON-RPC server (stdio, Content-Length, WebSocket + token) | ✅ | |
 | SDKs: .NET, TypeScript, Python, Go, Java | ✅ | Rust ⏳ |
 | OpenRPC schema | ✅ | Code generation from schema ⏳ |
-| Tests | ✅ | 61 xUnit + 2 TS + 2 Python + 2 Go + 2 Java conformance, all passing |
+| Tests | ✅ | 64 xUnit + 2 TS + 2 Python + 2 Go + 2 Java conformance, all passing |
 | NativeAOT binaries | ✅ | win-x64, linux-x64, osx-arm64 built and smoke-tested in CI |
-| Sandboxing, worktrees, LSP tool, OpenTelemetry, Desktop, IDE | ⏳ | See PLAN.md |
+| Sandboxing, worktrees, LSP tool, Desktop, IDE | ⏳ | See PLAN.md |
 
 ## Real-LLM test log (2026-09-28)
 

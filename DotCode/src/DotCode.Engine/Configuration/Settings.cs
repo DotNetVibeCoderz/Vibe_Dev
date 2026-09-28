@@ -41,6 +41,30 @@ public sealed class Settings
     public bool? PromptCaching { get; set; }
     public string? DefaultShell { get; set; }
     public bool? Telemetry { get; set; }
+    /// <summary>OpenTelemetry OTLP/HTTP export (opt-in).</summary>
+    public OtelSettings? Otel { get; set; }
+    /// <summary>Hash-chained audit log of tool actions (opt-in, usually set in managed settings).</summary>
+    public AuditSettings? Audit { get; set; }
+}
+
+public sealed class OtelSettings
+{
+    public bool? Enabled { get; set; }
+    /// <summary>OTLP/HTTP base endpoint (default OTEL_EXPORTER_OTLP_ENDPOINT or http://localhost:4318).</summary>
+    public string? Endpoint { get; set; }
+    public Dictionary<string, string>? Headers { get; set; }
+    public string? ServiceName { get; set; }
+    /// <summary>Include user prompt text in span attributes (off by default).</summary>
+    public bool? LogPrompts { get; set; }
+}
+
+public sealed class AuditSettings
+{
+    public bool? Enabled { get; set; }
+    /// <summary>Log file (default ~/.dotcode/audit/audit-YYYY-MM.jsonl).</summary>
+    public string? Path { get; set; }
+    /// <summary>Also record user prompts (redacted). Default false.</summary>
+    public bool? IncludePrompts { get; set; }
 }
 
 public sealed class FallbackRule

@@ -3,6 +3,7 @@ using System.Text.Json;
 using DotCode.Abstractions;
 using DotCode.Engine.Configuration;
 using DotCode.Engine.Hooks;
+using DotCode.Engine.Observability;
 using DotCode.Engine.Permissions;
 using DotCode.Engine.Tools;
 using DotCode.Engine.Util;
@@ -55,7 +56,74 @@ public static class ToolExecutor
         catch (Exception) { return false; }
     }
 
+    /// <summary>Per-call record for telemetry and the audit log: the input actually executed and who decided.</summary>
+    private sealed class CallTrace
+    {
+        public JsonElement Input;
+        public string Decision = "none";
+        public string? Reason;
+    }
+
     private static async Task<ContentPart> RunOneAsync(AgentSession session, ToolUsePart call, CancellationToken ct)
+    {
+        using var activity = Telemetry.Source.StartActivity($"execute_tool {call.Name}");
+        activity?.SetTag("gen_ai.operation.name", "execute_tool");
+        activity?.SetTag("gen_ai.tool.name", call.Name);
+        activity?.SetTag("gen_ai.tool.call.id", call.Id);
+        activity?.SetTag("session.id", session.Id);
+        var trace = new CallTrace { Input = call.Input };
+        var sw = Stopwatch.StartNew();
+        ContentPart result;
+        try
+        {
+            result = await RunOneCoreAsync(session, call, trace, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            trace.Decision = trace.Decision == "none" ? "interrupted" : trace.Decision;
+            Record(session, call, trace, "interrupted", sw, activity);
+            throw;
+        }
+        var outcome = result is ToolResultPart { IsError: true } ? (trace.Decision is "denied" or "rejected" or "blocked" ? trace.Decision : "error") : "ok";
+        Record(session, call, trace, outcome, sw, activity);
+        return result;
+    }
+
+    private static void Record(AgentSession session, ToolUsePart call, CallTrace trace, string outcome, Stopwatch sw, Activity? activity)
+    {
+        var ms = sw.Elapsed.TotalMilliseconds;
+        var toolTag = new KeyValuePair<string, object?>("tool", call.Name);
+        Telemetry.ToolCalls.Add(1, toolTag, new("outcome", outcome), new("decision", trace.Decision));
+        Telemetry.ToolDuration.Record(ms, toolTag);
+        if (activity is not null)
+        {
+            activity.SetTag("dotcode.permission.decision", trace.Decision);
+            activity.SetTag("dotcode.tool.outcome", outcome);
+            if (outcome != "ok") activity.SetStatus(ActivityStatusCode.Error, outcome);
+        }
+        if (session.Runtime.Audit is not { } audit) return;
+        try
+        {
+            var input = AuditLog.Redact(TextUtil.Truncate(trace.Input.GetRawText(), 8000));
+            audit.Write("tool_call", session.Parent?.Id ?? session.Id, session.Runtime.Cwd, w =>
+            {
+                w.WriteString("tool", call.Name);
+                w.WriteString("tool_use_id", call.Id);
+                w.WriteString("input", input);
+                w.WriteString("mode", session.Mode.ToSetting());
+                w.WriteString("decision", trace.Decision);
+                if (trace.Reason is { } r) w.WriteString("reason", AuditLog.Redact(r));
+                w.WriteString("outcome", outcome);
+                w.WriteNumber("duration_ms", (long)ms);
+                w.WriteString("model", session.Model.Qualified);
+                if (session.IsSubagent) w.WriteString("subagent", session.Id);
+            });
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    private static async Task<ContentPart> RunOneCoreAsync(AgentSession session, ToolUsePart call, CallTrace trace, CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
         var tool = session.FindTool(call.Name);
@@ -92,16 +160,23 @@ public static class ToolExecutor
             foreach (var m in hook.SystemMessages) session.Emit(new NoticeEvent(NoticeLevel.Warning, m));
             if (hook.StopAgent) session.StopRequested = hook.StopReason ?? "Stopped by hook";
             if (hook.Block)
+            {
+                (trace.Decision, trace.Reason) = ("blocked", hook.Reason);
                 return Complete(session, call, tool.Name, ToolResult.Error($"PreToolUse hook blocked this tool call: {hook.Reason}"), sw);
-            if (hook.UpdatedInput is { } updated) input = updated;
+            }
+            if (hook.UpdatedInput is { } updated) trace.Input = input = updated;
             forced = hook.PermissionDecision;
         }
 
         // Permissions
         var check = forced == "allow" ? PermissionCheck.Allowed : session.Permissions.Evaluate(tool, input, session.Mode, session);
         if (forced == "ask" && check.Behavior == PermissionBehavior.Allow) check = check with { Behavior = PermissionBehavior.Ask };
+        trace.Decision = forced == "allow" ? "hook" : check.MatchedRule is { } matched ? $"rule:{matched}" : "mode";
         if (check.Behavior == PermissionBehavior.Deny)
+        {
+            (trace.Decision, trace.Reason) = ("denied", check.MatchedRule?.ToString() ?? check.Reason);
             return Complete(session, call, tool.Name, ToolResult.Error(check.Reason ?? $"Permission to use {tool.Name} was denied."), sw);
+        }
 
         // Auto mode: a classifier replaces the prompt for actions it judges low-risk (explicit "ask" rules still ask).
         if (check.Behavior == PermissionBehavior.Ask && session.Mode == PermissionMode.Auto && check.MatchedRule is null && forced != "ask")
@@ -111,9 +186,11 @@ public static class ToolExecutor
             {
                 case AutoDecision.Allow:
                     check = PermissionCheck.Allowed;
+                    (trace.Decision, trace.Reason) = ("auto", verdict.Reason);
                     session.Emit(new ToolProgressEvent(call.Id, $"Auto mode: allowed — {verdict.Reason}"));
                     break;
                 case AutoDecision.Deny:
+                    (trace.Decision, trace.Reason) = ("denied", "auto mode: " + verdict.Reason);
                     return Complete(session, call, tool.Name, ToolResult.Error(
                         $"Auto mode blocked this action: {verdict.Reason}\nChoose a safer approach that stays within the user's request, or ask the user to approve it explicitly."), sw);
             }
@@ -130,10 +207,12 @@ public static class ToolExecutor
                     ? $"{RejectMessage}\nThe user provided the following reason for the rejection: {fb}"
                     : decision.Feedback ?? RejectMessage;
                 if (decision.Feedback is null || decision.Feedback.Length == 0) session.RejectedThisTurn = true;
+                (trace.Decision, trace.Reason) = ("rejected", decision.Feedback);
                 return Complete(session, call, tool.Name, ToolResult.Error(message), sw, rejected: true);
             }
+            trace.Decision = "user:" + decision.Kind.ToString().ToLowerInvariant();
             ApplyDecision(session, tool, input, decision);
-            if (decision.UpdatedInput is { } ui) input = ui;
+            if (decision.UpdatedInput is { } ui) trace.Input = input = ui;
         }
 
         ToolResult result;

@@ -72,7 +72,9 @@ Untuk migrasi, DotCode juga membaca `.claude/settings*.json` proyek dari Claude 
   "promptCaching": true,
   "budget": { "maxUsdPerSession": 5, "action": "warn" },
   "allowedProviders": ["ollama"],            // kebijakan: hanya provider ini yang boleh dipakai
-  "webSearch": { "provider": "tavily", "apiKey": "${env:TAVILY_API_KEY}" }
+  "webSearch": { "provider": "tavily", "apiKey": "${env:TAVILY_API_KEY}" },
+  "audit": { "enabled": true, "path": "~/.dotcode/audit/audit.jsonl", "includePrompts": false },   // lihat observabilitas.md
+  "otel": { "enabled": true, "endpoint": "http://localhost:4318", "headers": {}, "serviceName": "dotcode" }
 }
 ```
 
@@ -98,6 +100,7 @@ Dimuat ke setiap percakapan, berurutan: `DOTCODE.md` terkelola; milik pengguna `
 | `~/.dotcode/projects/<proyek>/checkpoints/` | Snapshot file untuk `/rewind` |
 | `~/.dotcode/history.jsonl` | Riwayat prompt (↑/↓) |
 | `~/.dotcode/mcp.json` | Server MCP cakupan pengguna |
+| `~/.dotcode/audit/audit-YYYY-MM.jsonl` | Audit log berantai hash (bila `audit.enabled`) |
 | `.mcp.json` | Server MCP cakupan proyek |
 | `~/.dotcode/plugins/` | Plugin dan marketplace terpasang |
 | `~/.dotcode/themes/*.json` | Tema kustom |

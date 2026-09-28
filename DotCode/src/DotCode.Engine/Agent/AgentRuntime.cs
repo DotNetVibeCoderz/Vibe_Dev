@@ -29,6 +29,8 @@ public sealed class AgentRuntime : IAsyncDisposable
     public ExtensionRegistry Extensions { get; private set; }
     public List<MemoryFile> Memory { get; private set; }
     public HookRunner Hooks { get; private set; }
+    /// <summary>Opt-in hash-chained audit log (settings "audit").</summary>
+    public Observability.AuditLog? Audit { get; private set; }
     public McpManager Mcp { get; } = new();
     public Task McpReady { get; private set; } = Task.CompletedTask;
     public BackgroundShellManager BackgroundShells { get; } = new();
@@ -48,6 +50,8 @@ public sealed class AgentRuntime : IAsyncDisposable
         Extensions = ExtensionRegistry.Load(ProjectRoot, Settings);
         Memory = MemoryLoader.Load(Cwd, ProjectRoot);
         Hooks = HookRunner.Create(Settings, Extensions.PluginHooks, Cwd);
+        Audit = Observability.AuditLog.Create(Settings);
+        Observability.OtlpExporter.Start(Observability.OtelConfig.Resolve(Settings));
         Git = LoadGitInfo(Cwd);
         BuiltinTools = BuiltinToolset.Create(this);
         MainModelReference = options.Model ?? Router.DefaultMainModel();
@@ -97,6 +101,8 @@ public sealed class AgentRuntime : IAsyncDisposable
         Extensions = ExtensionRegistry.Load(ProjectRoot, Settings);
         Memory = MemoryLoader.Load(Cwd, ProjectRoot);
         Hooks = HookRunner.Create(Settings, Extensions.PluginHooks, Cwd);
+        Audit = Observability.AuditLog.Create(Settings);
+        Observability.OtlpExporter.Start(Observability.OtelConfig.Resolve(Settings));
         foreach (var tool in BuiltinTools)
         {
             if (tool is AgentTool at) at.Registry = Extensions;
@@ -173,5 +179,6 @@ public sealed class AgentRuntime : IAsyncDisposable
     {
         BackgroundShells.KillAll();
         await Mcp.DisposeAsync().ConfigureAwait(false);
+        await Observability.OtlpExporter.FlushAsync().ConfigureAwait(false);
     }
 }
