@@ -124,7 +124,7 @@ internal sealed partial class App
                 [
                     t.C(t.B("DotCode"), t.Brand) + $" v{AppInfo.Version}",
                     "Agentic coding in your terminal with any LLM — a .NET 10 port of the Claude Code experience,",
-                    "with a harness SDK for .NET, TypeScript, Python, Go and Java.",
+                    "with a harness SDK for .NET, TypeScript, Python, Go, Java and Rust, plus a VS Code extension.",
                     "",
                     t.B(AppInfo.Credit),
                     t.Dim(AppInfo.CreditId),
