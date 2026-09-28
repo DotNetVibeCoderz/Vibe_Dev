@@ -1,0 +1,145 @@
+{
+  "cols": 120,
+  "rows": 46,
+  "title": "DotCode — welcome, commands, models and themes",
+  "cwd": "${env:DEMO_ROOT}/todo-cli",
+  "outDir": "../../../docs/images",
+  "command": "${env:DOTCODE_EXE} --model azure:gpt-5-mini",
+  "env": {
+    "DOTCODE_CONFIG_DIR": "${env:DEMO_CONFIG}"
+  },
+  "steps": [
+    {
+      "waitFor": "for shortcuts",
+      "timeout": 30000
+    },
+    {
+      "waitIdle": 800
+    },
+    {
+      "snapshot": "welcome"
+    },
+    {
+      "type": "/"
+    },
+    {
+      "waitIdle": 500
+    },
+    {
+      "snapshot": "slash-commands"
+    },
+    {
+      "key": "esc"
+    },
+    {
+      "key": "backspace"
+    },
+    {
+      "type": "?"
+    },
+    {
+      "waitIdle": 400
+    },
+    {
+      "snapshot": "shortcuts"
+    },
+    {
+      "key": "esc"
+    },
+    {
+      "type": "/model"
+    },
+    {
+      "key": "esc"
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "waitIdle": 4000
+    },
+    {
+      "snapshot": "model-picker"
+    },
+    {
+      "key": "esc"
+    },
+    {
+      "type": "/theme"
+    },
+    {
+      "key": "esc"
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "waitIdle": 600
+    },
+    {
+      "key": "down",
+      "times": 7
+    },
+    {
+      "waitIdle": 600
+    },
+    {
+      "snapshot": "theme-dracula"
+    },
+    {
+      "key": "down"
+    },
+    {
+      "waitIdle": 600
+    },
+    {
+      "snapshot": "theme-nord"
+    },
+    {
+      "key": "down",
+      "times": 4
+    },
+    {
+      "waitIdle": 600
+    },
+    {
+      "snapshot": "theme-catppuccin"
+    },
+    {
+      "key": "esc"
+    },
+    {
+      "type": "/config"
+    },
+    {
+      "key": "esc"
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "waitIdle": 600
+    },
+    {
+      "snapshot": "config"
+    },
+    {
+      "key": "esc"
+    },
+    {
+      "type": "/about"
+    },
+    {
+      "key": "esc"
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "waitIdle": 600
+    },
+    {
+      "snapshot": "about"
+    }
+  ]
+}

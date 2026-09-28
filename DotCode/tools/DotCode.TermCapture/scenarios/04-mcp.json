@@ -1,0 +1,55 @@
+{
+  "cols": 120,
+  "rows": 40,
+  "title": "DotCode — MCP server (notes) with Azure OpenAI",
+  "cwd": "${env:DEMO_ROOT}/mcp-notes",
+  "outDir": "../../../docs/images",
+  "command": "${env:DOTCODE_EXE} --model azure:gpt-5-mini --allowedTools mcp__notes",
+  "env": {
+    "DOTCODE_CONFIG_DIR": "${env:DEMO_CONFIG}"
+  },
+  "steps": [
+    {
+      "waitFor": "for shortcuts",
+      "timeout": 30000
+    },
+    {
+      "sleep": 2000
+    },
+    {
+      "type": "/mcp"
+    },
+    {
+      "key": "esc"
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "waitIdle": 800
+    },
+    {
+      "type": "Remember these with the notes tools: 'Sprint 12 goals' = ship the Go SDK and bilingual docs; 'Release checklist' = tests, AOT build, publish packages. Then search notes for 'SDK'."
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "waitGone": "esc to interrupt|Do you want|Would you like to proceed",
+      "timeout": 300000,
+      "respond": [
+        {
+          "when": "Do you want",
+          "keys": "1"
+        }
+      ]
+    },
+    {
+      "waitIdle": 1500
+    },
+    {
+      "snapshot": "mcp-notes",
+      "full": true
+    }
+  ]
+}

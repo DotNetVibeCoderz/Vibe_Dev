@@ -1,0 +1,39 @@
+# DotCode SDK — Go
+
+Embed the [DotCode](https://github.com/DotNetVibeCoderz/Vibe_Dev) coding agent in your application and drive it with **any LLM** (Anthropic, OpenAI, Azure OpenAI, Gemini, DeepSeek, Ollama, OpenAI-compatible). The SDK talks JSON-RPC to a `dotcode serve` process.
+
+*Built by Gravicode Studios, led by Kang Fadhil.* · 🇮🇩 Dokumentasi Bahasa Indonesia: [docs/id/sdk.md](https://github.com/DotNetVibeCoderz/Vibe_Dev/blob/main/DotCode/docs/id/sdk.md)
+
+## Install
+
+```bash
+go get github.com/DotNetVibeCoderz/Vibe_Dev/DotCode/sdk/go
+```
+
+The SDK needs the `dotcode` CLI: put it on `PATH` or set `DOTCODE_CLI_PATH` (a path to `dotcode.dll` is started with `dotnet`). Configure providers with environment variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, …), `~/.dotcode/settings.json`, or per session with the `settings` option.
+
+## Usage
+
+```go
+client, err := dotcode.NewClient(ctx, dotcode.ClientOptions{}) // spawns `dotcode serve`
+if err != nil { log.Fatal(err) }
+defer client.Close()
+session, _ := client.CreateSession(ctx, dotcode.SessionOptions{
+    Model: "azure:gpt-5-mini",
+    OnPermissionRequest: func(r dotcode.PermissionRequest) dotcode.PermissionDecision { return dotcode.Allow },
+})
+res, _ := session.Send(ctx, "List the files here and summarize the project")
+fmt.Println(res.Result)
+```
+
+## Features
+
+- Sessions with streaming events (text deltas, tool calls, diffs, todos, usage, cost)
+- **Custom tools** implemented in your app
+- **Permission handler** — sessions are deny-by-default without one; decisions: `allow`, `allow_always`, `allow_session`, `deny` (with feedback)
+- Question (AskUserQuestion) and plan-review handlers
+- MCP servers, allowed/disallowed tool rules, permission modes, system prompt overrides, model switching, compaction, transcripts, resume/fork
+
+Full guide: [docs/en/sdk.md](https://github.com/DotNetVibeCoderz/Vibe_Dev/blob/main/DotCode/docs/en/sdk.md) · Protocol: [schema/protocol.schema.json](https://github.com/DotNetVibeCoderz/Vibe_Dev/blob/main/DotCode/schema/protocol.schema.json)
+
+License: MIT

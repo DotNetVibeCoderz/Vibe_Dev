@@ -1,0 +1,28 @@
+{
+  "name": "dotcode-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript/JavaScript SDK for DotCode — embed a multi-LLM coding agent (Anthropic, OpenAI, Azure, Gemini, DeepSeek, Ollama) in your app. By Gravicode Studios, led by Kang Fadhil.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test test/*.test.mjs"
+  },
+  "keywords": ["ai", "agent", "coding-agent", "llm", "claude", "openai", "gemini", "deepseek", "ollama", "mcp", "dotcode"],
+  "author": "Gravicode Studios (Kang Fadhil)",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/DotNetVibeCoderz/Vibe_Dev.git", "directory": "DotCode/sdk/typescript" },
+  "engines": { "node": ">=18" },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}

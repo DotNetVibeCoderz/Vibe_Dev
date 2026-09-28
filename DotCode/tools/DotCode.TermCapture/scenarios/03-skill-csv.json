@@ -1,0 +1,59 @@
+{
+  "cols": 120,
+  "rows": 44,
+  "title": "DotCode — skill: csv-insights (DeepSeek)",
+  "cwd": "${env:DEMO_ROOT}/sales",
+  "outDir": "../../../docs/images",
+  "command": "${env:DOTCODE_EXE} --model deepseek:deepseek-v4-flash --permission-mode acceptEdits --allowedTools \"Bash(python *)\"",
+  "env": {
+    "DOTCODE_CONFIG_DIR": "${env:DEMO_CONFIG}"
+  },
+  "steps": [
+    {
+      "waitFor": "accept edits",
+      "timeout": 30000
+    },
+    {
+      "type": "/"
+    },
+    {
+      "type": "csv"
+    },
+    {
+      "waitIdle": 500
+    },
+    {
+      "snapshot": "skill-autocomplete"
+    },
+    {
+      "key": "esc"
+    },
+    {
+      "key": "backspace",
+      "times": 4
+    },
+    {
+      "type": "Analyze sales.csv and write an insights report"
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "waitGone": "esc to interrupt|Do you want|Would you like to proceed",
+      "timeout": 600000,
+      "respond": [
+        {
+          "when": "Do you want",
+          "keys": "1"
+        }
+      ]
+    },
+    {
+      "waitIdle": 1500
+    },
+    {
+      "snapshot": "skill-csv-report",
+      "full": true
+    }
+  ]
+}

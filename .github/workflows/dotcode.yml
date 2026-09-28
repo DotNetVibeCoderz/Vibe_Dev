@@ -1,0 +1,138 @@
+# DotCode — CI and release (Gravicode Studios, led by Kang Fadhil)
+#  • Every push/PR touching DotCode/: build + .NET tests + SDK conformance tests (TypeScript, Python, Go, Java)
+#  • Tag "dotcode-v*" (e.g. dotcode-v0.1.0) or manual run with publish=true: NativeAOT binaries + NuGet publish
+#    (uses the repository secret NUGET_API_KEY)
+name: DotCode
+
+on:
+  push:
+    branches: [main]
+    paths: ["DotCode/**", ".github/workflows/dotcode.yml"]
+    tags: ["dotcode-v*"]
+  pull_request:
+    paths: ["DotCode/**", ".github/workflows/dotcode.yml"]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish packages to NuGet"
+        type: boolean
+        default: false
+
+defaults:
+  run:
+    working-directory: DotCode
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: DotCode/global.json
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.22" }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+
+      - name: Build
+        run: dotnet build DotCode.slnx -c Debug
+      - name: .NET tests (provider contracts, engine, TUI, SDK conformance)
+        run: dotnet test tests/DotCode.Tests --no-build -c Debug
+      - name: TypeScript SDK
+        working-directory: DotCode/sdk/typescript
+        run: npm ci && npm run build && npm test
+      - name: Python SDK
+        working-directory: DotCode/sdk/python/tests
+        run: PYTHONPATH=../src python -m unittest -v
+      - name: Go SDK
+        working-directory: DotCode/sdk/go
+        run: go vet ./... && go test ./...
+      - name: Java SDK
+        working-directory: DotCode/sdk/java
+        run: |
+          mkdir -p target/classes target/test-classes
+          javac -d target/classes $(find src/main -name "*.java")
+          javac -d target/test-classes -cp target/classes $(find src/test -name "*.java")
+          java -cp target/classes:target/test-classes com.gravicode.dotcode.ConformanceTest
+
+  binaries:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/dotcode-v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
+    strategy:
+      matrix:
+        include:
+          - { os: windows-latest, rid: win-x64 }
+          - { os: ubuntu-latest, rid: linux-x64 }
+          - { os: macos-latest, rid: osx-arm64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: DotCode/global.json
+      - name: NativeAOT publish
+        shell: bash
+        run: dotnet publish src/DotCode.Cli -c Release -r ${{ matrix.rid }} -o out/${{ matrix.rid }} -p:DebugType=none
+      - name: Smoke test
+        shell: bash
+        run: ./out/${{ matrix.rid }}/dotcode --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dotcode-${{ matrix.rid }}
+          path: DotCode/out/${{ matrix.rid }}/dotcode*
+
+  nuget:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/dotcode-v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: DotCode/global.json
+      - name: Pack
+        run: |
+          for p in Abstractions Providers Engine Protocol Tui Sdk; do
+            dotnet pack src/DotCode.$p -c Release -o nupkgs
+          done
+          dotnet pack src/DotCode.Cli -c Release -p:DotCodeTool=true -o nupkgs
+          ls -la nupkgs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: DotCode/nupkgs/*.nupkg
+      - name: Push to NuGet.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: dotnet nuget push "nupkgs/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+  release:
+    needs: [binaries, nuget]
+    if: startsWith(github.ref, 'refs/tags/dotcode-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dist }
+      - name: Zip binaries
+        working-directory: dist
+        run: for d in dotcode-*; do (cd "$d" && zip -r "../$d.zip" .); done
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: DotCode ${{ github.ref_name }}
+          files: |
+            dist/*.zip
+            dist/nuget-packages/*.nupkg

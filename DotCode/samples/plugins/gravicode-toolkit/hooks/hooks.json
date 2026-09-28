@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          { "type": "command", "command": "mkdir -p .dotcode && echo \"$(date '+%Y-%m-%d %H:%M:%S') edit\" >> .dotcode/edit-log.txt", "timeout": 10 }
+        ]
+      }
+    ]
+  }
+}

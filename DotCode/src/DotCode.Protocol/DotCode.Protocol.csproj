@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>DotCode.Protocol</RootNamespace>
+    <PackageId>DotCode.Protocol</PackageId>
+    <Description>DotCode Protocol - part of DotCode, a .NET 10 multi-LLM coding agent and harness SDK by Gravicode Studios.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DotCode.Engine\DotCode.Engine.csproj" />
+  </ItemGroup>
+</Project>

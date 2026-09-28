@@ -1,0 +1,172 @@
+{
+  "openrpc": "1.3.2",
+  "info": {
+    "title": "DotCode Agent Protocol",
+    "version": "1.0.0",
+    "description": "JSON-RPC 2.0 protocol between DotCode SDK clients and `dotcode serve`. Transports: stdio (newline-delimited JSON, or LSP-style Content-Length with --content-length) and WebSocket (--port N, bearer token). The server streams engine events as `session.event` notifications and calls back into the client for permissions, questions, plan review and host-implemented tools. Built by Gravicode Studios, led by Kang Fadhil.",
+    "license": { "name": "MIT" }
+  },
+  "methods": [
+    {
+      "name": "initialize",
+      "summary": "Handshake. Must be the first request.",
+      "params": [
+        { "name": "protocolVersion", "schema": { "type": "string" } },
+        { "name": "clientInfo", "schema": { "type": "object", "properties": { "name": { "type": "string" }, "version": { "type": "string" } } } },
+        { "name": "capabilities", "schema": { "$ref": "#/components/schemas/ClientCapabilities" } }
+      ],
+      "result": { "name": "initializeResult", "schema": { "type": "object", "properties": {
+        "protocolVersion": { "type": "string" },
+        "serverInfo": { "type": "object", "properties": { "name": { "type": "string" }, "version": { "type": "string" }, "credit": { "type": "string" } } },
+        "capabilities": { "type": "object", "additionalProperties": { "type": "boolean" } } } } }
+    },
+    { "name": "ping", "params": [], "result": { "name": "empty", "schema": { "type": "object" } } },
+    { "name": "shutdown", "summary": "Close all sessions and stop the server.", "params": [], "result": { "name": "empty", "schema": { "type": "object" } } },
+    {
+      "name": "session.create",
+      "summary": "Create an agent session.",
+      "params": [ { "name": "options", "schema": { "$ref": "#/components/schemas/SessionOptions" } } ],
+      "paramStructure": "by-name",
+      "result": { "name": "session", "schema": { "$ref": "#/components/schemas/SessionInfo" } }
+    },
+    {
+      "name": "session.resume",
+      "summary": "Resume a saved session (optionally forking it).",
+      "params": [ { "name": "options", "schema": { "allOf": [ { "$ref": "#/components/schemas/SessionOptions" }, { "type": "object", "required": ["sessionId"], "properties": { "sessionId": { "type": "string" }, "fork": { "type": "boolean" } } } ] } } ],
+      "result": { "name": "session", "schema": { "$ref": "#/components/schemas/SessionInfo" } }
+    },
+    {
+      "name": "session.send",
+      "summary": "Run one user turn to completion. Events stream as session.event notifications while the request is pending.",
+      "params": [
+        { "name": "sessionId", "required": true, "schema": { "type": "string" } },
+        { "name": "prompt", "required": true, "schema": { "type": "string", "description": "Prompt text. Slash commands (/command, /skill) and @file mentions are expanded." } },
+        { "name": "attachments", "schema": { "type": "array", "items": { "oneOf": [
+          { "type": "object", "properties": { "type": { "const": "image" }, "data": { "type": "string", "description": "base64" }, "mediaType": { "type": "string" } } },
+          { "type": "object", "properties": { "type": { "const": "file" }, "path": { "type": "string" } } } ] } } }
+      ],
+      "result": { "name": "sendResult", "schema": { "$ref": "#/components/schemas/SendResult" } }
+    },
+    { "name": "session.abort", "summary": "Interrupt the running turn.", "params": [ { "name": "sessionId", "required": true, "schema": { "type": "string" } } ], "result": { "name": "empty", "schema": { "type": "object" } } },
+    { "name": "session.close", "params": [ { "name": "sessionId", "required": true, "schema": { "type": "string" } } ], "result": { "name": "empty", "schema": { "type": "object" } } },
+    { "name": "session.setModel", "params": [ { "name": "sessionId", "required": true, "schema": { "type": "string" } }, { "name": "model", "required": true, "schema": { "type": "string" } } ], "result": { "name": "model", "schema": { "type": "object", "properties": { "model": { "type": "string" } } } } },
+    { "name": "session.setMode", "params": [ { "name": "sessionId", "required": true, "schema": { "type": "string" } }, { "name": "mode", "required": true, "schema": { "$ref": "#/components/schemas/PermissionMode" } } ], "result": { "name": "mode", "schema": { "type": "object" } } },
+    { "name": "session.setEffort", "params": [ { "name": "sessionId", "required": true, "schema": { "type": "string" } }, { "name": "effort", "required": true, "schema": { "enum": ["off", "low", "medium", "high", "xhigh"] } } ], "result": { "name": "effort", "schema": { "type": "object" } } },
+    { "name": "session.compact", "params": [ { "name": "sessionId", "required": true, "schema": { "type": "string" } }, { "name": "instructions", "schema": { "type": "string" } } ], "result": { "name": "empty", "schema": { "type": "object" } } },
+    { "name": "session.clear", "params": [ { "name": "sessionId", "required": true, "schema": { "type": "string" } } ], "result": { "name": "empty", "schema": { "type": "object" } } },
+    { "name": "session.messages", "params": [ { "name": "sessionId", "required": true, "schema": { "type": "string" } } ], "result": { "name": "messages", "schema": { "type": "object", "properties": { "messages": { "type": "array", "items": { "$ref": "#/components/schemas/Message" } } } } } },
+    { "name": "session.info", "params": [ { "name": "sessionId", "required": true, "schema": { "type": "string" } } ], "result": { "name": "session", "schema": { "$ref": "#/components/schemas/SessionInfo" } } },
+    { "name": "session.list", "params": [ { "name": "cwd", "schema": { "type": "string" } }, { "name": "limit", "schema": { "type": "integer" } } ], "result": { "name": "sessions", "schema": { "type": "object" } } },
+    { "name": "models.list", "params": [ { "name": "cwd", "schema": { "type": "string" } } ], "result": { "name": "models", "schema": { "type": "object", "properties": { "default": { "type": "string" }, "providers": { "type": "array" }, "models": { "type": "array" } } } } },
+    { "name": "tools.list", "params": [ { "name": "sessionId", "required": true, "schema": { "type": "string" } } ], "result": { "name": "tools", "schema": { "type": "object" } } }
+  ],
+  "x-server-to-client": {
+    "notifications": {
+      "session.event": { "params": { "sessionId": "string", "event": { "$ref": "#/components/schemas/AgentEvent" } } }
+    },
+    "requests": {
+      "permission.request": {
+        "summary": "Ask the host whether a tool call may run. Sent only when the client declared capabilities.permissions; otherwise the server is deny-by-default.",
+        "params": { "sessionId": "string", "request": { "$ref": "#/components/schemas/PermissionRequest" } },
+        "result": { "$ref": "#/components/schemas/PermissionDecision" }
+      },
+      "user.question": {
+        "summary": "AskUserQuestion tool: multiple-choice questions for the user.",
+        "params": { "sessionId": "string", "questions": { "type": "array" } },
+        "result": { "answers": [ { "question": "string", "answer": "string" } ] }
+      },
+      "plan.review": {
+        "summary": "ExitPlanMode: approve or reject the model's plan.",
+        "params": { "sessionId": "string", "plan": "string" },
+        "result": { "approval": "approve | approve_accept_edits | reject", "feedback": "string?" }
+      },
+      "tool.call": {
+        "summary": "Execute a host-implemented tool registered through session.create hostTools.",
+        "params": { "sessionId": "string", "toolUseId": "string", "name": "string", "input": "object" },
+        "result": { "content": "string | [{type:text,text} | {type:image,data,mediaType}]", "isError": "boolean?" }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ClientCapabilities": { "type": "object", "properties": { "permissions": { "type": "boolean" }, "questions": { "type": "boolean" } } },
+      "PermissionMode": { "enum": ["default", "acceptEdits", "plan", "bypassPermissions"] },
+      "SessionOptions": {
+        "type": "object",
+        "properties": {
+          "cwd": { "type": "string" },
+          "model": { "type": "string", "description": "provider:model, alias or role" },
+          "fallbackModel": { "type": "string" },
+          "permissionMode": { "$ref": "#/components/schemas/PermissionMode" },
+          "dangerouslySkipPermissions": { "type": "boolean" },
+          "systemPrompt": { "type": "string" },
+          "appendSystemPrompt": { "type": "string" },
+          "allowedTools": { "type": "array", "items": { "type": "string" } },
+          "disallowedTools": { "type": "array", "items": { "type": "string" } },
+          "tools": { "type": "array", "items": { "type": "string" }, "description": "Restrict built-in tools" },
+          "hostTools": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string" }, "description": { "type": "string" }, "inputSchema": { "type": "object" }, "readOnly": { "type": "boolean" } }, "required": ["name"] } },
+          "mcpServers": { "type": "object", "additionalProperties": { "type": "object" } },
+          "settings": { "type": "object", "description": "Inline settings merged over settings files (providers, permissions, hooks…)" },
+          "maxTurns": { "type": "integer" },
+          "effort": { "enum": ["off", "low", "medium", "high", "xhigh"] },
+          "outputStyle": { "type": "string" },
+          "persistSession": { "type": "boolean" },
+          "noMcp": { "type": "boolean" },
+          "strictMcpConfig": { "type": "boolean" },
+          "addDirs": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "SessionInfo": {
+        "type": "object",
+        "properties": {
+          "sessionId": { "type": "string" }, "model": { "type": "string" }, "cwd": { "type": "string" }, "permissionMode": { "type": "string" },
+          "messageCount": { "type": "integer" }, "totalCostUsd": { "type": "number" }, "transcriptPath": { "type": "string" },
+          "tools": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "SendResult": {
+        "type": "object",
+        "properties": {
+          "sessionId": { "type": "string" }, "stopReason": { "enum": ["EndTurn", "ToolUse", "MaxTokens", "StopSequence", "Refusal", "Aborted", "Error"] },
+          "result": { "type": "string" }, "isError": { "type": "boolean" }, "error": { "type": "string" }, "durationMs": { "type": "integer" },
+          "numModelCalls": { "type": "integer" }, "costUsd": { "type": "number" }, "totalCostUsd": { "type": "number" }, "usage": { "$ref": "#/components/schemas/Usage" }
+        }
+      },
+      "Usage": { "type": "object", "properties": { "inputTokens": { "type": "integer" }, "outputTokens": { "type": "integer" }, "cacheReadTokens": { "type": "integer" }, "cacheWriteTokens": { "type": "integer" }, "reasoningTokens": { "type": "integer" } } },
+      "PermissionRequest": {
+        "type": "object",
+        "properties": {
+          "toolUseId": { "type": "string" }, "toolName": { "type": "string" }, "displayName": { "type": "string" }, "input": { "type": "object" },
+          "title": { "type": "string" }, "detail": { "type": "string" }, "suggestedRule": { "type": "string" }, "diff": { "type": "string" }, "parentToolUseId": { "type": "string" }
+        }
+      },
+      "PermissionDecision": {
+        "type": "object",
+        "required": ["decision"],
+        "properties": {
+          "decision": { "enum": ["allow", "allow_always", "allow_session", "deny"] },
+          "feedback": { "type": "string", "description": "Returned to the model on deny" },
+          "rule": { "type": "string", "description": "Rule to persist for allow_always, e.g. Bash(npm test:*)" },
+          "updatedInput": { "type": "object" }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "properties": {
+          "role": { "enum": ["User", "Assistant"] }, "id": { "type": "string" }, "timestamp": { "type": "string" },
+          "content": { "type": "array", "items": { "type": "object", "properties": { "type": { "enum": ["text", "image", "document", "tool_use", "tool_result", "thinking"] } } } },
+          "providerId": { "type": "string" }, "modelId": { "type": "string" }, "isMeta": { "type": "boolean" }, "isCompactSummary": { "type": "boolean" }
+        }
+      },
+      "AgentEvent": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": { "enum": ["session.started", "user.message", "assistant.text.delta", "assistant.thinking.delta", "assistant.message", "tool.started", "tool.progress", "tool.completed", "todo.updated", "subagent.started", "subagent.completed", "context.compacted", "usage.updated", "model.changed", "model.fallback", "retry", "notice", "error", "mode.changed", "turn.completed"] },
+          "sessionId": { "type": "string" },
+          "parentToolUseId": { "type": "string", "description": "Set for events emitted inside a subagent" }
+        }
+      }
+    }
+  }
+}

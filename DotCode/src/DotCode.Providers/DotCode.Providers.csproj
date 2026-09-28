@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>DotCode.Providers</RootNamespace>
+    <PackageId>DotCode.Providers</PackageId>
+    <Description>DotCode Providers - part of DotCode, a .NET 10 multi-LLM coding agent and harness SDK by Gravicode Studios.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DotCode.Abstractions\DotCode.Abstractions.csproj" />
+  </ItemGroup>
+</Project>

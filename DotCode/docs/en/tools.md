@@ -1,0 +1,41 @@
+# Built-in tools
+
+> 🇮🇩 [Bahasa Indonesia](../id/tools.md)
+
+| Tool | Purpose | Read-only | Needs permission (default mode) |
+|---|---|---|---|
+| `Read` | Read files with line numbers (offset/limit), images, PDFs, notebooks | ✔ | outside working dirs / secret-looking files |
+| `Write` | Create or overwrite a file (must Read existing files first) | | ✔ |
+| `Edit` | Exact string replacement; `replace_all`; preserves CRLF and BOM | | ✔ |
+| `NotebookEdit` | Replace/insert/delete Jupyter cells | | ✔ |
+| `Glob` | Find files by pattern (`**/*.cs`, `{a,b}`), newest first | ✔ | |
+| `Grep` | Regex search via ripgrep (managed fallback); content/files/count modes, context lines | ✔ | |
+| `Bash` | Run bash (Git Bash on Windows); persistent working directory; timeouts; background runs | read-only commands only | ✔ |
+| `PowerShell` | Run PowerShell (Windows PowerShell or pwsh) | read-only commands only | ✔ |
+| `BashOutput`, `KillShell` | Read output of / stop background shells | ✔ | |
+| `WebFetch` | Fetch a URL, convert HTML to markdown, answer a prompt with the fast model | ✔ | ✔ (per domain) |
+| `WebSearch` | Web search (Tavily with `TAVILY_API_KEY`, DuckDuckGo fallback) | ✔ | ✔ |
+| `TodoWrite` | Maintain the visible task list | ✔ | |
+| `Agent` | Launch a subagent (general-purpose, Explore, Plan, custom) with its own context | ✔ | |
+| `Skill` | Load a skill's instructions | ✔ | |
+| `AskUserQuestion` | Ask 1–4 multiple-choice questions | ✔ | |
+| `ExitPlanMode` | Present a plan for approval (plan mode only) | ✔ | |
+| `ListMcpResourcesTool`, `ReadMcpResourceTool` | MCP resources | ✔ | ✔ |
+| `mcp__<server>__<tool>` | Tools from MCP servers | per server hint | ✔ |
+
+## Execution model
+
+- All tool calls in one model response are validated (JSON schema `required`, tool-specific checks), then run: **consecutive read-only, concurrency-safe calls run in parallel** (up to 10), others serially, results kept in order.
+- Every call passes through `PreToolUse` hooks → the permission engine (and a dialog if needed) → execution → `PostToolUse` hooks.
+- Errors are returned to the model as error tool results; the loop continues so the model can recover.
+- Results over the tool's limit (30k chars for shells) are truncated head+tail and the full output is saved to a temp file the model can Read or Grep.
+- The shell working directory persists across calls (and is shared with subagents). Environment: `DOTCODE=1`, `GIT_TERMINAL_PROMPT=0`, pagers disabled. Timeout default 2 min, max 10 min; the whole process tree is killed on timeout or `Esc`.
+- `run_in_background` starts servers/watchers; read their output with `BashOutput`, stop with `KillShell` or `/bashes kill`.
+
+## Subagents
+
+The `Agent` tool starts a child session with its own context window, system prompt, tool allowlist and model (role or explicit). It shares permissions, checkpoints and the UI; its progress is shown nested under the call, and only its final report returns to the main conversation. Built-in types: `general-purpose` (all tools), `Explore` (read-only, fast model), `Plan` (read-only, planner model). Define your own in `.dotcode/agents/*.md` — see [Extensions](extensions.md#subagents).
+
+## Context management
+
+DotCode tracks the tokens used by each request. When the conversation approaches the auto-compact threshold (85% of the usable window by default) it summarizes the history into a structured continuation message (requests, files, errors, pending tasks, next step, plus the todo list) and continues. `/compact [instructions]` does it on demand; `/context` shows the breakdown.

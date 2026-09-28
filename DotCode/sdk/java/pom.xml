@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.gravicode</groupId>
+  <artifactId>dotcode-sdk</artifactId>
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+  <name>DotCode SDK for Java</name>
+  <description>Embed the DotCode multi-LLM coding agent (Anthropic, OpenAI, Azure, Gemini, DeepSeek, Ollama) in JVM apps. Built by Gravicode Studios, led by Kang Fadhil.</description>
+  <url>https://github.com/DotNetVibeCoderz/Vibe_Dev</url>
+  <licenses><license><name>MIT</name></license></licenses>
+  <developers><developer><name>Kang Fadhil</name><organization>Gravicode Studios</organization></developer></developers>
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+  <!-- No runtime dependencies: JSON and JSON-RPC are implemented with the JDK only. -->
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.5.0</version>
+        <executions>
+          <execution>
+            <id>conformance</id>
+            <phase>integration-test</phase>
+            <goals><goal>java</goal></goals>
+            <configuration>
+              <mainClass>com.gravicode.dotcode.ConformanceTest</mainClass>
+              <classpathScope>test</classpathScope>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

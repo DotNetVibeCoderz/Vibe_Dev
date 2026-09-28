@@ -1,0 +1,7 @@
+{
+  "name": "gravicode",
+  "owner": { "name": "Gravicode Studios" },
+  "plugins": [
+    { "name": "gravicode-toolkit", "source": "../plugins/gravicode-toolkit", "description": "Changelog & explain commands, code-reviewer agent, README skill, edit-log hook", "version": "1.0.0" }
+  ]
+}

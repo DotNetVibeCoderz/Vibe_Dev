@@ -1,0 +1,8 @@
+{
+  "name": "dotcode-sample-mcp-notes",
+  "version": "1.0.0",
+  "description": "Dependency-free MCP (stdio) server used in DotCode docs: a tiny notes database.",
+  "type": "module",
+  "bin": { "mcp-notes": "server.mjs" },
+  "license": "MIT"
+}

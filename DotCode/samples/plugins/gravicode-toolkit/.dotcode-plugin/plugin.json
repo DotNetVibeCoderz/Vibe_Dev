@@ -1,0 +1,6 @@
+{
+  "name": "gravicode-toolkit",
+  "version": "1.0.0",
+  "description": "Sample DotCode plugin: changelog & explain commands, a code-reviewer subagent, a README-writer skill and an edit-log hook.",
+  "author": { "name": "Gravicode Studios", "url": "https://github.com/gravicode" }
+}

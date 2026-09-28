@@ -1,0 +1,40 @@
+{
+  "cols": 120,
+  "rows": 46,
+  "title": "DotCode — landing page (DeepSeek, prompt in Bahasa Indonesia)",
+  "cwd": "${env:DEMO_ROOT}/kopi-web",
+  "outDir": "../../../docs/images",
+  "command": "${env:DOTCODE_EXE} --model deepseek:deepseek-v4-flash --permission-mode acceptEdits",
+  "env": {
+    "DOTCODE_CONFIG_DIR": "${env:DEMO_CONFIG}"
+  },
+  "steps": [
+    {
+      "waitFor": "accept edits",
+      "timeout": 30000
+    },
+    {
+      "type": "Buatkan landing page responsif untuk kedai kopi 'Kopi Nusantara': index.html, styles.css dan script.js. Ada hero section, menu 6 minuman dengan harga Rupiah, tombol pesan yang menambah ke keranjang (tampilkan total), dan footer. Desain modern warna coklat hangat."
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "waitGone": "esc to interrupt|Do you want|Would you like to proceed",
+      "timeout": 600000,
+      "respond": [
+        {
+          "when": "Do you want",
+          "keys": "1"
+        }
+      ]
+    },
+    {
+      "waitIdle": 1500
+    },
+    {
+      "snapshot": "web-app-done",
+      "full": true
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "cols": 120,
+  "rows": 48,
+  "title": "DotCode — building a .NET console app (Azure OpenAI gpt-5-mini)",
+  "cwd": "${env:DEMO_ROOT}/todo-cli",
+  "outDir": "../../../docs/images",
+  "command": "${env:DOTCODE_EXE} --model azure:gpt-5-mini --permission-mode acceptEdits --allowedTools \"Bash(dotnet *)\" \"PowerShell(dotnet *)\"",
+  "env": {
+    "DOTCODE_CONFIG_DIR": "${env:DEMO_CONFIG}"
+  },
+  "steps": [
+    {
+      "waitFor": "for shortcuts|accept edits",
+      "timeout": 30000
+    },
+    {
+      "type": "Create a .NET 10 console app named TodoCli in this folder that stores todos in todos.json with commands: add <text>, list, done <id>. Use a todo list to track your work. Build it, then run it to add 'Write docs' and 'Publish SDKs', mark #1 done, and list."
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "waitFor": "☐|☒|◼",
+      "timeout": 180000
+    },
+    {
+      "sleep": 4000
+    },
+    {
+      "snapshot": "console-app-working"
+    },
+    {
+      "waitGone": "esc to interrupt|Do you want|Would you like to proceed",
+      "timeout": 900000,
+      "respond": [
+        {
+          "when": "Do you want",
+          "keys": "1"
+        }
+      ]
+    },
+    {
+      "waitIdle": 1500
+    },
+    {
+      "snapshot": "console-app-done",
+      "full": true
+    },
+    {
+      "type": "/cost"
+    },
+    {
+      "key": "esc"
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "waitIdle": 1000
+    },
+    {
+      "type": "/context"
+    },
+    {
+      "key": "esc"
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "waitIdle": 1000
+    },
+    {
+      "snapshot": "cost-context"
+    }
+  ]
+}

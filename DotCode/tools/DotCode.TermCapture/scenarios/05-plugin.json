@@ -1,0 +1,55 @@
+{
+  "cols": 120,
+  "rows": 44,
+  "title": "DotCode — plugins & marketplace",
+  "cwd": "${env:DEMO_ROOT}/todo-cli",
+  "outDir": "../../../docs/images",
+  "command": "${env:DOTCODE_EXE} --model azure:gpt-5-mini --allowedTools Read Glob Grep",
+  "env": {
+    "DOTCODE_CONFIG_DIR": "${env:DEMO_CONFIG}"
+  },
+  "steps": [
+    {
+      "waitFor": "for shortcuts",
+      "timeout": 30000
+    },
+    {
+      "type": "/plugin"
+    },
+    {
+      "key": "esc"
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "waitIdle": 800
+    },
+    {
+      "type": "/gravicode-toolkit:explain Program.cs"
+    },
+    {
+      "key": "esc"
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "waitGone": "esc to interrupt|Do you want|Would you like to proceed",
+      "timeout": 300000,
+      "respond": [
+        {
+          "when": "Do you want",
+          "keys": "1"
+        }
+      ]
+    },
+    {
+      "waitIdle": 1500
+    },
+    {
+      "snapshot": "plugin-command",
+      "full": true
+    }
+  ]
+}

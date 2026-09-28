@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>DotCode.Abstractions</RootNamespace>
+    <PackageId>DotCode.Abstractions</PackageId>
+    <Description>DotCode Abstractions - part of DotCode, a .NET 10 multi-LLM coding agent and harness SDK by Gravicode Studios.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    
+  </ItemGroup>
+</Project>

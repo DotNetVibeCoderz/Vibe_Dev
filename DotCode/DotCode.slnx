@@ -1,0 +1,22 @@
+<Solution>
+  <Folder Name="/samples/" />
+  <Folder Name="/samples/sdk/" />
+  <Folder Name="/samples/sdk/dotnet/">
+    <Project Path="samples/sdk/dotnet/SdkSample.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/DotCode.Abstractions/DotCode.Abstractions.csproj" />
+    <Project Path="src/DotCode.Cli/DotCode.Cli.csproj" />
+    <Project Path="src/DotCode.Engine/DotCode.Engine.csproj" />
+    <Project Path="src/DotCode.Protocol/DotCode.Protocol.csproj" />
+    <Project Path="src/DotCode.Providers/DotCode.Providers.csproj" />
+    <Project Path="src/DotCode.Sdk/DotCode.Sdk.csproj" />
+    <Project Path="src/DotCode.Tui/DotCode.Tui.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DotCode.Tests/DotCode.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/DotCode.TermCapture/DotCode.TermCapture.csproj" />
+  </Folder>
+</Solution>

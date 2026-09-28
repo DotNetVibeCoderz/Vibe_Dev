@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>dotcode</AssemblyName>
+    <RootNamespace>DotCode.Cli</RootNamespace>
+    <PackageId>DotCode.Cli</PackageId>
+    <!-- dotnet pack -p:DotCodeTool=true builds the "dotnet tool" package (JIT); publish defaults to NativeAOT. -->
+    <PackAsTool Condition="'$(DotCodeTool)' == 'true'">true</PackAsTool>
+    <IsPackable Condition="'$(DotCodeTool)' != 'true'">false</IsPackable>
+    <ToolCommandName>dotcode</ToolCommandName>
+    <Description>DotCode CLI - agentic coding in your terminal with any LLM (Anthropic, OpenAI, Azure, Gemini, DeepSeek, Ollama). By Gravicode Studios.</Description>
+    <PublishAot Condition="'$(DotCodeTool)' != 'true'">true</PublishAot>
+    <OptimizationPreference>Speed</OptimizationPreference>
+    <StackTraceSupport>true</StackTraceSupport>
+    <UseSystemResourceKeys>false</UseSystemResourceKeys>
+    <ApplicationIcon></ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DotCode.Engine\DotCode.Engine.csproj" />
+    <ProjectReference Include="..\DotCode.Tui\DotCode.Tui.csproj" />
+    <ProjectReference Include="..\DotCode.Protocol\DotCode.Protocol.csproj" />
+  </ItemGroup>
+</Project>

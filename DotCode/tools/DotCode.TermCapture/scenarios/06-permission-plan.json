@@ -1,0 +1,102 @@
+{
+  "cols": 120,
+  "rows": 42,
+  "title": "DotCode — permissions & plan mode",
+  "cwd": "${env:DEMO_ROOT}/todo-cli",
+  "outDir": "../../../docs/images",
+  "command": "${env:DOTCODE_EXE} --model azure:gpt-5-mini",
+  "env": {
+    "DOTCODE_CONFIG_DIR": "${env:DEMO_CONFIG}"
+  },
+  "steps": [
+    {
+      "waitFor": "for shortcuts",
+      "timeout": 30000
+    },
+    {
+      "type": "Run the app with 'dotnet run -- list' to show the current todos"
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "waitFor": "Do you want to proceed",
+      "timeout": 180000
+    },
+    {
+      "waitIdle": 800
+    },
+    {
+      "snapshot": "permission-bash"
+    },
+    {
+      "key": "2"
+    },
+    {
+      "waitGone": "esc to interrupt|Do you want|Would you like to proceed",
+      "timeout": 300000,
+      "respond": [
+        {
+          "when": "Do you want",
+          "keys": "1"
+        }
+      ]
+    },
+    {
+      "waitIdle": 1000
+    },
+    {
+      "key": "shift+tab"
+    },
+    {
+      "key": "shift+tab"
+    },
+    {
+      "waitIdle": 500
+    },
+    {
+      "type": "Plan how to add due dates to todos (a --due option on add, shown in list, sorted by due date)."
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "waitFor": "Would you like to proceed",
+      "timeout": 300000,
+      "respond": [
+        {
+          "when": "Do you want",
+          "keys": "1"
+        }
+      ]
+    },
+    {
+      "waitIdle": 1000
+    },
+    {
+      "snapshot": "plan-mode"
+    },
+    {
+      "key": "down"
+    },
+    {
+      "key": "down"
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "type": "Looks good, but keep it for later"
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "waitGone": "esc to interrupt|Do you want|Would you like to proceed",
+      "timeout": 120000
+    },
+    {
+      "waitIdle": 800
+    }
+  ]
+}

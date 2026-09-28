@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>DotCode.Engine</RootNamespace>
+    <PackageId>DotCode.Engine</PackageId>
+    <Description>DotCode Engine - part of DotCode, a .NET 10 multi-LLM coding agent and harness SDK by Gravicode Studios.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DotCode.Providers\DotCode.Providers.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="10.0.12" />
+  </ItemGroup>
+</Project>
