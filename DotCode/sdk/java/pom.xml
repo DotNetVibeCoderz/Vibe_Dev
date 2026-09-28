@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.gravicode</groupId>
   <artifactId>dotcode-sdk</artifactId>
-  <version>0.1.1</version>
+  <version>0.1.2</version>
   <packaging>jar</packaging>
   <name>DotCode SDK for Java</name>
   <description>Embed the DotCode multi-LLM coding agent (Anthropic, OpenAI, Azure, Gemini, DeepSeek, Ollama) in JVM apps. Built by Gravicode Studios, led by Kang Fadhil.</description>

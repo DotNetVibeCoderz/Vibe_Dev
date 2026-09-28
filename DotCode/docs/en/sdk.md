@@ -17,7 +17,7 @@ dotcode serve ─► Engine ─► any LLM provider
 | TypeScript / JavaScript | `dotcode-sdk` (npm) | [`sdk/typescript`](../../sdk/typescript) |
 | Python | `dotcode-sdk` (PyPI) | [`sdk/python`](../../sdk/python) |
 | Go | `github.com/DotNetVibeCoderz/Vibe_Dev/DotCode/sdk/go` | [`sdk/go`](../../sdk/go) |
-| Java (17+) | `com.github.DotNetVibeCoderz:Vibe_Dev:dotcode-java-v0.1.1` (JitPack) | [`sdk/java`](../../sdk/java) |
+| Java (17+) | `com.github.DotNetVibeCoderz:Vibe_Dev:dotcode-java-v0.1.2` (JitPack) | [`sdk/java`](../../sdk/java) |
 
 All SDKs share the same concepts: **Client → Session → send / stream**, **custom tools** implemented by your app, a **permission handler** (sessions are deny-by-default without one), question and plan-review handlers, MCP servers, and per-session provider configuration (BYOK). They pass the same conformance scenarios (`tests/…SdkConformanceTests`, `sdk/*/test*`).
 

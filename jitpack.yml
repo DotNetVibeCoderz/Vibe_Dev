@@ -1,6 +1,8 @@
 # JitPack builds the DotCode Java SDK (DotCode/sdk/java) from any tag or commit of this repository.
 # Usage: repository https://jitpack.io, dependency com.github.DotNetVibeCoderz:Vibe_Dev:<tag>
+# JitPack's bundled Maven is too old for current plugins, so a pinned Maven is downloaded first.
 jdk:
   - openjdk17
 install:
-  - cd DotCode/sdk/java && mvn -B -DskipTests install
+  - curl -sSL https://archive.apache.org/dist/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz | tar xz -C /tmp
+  - cd DotCode/sdk/java && /tmp/apache-maven-3.9.9/bin/mvn -B -DskipTests install

@@ -15,11 +15,11 @@ Published on **JitPack** (built from this repository's tags):
 <dependency>
   <groupId>com.github.DotNetVibeCoderz</groupId>
   <artifactId>Vibe_Dev</artifactId>
-  <version>dotcode-java-v0.1.1</version>
+  <version>dotcode-java-v0.1.2</version>
 </dependency>
 ```
 
-Gradle: `repositories { maven { url "https://jitpack.io" } }` and `implementation "com.github.DotNetVibeCoderz:Vibe_Dev:dotcode-java-v0.1.1"`.
+Gradle: `repositories { maven { url "https://jitpack.io" } }` and `implementation "com.github.DotNetVibeCoderz:Vibe_Dev:dotcode-java-v0.1.2"`.
 
 Maven Central (`com.gravicode:dotcode-sdk`) is prepared (`publish-central.sh` + the `maven` workflow job) and goes live once the namespace is verified in the Sonatype Central Portal. Or build locally with `mvn install`.
 
