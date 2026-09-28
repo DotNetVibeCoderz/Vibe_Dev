@@ -47,6 +47,33 @@ public sealed class Settings
     public AuditSettings? Audit { get; set; }
     /// <summary>OS-level sandbox for Bash/PowerShell commands (opt-in).</summary>
     public SandboxSettings? Sandbox { get; set; }
+    /// <summary>Language servers for the LSP tool.</summary>
+    public LspSettings? Lsp { get; set; }
+}
+
+public sealed class LspSettings
+{
+    /// <summary>false disables the LSP tool entirely. Default true (active when a language server is found).</summary>
+    public bool? Enabled { get; set; }
+    /// <summary>Report new errors from a running language server after Edit/Write. Default true.</summary>
+    public bool? DiagnosticsAfterEdit { get; set; }
+    /// <summary>Additional or overriding servers by name (built-in names: typescript, python, go, rust, csharp, cpp, java).</summary>
+    public Dictionary<string, LspServerConfig>? Servers { get; set; }
+}
+
+public sealed class LspServerConfig
+{
+    public string? Command { get; set; }
+    public List<string>? Args { get; set; }
+    /// <summary>File extensions handled by this server, e.g. [".ts", ".tsx"].</summary>
+    public List<string>? Extensions { get; set; }
+    /// <summary>LSP languageId (defaults from the extension).</summary>
+    public string? LanguageId { get; set; }
+    /// <summary>Files that mark the workspace root (nearest ancestor wins), e.g. ["tsconfig.json", "*.csproj"].</summary>
+    public List<string>? RootMarkers { get; set; }
+    public JsonElement? InitializationOptions { get; set; }
+    public Dictionary<string, string>? Env { get; set; }
+    public bool? Disabled { get; set; }
 }
 
 public sealed class SandboxSettings

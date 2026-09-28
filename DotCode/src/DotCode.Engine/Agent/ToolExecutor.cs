@@ -229,6 +229,21 @@ public static class ToolExecutor
             result = ToolResult.Error($"Error: {ex.Message}");
         }
 
+        // A running language server gets the new content and reports errors the edit introduced.
+        if (!result.IsError && tool.Name is "Edit" or "Write" && tool.GetPermissionTarget(input, session).Value is { } editedPath)
+        {
+            var note = await Tools.Builtin.LspTool.DiagnosticsAfterEditAsync(session, editedPath, ct).ConfigureAwait(false);
+            if (note is not null)
+                result = new ToolResult
+                {
+                    Content = [.. result.Content, new TextPart(note)],
+                    IsError = false,
+                    Summary = result.Summary,
+                    Diff = result.Diff,
+                    DisplayOutput = result.DisplayOutput,
+                };
+        }
+
         if (tool.Name is "WebFetch" or "WebSearch" || tool.Name.StartsWith("mcp__", StringComparison.Ordinal))
         {
             var root = session;

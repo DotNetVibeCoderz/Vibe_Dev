@@ -78,7 +78,8 @@ For migration, DotCode also reads Claude Code's project `.claude/settings*.json`
   "webSearch": { "provider": "tavily", "apiKey": "${env:TAVILY_API_KEY}" },
   "audit": { "enabled": true, "path": "~/.dotcode/audit/audit.jsonl", "includePrompts": false },   // see observability.md
   "otel": { "enabled": true, "endpoint": "http://localhost:4318", "headers": {}, "serviceName": "dotcode" },
-  "sandbox": { "enabled": true, "network": "allow", "allowWrite": [], "excludedCommands": ["docker"] }   // see permissions.md
+  "sandbox": { "enabled": true, "network": "allow", "allowWrite": [], "excludedCommands": ["docker"] },   // see permissions.md
+  "lsp": { "diagnosticsAfterEdit": true, "servers": { "zig": { "command": "zls", "extensions": [".zig"] } } }   // see tools.md
 }
 ```
 

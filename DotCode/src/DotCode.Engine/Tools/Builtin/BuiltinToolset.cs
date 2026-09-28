@@ -13,6 +13,7 @@ public static class BuiltinToolset
         new PowerShellTool(),
         new GlobTool(),
         new GrepTool(),
+        new LspTool(),
         new ReadTool(),
         new EditTool(),
         new WriteTool(),

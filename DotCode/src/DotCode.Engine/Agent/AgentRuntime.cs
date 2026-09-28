@@ -31,6 +31,8 @@ public sealed class AgentRuntime : IAsyncDisposable
     public HookRunner Hooks { get; private set; }
     /// <summary>Opt-in hash-chained audit log (settings "audit").</summary>
     public Observability.AuditLog? Audit { get; private set; }
+    /// <summary>Language servers for the LSP tool (started lazily).</summary>
+    public Lsp.LspManager Lsp { get; private set; } = null!;
     public McpManager Mcp { get; } = new();
     public Task McpReady { get; private set; } = Task.CompletedTask;
     public BackgroundShellManager BackgroundShells { get; } = new();
@@ -51,6 +53,9 @@ public sealed class AgentRuntime : IAsyncDisposable
         Memory = MemoryLoader.Load(Cwd, ProjectRoot);
         Hooks = HookRunner.Create(Settings, Extensions.PluginHooks, Cwd);
         Audit = Observability.AuditLog.Create(Settings);
+        var previousLsp = Lsp;
+        Lsp = new Lsp.LspManager(Settings, ProjectRoot);
+        if (previousLsp is not null) _ = previousLsp.DisposeAsync().AsTask();
         Observability.OtlpExporter.Start(Observability.OtelConfig.Resolve(Settings));
         Git = LoadGitInfo(Cwd);
         BuiltinTools = BuiltinToolset.Create(this);
@@ -102,6 +107,9 @@ public sealed class AgentRuntime : IAsyncDisposable
         Memory = MemoryLoader.Load(Cwd, ProjectRoot);
         Hooks = HookRunner.Create(Settings, Extensions.PluginHooks, Cwd);
         Audit = Observability.AuditLog.Create(Settings);
+        var previousLsp = Lsp;
+        Lsp = new Lsp.LspManager(Settings, ProjectRoot);
+        if (previousLsp is not null) _ = previousLsp.DisposeAsync().AsTask();
         Observability.OtlpExporter.Start(Observability.OtelConfig.Resolve(Settings));
         foreach (var tool in BuiltinTools)
         {
@@ -179,6 +187,7 @@ public sealed class AgentRuntime : IAsyncDisposable
     {
         BackgroundShells.KillAll();
         await Mcp.DisposeAsync().ConfigureAwait(false);
+        await Lsp.DisposeAsync().ConfigureAwait(false);
         await Observability.OtlpExporter.FlushAsync().ConfigureAwait(false);
     }
 }

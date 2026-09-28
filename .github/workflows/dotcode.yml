@@ -55,10 +55,13 @@ jobs:
           # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor; allow them on the CI runner.
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           bwrap --ro-bind / / --dev /dev --proc /proc --unshare-net --die-with-parent -- /bin/true && echo "bubblewrap OK"
+      - name: Install a language server (runs the LSP tool test against a real server)
+        run: npm i -g typescript@5 typescript-language-server
       - name: .NET tests (provider contracts, engine, TUI, SDK conformance)
         run: dotnet test tests/DotCode.Tests --no-build -c Debug
         env:
           DOTCODE_REQUIRE_SANDBOX: "1"
+          DOTCODE_REQUIRE_LSP: "1"
       - name: TypeScript SDK
         working-directory: DotCode/sdk/typescript
         run: npm ci && npm run build && npm test

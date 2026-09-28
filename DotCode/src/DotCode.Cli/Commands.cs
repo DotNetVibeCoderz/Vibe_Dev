@@ -358,6 +358,7 @@ public static class Commands
         Console.WriteLine($"  Main model:     {runtime.MainModelReference}");
         Console.WriteLine($"  Providers:      {string.Join(", ", runtime.Router.Providers.Keys.Where(k => k != "mock"))}");
         Console.WriteLine($"  Memory files:   {runtime.Memory.Count}");
+        Console.WriteLine($"  Lang. servers:  {(runtime.Lsp.Enabled ? string.Join("  ", runtime.Lsp.Servers.Select(s => (s.Available ? "✓ " : "✗ ") + s.Name)) : "disabled (lsp.enabled = false)")}");
         Console.WriteLine($"  Skills:         {runtime.Extensions.Skills.Count}   Commands: {runtime.Extensions.Commands.Count}   Agents: {runtime.Extensions.Agents.Count}   Plugins: {runtime.Extensions.Plugins.Count}");
         foreach (var e in runtime.Loader.Errors.Concat(runtime.Extensions.Errors)) Console.WriteLine($"  ! {e}");
         Console.WriteLine();
