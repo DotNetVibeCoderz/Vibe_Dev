@@ -9,13 +9,13 @@ The DotCode extension brings the agent into VS Code. It is a thin client of `dot
 ## Install
 
 1. Install the CLI (see [Getting started](getting-started.md#1-install)) and configure a model provider.
-2. Install the extension from the release's `dotcode-vscode.vsix`:
+2. Install the extension from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=GravicodeStudios.dotcode-vscode): search for **DotCode** in the Extensions view, or run
 
    ```bash
-   code --install-extension dotcode-vscode.vsix
+   code --install-extension GravicodeStudios.dotcode-vscode
    ```
 
-   Or build it yourself: `cd ide/vscode && npm ci && npm run package`.
+   Offline or pinned installs: every release also ships `dotcode-vscode.vsix` (`code --install-extension dotcode-vscode.vsix`). To build it yourself: `cd ide/vscode && npm ci && npm run package`.
 
 The extension looks for the CLI in `dotcode.cliPath`, then `DOTCODE_CLI_PATH`, `PATH`, and the installer's default folders. If it can't find it, it offers to run the installer in a terminal.
 

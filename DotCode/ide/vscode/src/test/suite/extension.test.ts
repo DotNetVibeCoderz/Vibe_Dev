@@ -8,7 +8,7 @@ import type { HostMessage } from "../../controller";
 const workspace = process.env.DOTCODE_TEST_WORKSPACE!;
 
 async function api(): Promise<DotCodeApi> {
-  const ext = vscode.extensions.getExtension<DotCodeApi>("gravicode.dotcode-vscode");
+  const ext = vscode.extensions.getExtension<DotCodeApi>("GravicodeStudios.dotcode-vscode");
   assert.ok(ext, "extension is installed");
   return ext.activate();
 }

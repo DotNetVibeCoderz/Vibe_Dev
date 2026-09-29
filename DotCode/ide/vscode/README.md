@@ -18,7 +18,7 @@ Agentic coding with **any LLM** (Anthropic, OpenAI, Azure OpenAI, Gemini, DeepSe
 
 ## Requirements
 
-The `dotcode` CLI. The extension finds it in `dotcode.cliPath`, `DOTCODE_CLI_PATH`, `PATH` or the installer's default location, and offers to install it:
+Install it from the [Marketplace](https://marketplace.visualstudio.com/items?itemName=GravicodeStudios.dotcode-vscode) (`code --install-extension GravicodeStudios.dotcode-vscode`). It needs the `dotcode` CLI: the extension finds it in `dotcode.cliPath`, `DOTCODE_CLI_PATH`, `PATH` or the installer's default location, and offers to install it:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/DotNetVibeCoderz/Vibe_Dev/main/DotCode/install/install.sh | sh          # macOS / Linux

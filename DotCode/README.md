@@ -26,6 +26,7 @@ DotCode reads your codebase, edits files, runs commands and tests, and explains 
 - **Extensible and compatible** — skills (`SKILL.md`), custom commands, subagents, hooks, output styles, plugins & marketplaces, MCP servers (stdio / HTTP). Reads `CLAUDE.md`, `AGENTS.md` and `.claude/` so existing setups keep working.
 - **Headless & CI** — `dotcode -p` with text / json / stream-json output.
 - **Harness SDK** — `dotcode serve` (JSON-RPC 2.0 over stdio or WebSocket) with SDKs for **.NET** (also in-process), **TypeScript**, **Python**, **Go**, **Java** and **Rust**: custom tools, permission handlers, streaming events, BYOK.
+- **VS Code extension** — [DotCode on the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=GravicodeStudios.dotcode-vscode): chat panel, permission prompts with diff preview, ask-about-selection (`code --install-extension GravicodeStudios.dotcode-vscode`).
 - **Fast and small** — NativeAOT single binary (~14 MB, instant start), source-generated JSON, no vendor SDK dependencies.
 
 ## Screenshots

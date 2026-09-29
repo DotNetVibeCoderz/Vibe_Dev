@@ -9,13 +9,13 @@ Ekstensi DotCode membawa agen ke dalam VS Code. Ekstensi ini adalah klien tipis 
 ## Instalasi
 
 1. Pasang CLI (lihat [Memulai](memulai.md#1-instalasi)) dan konfigurasikan provider model.
-2. Pasang ekstensi dari berkas rilis `dotcode-vscode.vsix`:
+2. Pasang ekstensi dari [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=GravicodeStudios.dotcode-vscode): cari **DotCode** di tampilan Extensions, atau jalankan
 
    ```bash
-   code --install-extension dotcode-vscode.vsix
+   code --install-extension GravicodeStudios.dotcode-vscode
    ```
 
-   Atau build sendiri: `cd ide/vscode && npm ci && npm run package`.
+   Untuk instalasi offline atau versi tertentu: setiap rilis juga menyertakan `dotcode-vscode.vsix` (`code --install-extension dotcode-vscode.vsix`). Untuk build sendiri: `cd ide/vscode && npm ci && npm run package`.
 
 Ekstensi mencari CLI di `dotcode.cliPath`, lalu `DOTCODE_CLI_PATH`, `PATH`, dan folder default installer. Bila tidak ditemukan, ekstensi menawarkan untuk menjalankan installer di terminal.
 

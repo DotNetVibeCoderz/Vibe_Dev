@@ -26,6 +26,7 @@ DotCode membaca codebase Anda, mengedit file, menjalankan perintah dan test, lal
 - **Dapat diperluas dan kompatibel** — skills (`SKILL.md`), command kustom, subagent, hooks, output style, plugin & marketplace, server MCP (stdio / HTTP). Membaca `CLAUDE.md`, `AGENTS.md`, dan `.claude/`.
 - **Headless & CI** — `dotcode -p` dengan output text / json / stream-json.
 - **SDK harness** — `dotcode serve` (JSON-RPC 2.0 via stdio atau WebSocket) dengan SDK **.NET** (juga in-process), **TypeScript**, **Python**, **Go**, **Java**, dan **Rust**: tool kustom, handler izin, event streaming, BYOK.
+- **Ekstensi VS Code** — [DotCode di Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=GravicodeStudios.dotcode-vscode): panel chat, dialog izin dengan pratinjau diff, tanya-tentang-seleksi (`code --install-extension GravicodeStudios.dotcode-vscode`).
 - **Cepat dan kecil** — binary tunggal NativeAOT (~14 MB, langsung jalan).
 
 ## Screenshot

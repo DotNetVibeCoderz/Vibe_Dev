@@ -3,7 +3,7 @@
   "displayName": "DotCode",
   "description": "Agentic coding with any LLM (Anthropic, OpenAI, Azure, Gemini, DeepSeek, Ollama) inside VS Code: chat, tool calls, diffs and permission prompts from the DotCode agent. By Gravicode Studios, led by Kang Fadhil.",
   "version": "0.1.0",
-  "publisher": "gravicode",
+  "publisher": "GravicodeStudios",
   "license": "MIT",
   "icon": "assets/icon.png",
   "repository": { "type": "git", "url": "https://github.com/DotNetVibeCoderz/Vibe_Dev.git", "directory": "DotCode/ide/vscode" },

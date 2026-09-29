@@ -303,7 +303,7 @@ jobs:
           \`\`\`
           **.NET tool:** \`dotnet tool install -g DotCode.Cli\` · **Update:** \`dotcode update\`
 
-          **VS Code extension:** download \`dotcode-vscode.vsix\` below, then \`code --install-extension dotcode-vscode.vsix\`.
+          **VS Code extension:** \`code --install-extension GravicodeStudios.dotcode-vscode\` (Marketplace), or \`dotcode-vscode.vsix\` below.
 
           Every archive is listed in \`SHA256SUMS\` (the installers and \`dotcode update\` verify it) and has a build-provenance
           attestation: \`gh attestation verify dotcode-linux-x64.tar.gz --repo ${GITHUB_REPOSITORY}\`. SBOM: \`dotcode-sbom.spdx.json\`.
