@@ -42,7 +42,8 @@ Rilis dibuat dengan mendorong tag `dotcode-vX.Y.Z` (repositori ini juga berisi p
 1. menjalankan semua test (termasuk test sandbox, LSP, dan installer);
 2. mem-build binary NativeAOT di runner native untuk `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64` (Ubuntu 22.04 → glibc 2.35+), `osx-arm64`, dan `osx-x64` (cross-compile, diuji lewat Rosetta), lalu menguji singkat masing-masing (`--version`, prompt dengan model mock);
 3. mengemasnya menjadi `dotcode-<rid>.zip` (Windows) / `.tar.gz` (Unix, bit executable terjaga), menulis `SHA256SUMS`, SBOM SPDX, dan attestation build-provenance GitHub;
-4. mem-pack dan mendorong paket NuGet, lalu membuat rilis GitHub berisi arsip, checksum, SBOM, installer, dan `.nupkg`.
+4. mem-pack dan mendorong paket NuGet, lalu membuat rilis GitHub berisi arsip, checksum, SBOM, installer, `.nupkg`, dan `.vsix` VS Code;
+5. mempublikasikan ekstensi VS Code (dengan versi rilis) ke Marketplace sebagai `GravicodeStudios.dotcode-vscode`, memakai secret repositori `VSCE_PAT`. Run manual dengan **publish_vscode** mempublikasikan versi di `ide/vscode/package.json`.
 
 Untuk mencoba seluruh pipeline tanpa mempublikasikan apa pun, jalankan workflow secara manual dengan **build_binaries** (`gh workflow run dotcode.yml -f build_binaries=true`); hasilnya berupa artifact `release-assets`. Paket SDK dirilis terpisah (npm, PyPI, crates.io secara manual; Go dan Java lewat tag masing-masing, lihat CLAUDE.md). Setelah rilis, perbarui `packaging/scoop/dotcode.json` (versi, URL, hash dari `SHA256SUMS`).
 

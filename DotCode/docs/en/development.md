@@ -55,7 +55,8 @@ Releases are cut by pushing a tag `dotcode-vX.Y.Z` (the repository hosts other p
 1. runs all tests (plus the sandbox, LSP and installer tests);
 2. builds NativeAOT binaries on native runners for `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64` (Ubuntu 22.04 → glibc 2.35+), `osx-arm64` and `osx-x64` (cross-compiled, smoke-tested under Rosetta), and smoke-tests each (`--version`, a mock-model prompt);
 3. packages them as `dotcode-<rid>.zip` (Windows) / `.tar.gz` (Unix, keeps the executable bit), writes `SHA256SUMS`, an SPDX SBOM and GitHub build-provenance attestations;
-4. packs and pushes the NuGet packages, then creates the GitHub release with the archives, checksums, SBOM, installers and `.nupkg`s.
+4. packs and pushes the NuGet packages, then creates the GitHub release with the archives, checksums, SBOM, installers, `.nupkg`s and the VS Code `.vsix`;
+5. publishes the VS Code extension (stamped with the release version) to the Marketplace as `GravicodeStudios.dotcode-vscode`, using the repository secret `VSCE_PAT`. A manual run with **publish_vscode** publishes the version in `ide/vscode/package.json`.
 
 To try the whole pipeline without publishing anything, run the workflow manually with **build_binaries** (`gh workflow run dotcode.yml -f build_binaries=true`); the results are the `release-assets` artifact. SDK packages are released separately (npm, PyPI, crates.io by hand; Go and Java by their own tags, see CLAUDE.md). After a release, update `packaging/scoop/dotcode.json` (version, URL, hash from `SHA256SUMS`).
 
