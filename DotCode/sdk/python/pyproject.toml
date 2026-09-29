@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dotcode-sdk"
-version = "0.1.0"
+version = "0.2.0"
 description = "Python SDK for DotCode — embed a multi-LLM coding agent (Anthropic, OpenAI, Azure, Gemini, DeepSeek, Ollama) in your app. By Gravicode Studios, led by Kang Fadhil."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -25,3 +25,9 @@ Repository = "https://github.com/DotNetVibeCoderz/Vibe_Dev"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+dotcode_sdk = ["py.typed"]
+
+[project.optional-dependencies]
+pydantic = ["pydantic>=2"]

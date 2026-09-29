@@ -1,6 +1,6 @@
 [package]
 name = "dotcode-sdk"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.75"
 description = "Rust SDK for DotCode: embed a multi-LLM coding agent (Anthropic, OpenAI, Azure, Gemini, DeepSeek, Ollama) via JSON-RPC to `dotcode serve`. By Gravicode Studios."
@@ -17,6 +17,12 @@ exclude = ["target/"]
 [lib]
 name = "dotcode_sdk"
 
+[features]
+default = ["derive"]
+# Generate tool parameter schemas from Rust types (`define_tool`, `schema_for`).
+derive = ["dep:schemars"]
+
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+schemars = { version = "1", optional = true }

@@ -6,29 +6,53 @@
 //! Built by Gravicode Studios, led by Kang Fadhil.
 //!
 //! ```no_run
-//! use dotcode_sdk::{Client, ClientOptions, PermissionDecision, SessionOptions};
+//! use dotcode_sdk::tool::{define_tool, JsonSchema};
+//! use dotcode_sdk::{Client, ClientOptions, SessionConfig, SessionEventData};
+//! use serde::Deserialize;
 //!
-//! let client = Client::new(ClientOptions::default())?;          // spawns `dotcode serve`
+//! #[derive(Deserialize, JsonSchema)]
+//! struct WeatherParams {
+//!     /// City name
+//!     city: String,
+//! }
+//!
+//! let weather = define_tool("get_weather", "Weather for a city", |_inv, p: WeatherParams| {
+//!     Ok::<_, String>(format!("{}: sunny", p.city))
+//! });
+//!
+//! let client = Client::start(ClientOptions::default())?;          // spawns `dotcode serve`
 //! let session = client.create_session(
-//!     SessionOptions::default()
-//!         .model("openai:gpt-5-mini")
-//!         .on_permission_request(|_req| PermissionDecision::allow()),
+//!     SessionConfig::default()
+//!         .with_model("openai:gpt-5-mini")
+//!         .with_tools([weather])
+//!         .approve_all_permissions(),
 //! )?;
-//! let result = session.send("Summarize README.md")?;
-//! println!("{}", result.result);
+//! session.on(|e| if let SessionEventData::AssistantTextDelta { text } = &e.data { print!("{text}") }).detach();
+//! let result = session.send_and_wait("What's the weather in Bogor?")?;
+//! println!("\n${:.4}", result.cost_usd);
 //! # Ok::<(), dotcode_sdk::Error>(())
 //! ```
 
 mod client;
+mod config;
+mod event;
+pub mod handler;
 mod session;
+pub mod tool;
 mod types;
 
 pub use client::{Client, ClientOptions, PROTOCOL_VERSION};
-pub use session::{
-    EventHandler, EventStream, PermissionHandler, PlanHandler, QuestionHandler, Session,
-    SessionOptions, Tool,
+pub use config::SessionConfig;
+pub use event::{SessionEvent, SessionEventData, TodoItem, ToolCallInfo};
+pub use handler::{
+    ApproveAllHandler, DenyAllHandler, ExitPlanModeHandler, PermissionHandler, UserInputHandler,
 };
+pub use session::{EventStream, Session, Subscription};
+pub use tool::{Tool, ToolError, ToolHandler, ToolInvocation, ToolResult};
 pub use types::{
-    Error, Event, McpServer, PermissionDecision, PermissionRequest, QuestionOption, Result,
-    SendResult, SessionInfo, Usage, UserQuestion, UserQuestionAnswer, WorktreeInfo,
+    Attachment, BuiltinTool, Error, ExitPlanModeResult, Invocation, McpServerConfig,
+    MessageOptions, ModelInfo, PermissionDecision, PermissionMode, PermissionRequest,
+    ProviderConfig, ProviderType, QuestionOption, ReasoningEffort, Result, SendResult, SessionInfo,
+    SessionMetadata, StopReason, SystemMessageConfig, ToolInfo, Usage, UserQuestion,
+    UserQuestionAnswer, WorktreeInfo,
 };

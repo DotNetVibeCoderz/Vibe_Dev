@@ -36,7 +36,7 @@ Every surface consumes the same `AgentEvent` stream, so a feature cannot exist i
 | `DotCode.Tui` | Renderer (static scrollback + live region), input editor, markdown/highlighter, themes, dialogs, slash commands. |
 | `DotCode.Cli` | Entry point: argument parsing, TUI, headless runner, subcommands. NativeAOT. |
 | `DotCode.Sdk` | .NET SDK (Spawn / Connect / InProcess). |
-| `sdk/typescript`, `sdk/python`, `sdk/go` | Language SDKs. |
+| `sdk/typescript`, `sdk/python`, `sdk/go`, `sdk/java`, `sdk/rust` | Language SDKs (typed tools, events and options; Copilot SDK-style API). |
 | `tools/DotCode.TermCapture` | ConPTY harness: scripted TUI sessions → VT emulation → HTML/PNG screenshots. |
 
 ## The agent loop

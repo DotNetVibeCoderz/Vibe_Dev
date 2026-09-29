@@ -3,11 +3,15 @@
 //
 // Built by Gravicode Studios, led by Kang Fadhil.
 //
-//	client, err := dotcode.NewClient(ctx, dotcode.ClientOptions{})
-//	defer client.Close()
-//	session, err := client.CreateSession(ctx, dotcode.SessionOptions{Model: "openai:gpt-5"})
-//	result, err := session.Send(ctx, "Summarize README.md")
-//	fmt.Println(result.Result)
+//	client := dotcode.NewClient(nil)
+//	if err := client.Start(ctx); err != nil { log.Fatal(err) }
+//	defer client.Stop()
+//	session, err := client.CreateSession(ctx, &dotcode.SessionConfig{
+//		Model:               "openai:gpt-5",
+//		OnPermissionRequest: dotcode.PermissionHandler.ApproveAll,
+//	})
+//	defer session.Disconnect()
+//	result, err := session.SendAndWait(ctx, dotcode.MessageOptions{Prompt: "Summarize README.md"})
 package dotcode
 
 import (
@@ -28,6 +32,8 @@ import (
 // ProtocolVersion is the DotCode agent protocol version implemented by this SDK.
 const ProtocolVersion = "1.0"
 
+const sdkVersion = "0.2.0"
+
 // RPCError is a JSON-RPC error returned by the server.
 type RPCError struct {
 	Code    int    `json:"code"`
@@ -36,13 +42,16 @@ type RPCError struct {
 
 func (e *RPCError) Error() string { return fmt.Sprintf("dotcode: %s (code %d)", e.Message, e.Code) }
 
+// ErrNotStarted is returned when the client is used before Start.
+var ErrNotStarted = errors.New("dotcode: client not started (call Start first)")
+
 // ClientOptions configures how the SDK starts the DotCode server.
 type ClientOptions struct {
 	// CLIPath is the dotcode executable (or dotcode.dll). Defaults to $DOTCODE_CLI_PATH or "dotcode" on PATH.
 	CLIPath string
-	// ServerArgs are extra arguments for `dotcode serve`.
-	ServerArgs []string
-	// Cwd is the default working directory for sessions.
+	// CLIArgs are extra arguments for `dotcode serve`.
+	CLIArgs []string
+	// Cwd is the working directory of the server and the default for sessions.
 	Cwd string
 	// Env adds environment variables for the server process.
 	Env map[string]string
@@ -50,16 +59,21 @@ type ClientOptions struct {
 
 // Client owns the server process and its sessions.
 type Client struct {
+	opts ClientOptions
+
+	startMu  sync.Mutex
 	cmd      *exec.Cmd
 	stdin    io.WriteCloser
+	done     chan struct{}
 	writeMu  sync.Mutex
 	nextID   atomic.Int64
 	pendMu   sync.Mutex
 	pending  map[int64]chan rpcResponse
 	sessMu   sync.RWMutex
 	sessions map[string]*Session
-	opts     ClientOptions
-	done     chan struct{}
+	early    map[string][]SessionEvent
+	opening  int
+
 	// ServerVersion is reported by the server during the handshake.
 	ServerVersion string
 }
@@ -78,39 +92,53 @@ type rpcMessage struct {
 	Error   *RPCError       `json:"error,omitempty"`
 }
 
-// NewClient starts `dotcode serve` and performs the protocol handshake.
-func NewClient(ctx context.Context, opts ClientOptions) (*Client, error) {
-	cli := opts.CLIPath
+// NewClient creates a client; call Start to launch the server.
+func NewClient(opts *ClientOptions) *Client {
+	c := &Client{pending: map[int64]chan rpcResponse{}, sessions: map[string]*Session{}, early: map[string][]SessionEvent{}}
+	if opts != nil {
+		c.opts = *opts
+	}
+	return c
+}
+
+// Start launches `dotcode serve` and performs the protocol handshake.
+func (c *Client) Start(ctx context.Context) error {
+	c.startMu.Lock()
+	defer c.startMu.Unlock()
+	if c.cmd != nil {
+		return nil
+	}
+	cli := c.opts.CLIPath
 	if cli == "" {
 		cli = os.Getenv("DOTCODE_CLI_PATH")
 	}
 	if cli == "" {
 		cli = "dotcode"
 	}
-	args := append([]string{"serve"}, opts.ServerArgs...)
+	args := append([]string{"serve"}, c.opts.CLIArgs...)
 	var cmd *exec.Cmd
 	if strings.HasSuffix(strings.ToLower(cli), ".dll") {
 		cmd = exec.Command("dotnet", append([]string{cli}, args...)...)
 	} else {
 		cmd = exec.Command(cli, args...)
 	}
-	cmd.Dir = opts.Cwd
+	cmd.Dir = c.opts.Cwd
 	cmd.Env = os.Environ()
-	for k, v := range opts.Env {
+	for k, v := range c.opts.Env {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("dotcode: could not start %q (install the DotCode CLI or set DOTCODE_CLI_PATH): %w", cli, err)
+		return fmt.Errorf("dotcode: could not start %q (install the DotCode CLI or set DOTCODE_CLI_PATH): %w", cli, err)
 	}
-	c := &Client{cmd: cmd, stdin: stdin, pending: map[int64]chan rpcResponse{}, sessions: map[string]*Session{}, opts: opts, done: make(chan struct{})}
+	c.cmd, c.stdin, c.done = cmd, stdin, make(chan struct{})
 	go c.readLoop(stdout)
 
 	var init struct {
@@ -120,15 +148,15 @@ func NewClient(ctx context.Context, opts ClientOptions) (*Client, error) {
 	}
 	err = c.call(ctx, "initialize", map[string]any{
 		"protocolVersion": ProtocolVersion,
-		"clientInfo":      map[string]string{"name": "dotcode-sdk-go", "version": "0.1.0"},
+		"clientInfo":      map[string]string{"name": "dotcode-sdk-go", "version": sdkVersion},
 		"capabilities":    map[string]bool{"permissions": true, "questions": true},
 	}, &init)
 	if err != nil {
-		_ = c.Close()
-		return nil, err
+		c.kill()
+		return err
 	}
 	c.ServerVersion = init.ServerInfo.Version
-	return c, nil
+	return nil
 }
 
 func (c *Client) readLoop(r io.Reader) {
@@ -161,12 +189,7 @@ func (c *Client) readLoop(r io.Reader) {
 				Event     json.RawMessage `json:"event"`
 			}
 			if json.Unmarshal(msg.Params, &p) == nil {
-				if s := c.session(p.SessionID); s != nil {
-					var e Event
-					_ = json.Unmarshal(p.Event, &e)
-					e.Raw = p.Event
-					s.dispatch(e)
-				}
+				c.onEvent(p.SessionID, parseEvent(p.Event))
 			}
 		case msg.Method != "" && len(msg.ID) > 0:
 			go c.answer(msg)
@@ -178,6 +201,18 @@ func (c *Client) readLoop(r io.Reader) {
 		delete(c.pending, id)
 	}
 	c.pendMu.Unlock()
+}
+
+func (c *Client) onEvent(sessionID string, e SessionEvent) {
+	c.sessMu.Lock()
+	s := c.sessions[sessionID]
+	if s == nil && c.opening > 0 {
+		c.early[sessionID] = append(c.early[sessionID], e)
+	}
+	c.sessMu.Unlock()
+	if s != nil {
+		s.dispatch(e)
+	}
 }
 
 func (c *Client) session(id string) *Session {
@@ -193,6 +228,9 @@ func (c *Client) write(v any) error {
 	}
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
+	if c.stdin == nil {
+		return ErrNotStarted
+	}
 	_, err = c.stdin.Write(append(data, '\n'))
 	return err
 }
@@ -204,6 +242,9 @@ func (c *Client) call(ctx context.Context, method string, params any, out any) e
 	c.pending[id] = ch
 	c.pendMu.Unlock()
 	if err := c.write(map[string]any{"jsonrpc": "2.0", "id": id, "method": method, "params": params}); err != nil {
+		c.pendMu.Lock()
+		delete(c.pending, id)
+		c.pendMu.Unlock()
 		return err
 	}
 	select {
@@ -247,61 +288,128 @@ func (c *Client) answer(msg rpcMessage) {
 	_ = c.write(map[string]any{"jsonrpc": "2.0", "id": msg.ID, "result": result})
 }
 
-// CreateSession starts a new agent session.
-func (c *Client) CreateSession(ctx context.Context, opts SessionOptions) (*Session, error) {
-	return c.openSession(ctx, "session.create", opts, nil)
+// CreateSession starts a new agent session. Without OnPermissionRequest it is deny-by-default.
+func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Session, error) {
+	if config == nil {
+		config = &SessionConfig{}
+	}
+	return c.openSession(ctx, "session.create", config, nil)
 }
 
-// ResumeSession reopens a saved session (fork=true copies it under a new id).
-func (c *Client) ResumeSession(ctx context.Context, sessionID string, opts SessionOptions, fork bool) (*Session, error) {
-	return c.openSession(ctx, "session.resume", opts, map[string]any{"sessionId": sessionID, "fork": fork})
+// ResumeSessionConfig configures ResumeSession.
+type ResumeSessionConfig struct {
+	SessionConfig
+	// Fork continues under a new session id, leaving the original transcript untouched.
+	Fork bool
 }
 
-func (c *Client) openSession(ctx context.Context, method string, opts SessionOptions, extra map[string]any) (*Session, error) {
-	params := opts.wire(c.opts.Cwd)
+// ResumeSession reopens a saved session.
+func (c *Client) ResumeSession(ctx context.Context, sessionID string, config *ResumeSessionConfig) (*Session, error) {
+	if config == nil {
+		config = &ResumeSessionConfig{}
+	}
+	return c.openSession(ctx, "session.resume", &config.SessionConfig, map[string]any{"sessionId": sessionID, "fork": config.Fork})
+}
+
+func (c *Client) openSession(ctx context.Context, method string, config *SessionConfig, extra map[string]any) (*Session, error) {
+	if c.cmd == nil {
+		if err := c.Start(ctx); err != nil {
+			return nil, err
+		}
+	}
+	params := config.wire(c.opts.Cwd)
 	for k, v := range extra {
 		params[k] = v
 	}
+	c.sessMu.Lock()
+	c.opening++
+	c.sessMu.Unlock()
+	defer func() {
+		c.sessMu.Lock()
+		if c.opening--; c.opening == 0 {
+			c.early = map[string][]SessionEvent{}
+		}
+		c.sessMu.Unlock()
+	}()
 	var info SessionInfo
 	if err := c.call(ctx, method, params, &info); err != nil {
 		return nil, err
 	}
-	s := &Session{client: c, Info: info, ID: info.SessionID, Model: info.Model, opts: opts}
+	s := newSession(c, info, *config)
 	c.sessMu.Lock()
-	c.sessions[s.ID] = s
+	c.sessions[s.SessionID] = s
+	early := c.early[s.SessionID]
+	delete(c.early, s.SessionID)
 	c.sessMu.Unlock()
+	for _, e := range early {
+		s.dispatch(e)
+	}
 	return s, nil
 }
 
 // ListModels returns configured providers and available models.
-func (c *Client) ListModels(ctx context.Context) (json.RawMessage, error) {
-	var out json.RawMessage
+func (c *Client) ListModels(ctx context.Context) (*ModelList, error) {
+	var out ModelList
 	err := c.call(ctx, "models.list", map[string]any{"cwd": c.opts.Cwd}, &out)
-	return out, err
+	return &out, err
 }
 
 // ListSessions returns saved sessions for the working directory.
-func (c *Client) ListSessions(ctx context.Context) (json.RawMessage, error) {
-	var out json.RawMessage
+func (c *Client) ListSessions(ctx context.Context) ([]SessionMetadata, error) {
+	var out struct {
+		Sessions []SessionMetadata `json:"sessions"`
+	}
 	err := c.call(ctx, "session.list", map[string]any{"cwd": c.opts.Cwd}, &out)
-	return out, err
+	return out.Sessions, err
 }
 
-// Close shuts the server down.
-func (c *Client) Close() error {
+// Ping round-trips a message to the server.
+func (c *Client) Ping(ctx context.Context) error {
+	return c.call(ctx, "ping", map[string]any{}, nil)
+}
+
+// Stop shuts the server down gracefully.
+func (c *Client) Stop() error {
+	c.startMu.Lock()
+	defer c.startMu.Unlock()
+	if c.cmd == nil {
+		return nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
 	defer cancel()
 	_ = c.call(ctx, "shutdown", map[string]any{}, nil)
 	_ = c.stdin.Close()
-	waited := make(chan error, 1)
-	go func() { waited <- c.cmd.Wait() }()
 	select {
-	case <-waited:
+	case <-c.done:
 	case <-time.After(3 * time.Second):
 		_ = c.cmd.Process.Kill()
 	}
+	_ = c.cmd.Wait()
+	c.reset()
 	return nil
 }
 
-// ErrNoHandler is returned to the model when the host has no handler for a callback.
-var ErrNoHandler = errors.New("no handler registered")
+// ForceStop kills the server without a graceful shutdown.
+func (c *Client) ForceStop() {
+	c.startMu.Lock()
+	defer c.startMu.Unlock()
+	c.kill()
+}
+
+func (c *Client) kill() {
+	if c.cmd == nil {
+		return
+	}
+	_ = c.cmd.Process.Kill()
+	_ = c.cmd.Wait()
+	c.reset()
+}
+
+func (c *Client) reset() {
+	c.writeMu.Lock()
+	c.cmd, c.stdin = nil, nil
+	c.writeMu.Unlock()
+	c.sessMu.Lock()
+	c.sessions = map[string]*Session{}
+	c.sessMu.Unlock()
+}

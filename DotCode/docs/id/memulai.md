@@ -119,13 +119,13 @@ Lihat [Mode headless](headless.md).
 ## 5. Sematkan ke aplikasi Anda
 
 ```python
-from dotcode_sdk import DotCodeClient
+from dotcode_sdk import DotCodeClient, PermissionHandler
 async with DotCodeClient() as client:
-    session = await client.create_session(model="openai:gpt-5")
-    print((await session.send("Daftar TODO di repo ini"))["result"])
+    session = await client.create_session(model="openai:gpt-5", on_permission_request=PermissionHandler.approve_all)
+    print((await session.send_and_wait("Daftar TODO di repo ini")).result)
 ```
 
-SDK tersedia untuk .NET, TypeScript, Python, Go, dan Java — lihat [SDK](sdk.md).
+SDK tersedia untuk .NET, TypeScript, Python, Go, Java, dan Rust, dengan tool, event, dan opsi bertipe — lihat [SDK](sdk.md).
 
 ## Langkah berikutnya
 

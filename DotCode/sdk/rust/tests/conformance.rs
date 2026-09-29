@@ -1,11 +1,18 @@
 //! SDK conformance tests: they drive a real `dotcode serve` with the offline scripted model (no network, no keys).
 //! Requires the CLI: `dotnet build` in DotCode/ (or set DOTCODE_CLI_PATH).
 
-use dotcode_sdk::{Client, ClientOptions, PermissionDecision, SessionOptions, Tool};
+use dotcode_sdk::tool::{define_tool, schema_for, JsonSchema};
+use dotcode_sdk::{
+    Client, ClientOptions, PermissionDecision, ProviderConfig, ProviderType, SessionConfig,
+    SessionEventData, StopReason, Tool,
+};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 fn cli_path() -> Option<String> {
     if let Ok(p) = std::env::var("DOTCODE_CLI_PATH") {
@@ -32,7 +39,7 @@ fn client(dir: &Path, cli: String) -> Client {
         "DOTCODE_CONFIG_DIR".to_string(),
         dir.join(".cfg").to_string_lossy().into_owned(),
     );
-    Client::new(ClientOptions {
+    Client::start(ClientOptions {
         cli_path: Some(cli),
         cwd: Some(dir.to_path_buf()),
         env,
@@ -41,20 +48,50 @@ fn client(dir: &Path, cli: String) -> Client {
     .expect("start dotcode serve")
 }
 
-fn scripted(dir: &Path, script: Value) -> Value {
+fn base(dir: &Path, responses: Value) -> SessionConfig {
     let path = dir.join("script.json");
-    std::fs::write(&path, script.to_string()).unwrap();
-    json!({"providers": {"mock": {"type": "mock", "script": path.to_string_lossy()}}})
+    std::fs::write(&path, json!({ "responses": responses }).to_string()).unwrap();
+    SessionConfig::default()
+        .with_model("mock:scripted")
+        .with_provider(
+            "mock",
+            ProviderConfig::new(ProviderType::Mock).with_script(path.to_string_lossy()),
+        )
+        .with_persist_session(false)
+        .with_disable_mcp(true)
 }
 
-fn base(dir: &Path, script: Value) -> SessionOptions {
-    SessionOptions {
-        persist_session: Some(false),
-        no_mcp: true,
-        ..Default::default()
+#[derive(Deserialize, JsonSchema)]
+struct WeatherParams {
+    /// City name
+    city: String,
+}
+
+fn weather_tool() -> Tool {
+    define_tool(
+        "get_weather",
+        "Weather for a city",
+        |inv, p: WeatherParams| {
+            Ok::<_, String>(format!("{}: rainy, 24°C ({})", p.city, inv.tool_name))
+        },
+    )
+    .read_only()
+}
+
+#[test]
+fn schema_is_generated_from_the_params_type() {
+    #[derive(Deserialize, JsonSchema)]
+    #[allow(dead_code)]
+    struct Params {
+        /// City name
+        city: String,
+        days: Option<u32>,
     }
-    .model("mock:scripted")
-    .settings(scripted(dir, script))
+    let schema = schema_for::<Params>();
+    assert_eq!(schema["type"], "object");
+    assert_eq!(schema["properties"]["city"]["description"], "City name");
+    assert_eq!(schema["required"], json!(["city"]));
+    assert!(schema.get("$schema").is_none());
 }
 
 #[test]
@@ -65,42 +102,46 @@ fn custom_tool_and_streaming() {
     };
     let dir = temp_dir("tool");
     let client = client(&dir, cli);
-    assert!(!client.server_version.is_empty());
-    let weather = Tool::new(
-        "get_weather",
-        "Weather for a city",
-        json!({"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}),
-        |input| {
-            Ok(format!(
-                "{}: rainy, 24°C",
-                input["city"].as_str().unwrap_or("?")
-            ))
-        },
-    )
-    .read_only();
     let session = client
-        .create_session(base(
-            &dir,
-            json!({"responses": [
-                {"text": "Checking the weather.", "toolCalls": [{"name": "get_weather", "input": {"city": "Bogor"}}]},
-                {"text": "It is rainy in Bogor."}
-            ]}),
-        ).tool(weather))
+        .create_session(
+            base(
+                &dir,
+                json!([
+                    {"text": "Checking the weather.", "toolCalls": [{"name": "get_weather", "input": {"city": "Bogor"}}]},
+                    {"text": "It is rainy in Bogor."}
+                ]),
+            )
+            .with_tools([weather_tool()]),
+        )
         .unwrap();
 
+    let completed = Arc::new(Mutex::new(Vec::new()));
+    let seen = Arc::clone(&completed);
+    let _sub = session.on(move |e| {
+        if let SessionEventData::ToolCompleted { name, output, .. } = &e.data {
+            seen.lock().unwrap().push((name.clone(), output.clone()));
+        }
+    });
     let mut stream = session.stream("weather?");
     let events: Vec<_> = stream.by_ref().collect();
     let result = stream.result().unwrap();
     assert_eq!(result.result, "It is rainy in Bogor.");
+    assert_eq!(result.stop_reason, StopReason::EndTurn);
     let last = events.last().unwrap();
-    assert!(last.is_turn_completed(), "last event was {}", last.kind);
-    assert_eq!(last.result_text.as_deref(), Some("It is rainy in Bogor."));
-    assert!(events.iter().any(|e| e.kind == "tool.completed"
-        && e.name.as_deref() == Some("get_weather")
-        && e.output.as_deref().unwrap_or("").contains("rainy")));
-    assert!(events.iter().any(|e| e.kind == "assistant.text.delta"));
-    assert_eq!(session.messages().unwrap().len(), 4);
-    session.close().unwrap();
+    assert!(last.is_turn_completed(), "last event was {:?}", last.data);
+    assert!(events
+        .iter()
+        .any(|e| matches!(e.data, SessionEventData::AssistantTextDelta { .. })));
+    let completed = completed.lock().unwrap();
+    assert_eq!(completed.len(), 1);
+    assert_eq!(completed[0].0, "get_weather");
+    assert!(
+        completed[0].1.contains("rainy, 24°C (get_weather)"),
+        "{}",
+        completed[0].1
+    );
+    assert_eq!(session.get_messages().unwrap().len(), 4);
+    session.disconnect().unwrap();
 }
 
 #[test]
@@ -112,36 +153,77 @@ fn permission_handler_and_deny_by_default() {
     let dir = temp_dir("perm");
     let client = client(&dir, cli);
     let target = dir.join("out.txt");
-    let script = json!({"responses": [
+    let responses = json!([
         {"toolCalls": [{"name": "Write", "input": {"file_path": target.to_string_lossy(), "content": "from rust"}}]},
         {"text": "written"}
-    ]});
+    ]);
 
     let asked = Arc::new(Mutex::new(Vec::new()));
     let seen = Arc::clone(&asked);
     let session = client
         .create_session(
-            base(&dir, script.clone()).on_permission_request(move |req| {
+            base(&dir, responses.clone()).on_permission_request(move |req, _| {
                 seen.lock().unwrap().push(req.tool_name.clone());
-                PermissionDecision::allow()
+                PermissionDecision::approve_once()
             }),
         )
         .unwrap();
-    let result = session.send("write a file").unwrap();
-    assert_eq!(result.result, "written");
+    let (tx, rx) = mpsc::channel();
+    session
+        .on(move |e| {
+            if let SessionEventData::TurnCompleted { result_text, .. } = &e.data {
+                let _ = tx.send(result_text.clone());
+            }
+        })
+        .detach();
+    session.send("write a file").unwrap();
+    assert_eq!(rx.recv_timeout(Duration::from_secs(60)).unwrap(), "written");
     assert_eq!(*asked.lock().unwrap(), vec!["Write".to_string()]);
     assert_eq!(std::fs::read_to_string(&target).unwrap(), "from rust");
 
     // Without a handler the session is deny-by-default: the write never happens.
     std::fs::remove_file(&target).unwrap();
-    let denied = client.create_session(base(&dir, script)).unwrap();
-    denied.send("write a file").unwrap();
+    let denied = client.create_session(base(&dir, responses)).unwrap();
+    denied.send_and_wait("write a file").unwrap();
     assert!(!target.exists());
     let transcript = denied
-        .messages()
+        .get_messages()
         .unwrap()
         .iter()
         .map(Value::to_string)
         .collect::<String>();
     assert!(transcript.contains("deny by default"), "{transcript}");
+}
+
+#[test]
+fn invalid_arguments_are_reported_to_the_model() {
+    let Some(cli) = cli_path() else {
+        eprintln!("DotCode CLI not built; skipping");
+        return;
+    };
+    let dir = temp_dir("args");
+    let client = client(&dir, cli);
+    let session = client
+        .create_session(
+            base(&dir, json!([{"toolCalls": [{"name": "get_weather", "input": {"city": 42}}]}, {"text": "done"}]))
+                .with_tools([weather_tool()]),
+        )
+        .unwrap();
+    let events = session.subscribe();
+    let result = session
+        .send_and_wait_timeout("weather?", Duration::from_secs(60))
+        .unwrap();
+    assert_eq!(result.result, "done");
+    let failed = events.try_iter().find_map(|e| match e.data {
+        SessionEventData::ToolCompleted {
+            is_error: true,
+            output,
+            ..
+        } => Some(output),
+        _ => None,
+    });
+    assert!(
+        failed.is_some_and(|o| o.contains("city") || o.contains("invalid")),
+        "tool error not reported"
+    );
 }

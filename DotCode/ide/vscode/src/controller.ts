@@ -1,16 +1,16 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { DotCodeClient, type Session } from "dotcode-sdk";
-import type { AgentEvent, PermissionDecision, PermissionRequest, SendResult, UserQuestion, UserQuestionAnswer } from "dotcode-sdk";
+import { DotCodeClient, PermissionDecision, type DotCodeSession } from "dotcode-sdk";
+import type { ExitPlanModeResult, PermissionMode, PermissionRequest, SendResult, SessionEvent, UserInputRequest, UserQuestionAnswer } from "dotcode-sdk";
 import { findCli, offerInstall } from "./cli";
 
 /** Messages from the extension host to the chat webview. */
 export type HostMessage =
   | { type: "user"; text: string }
-  | { type: "event"; event: AgentEvent }
+  | { type: "event"; event: SessionEvent }
   | { type: "permission"; id: string; toolName: string; displayName: string; title: string; detail?: string; diff?: string; canAlways: boolean; isEdit: boolean }
-  | { type: "permissionResolved"; id: string; decision: string }
+  | { type: "permissionResolved"; id: string; decision: ViewDecision }
   | { type: "state"; busy: boolean; model?: string; mode?: string; cwd?: string }
   | { type: "error"; text: string }
   | { type: "reset" };
@@ -20,17 +20,20 @@ export type ViewMessage =
   | { type: "ready" }
   | { type: "send"; text: string }
   | { type: "stop" }
-  | { type: "permission"; id: string; decision: PermissionDecision["decision"]; feedback?: string }
+  | { type: "permission"; id: string; decision: ViewDecision; feedback?: string }
   | { type: "openFile"; path: string; line?: number }
   | { type: "command"; command: string };
+
+/** The chat view's permission buttons. */
+export type ViewDecision = "allow" | "allow_always" | "deny";
 
 const PROPOSED_SCHEME = "dotcode-proposed";
 
 /** Owns the `dotcode serve` client and the current session, and relays everything to the chat view. */
 export class Controller implements vscode.Disposable {
   private client?: DotCodeClient;
-  private session?: Session;
-  private starting?: Promise<Session | undefined>;
+  private session?: DotCodeSession;
+  private starting?: Promise<DotCodeSession | undefined>;
   private busy = false;
   private readonly history: HostMessage[] = [];
   private readonly pendingPermissions = new Map<string, { resolve: (d: PermissionDecision) => void; request: PermissionRequest }>();
@@ -38,13 +41,13 @@ export class Controller implements vscode.Disposable {
   private readonly listeners = new Set<(m: HostMessage) => void>();
   private readonly statusBar: vscode.StatusBarItem;
   private readonly disposables: vscode.Disposable[] = [];
-  private mode: string;
+  private mode: PermissionMode;
 
   /** Test hook: answer permission requests without the UI. */
   autoPermission?: (request: PermissionRequest) => PermissionDecision;
 
   constructor(private readonly context: vscode.ExtensionContext) {
-    this.mode = vscode.workspace.getConfiguration("dotcode").get<string>("permissionMode") ?? "default";
+    this.mode = vscode.workspace.getConfiguration("dotcode").get<PermissionMode>("permissionMode") ?? "default";
     this.statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     this.statusBar.command = "dotcode.openChat";
     this.updateStatus();
@@ -95,7 +98,7 @@ export class Controller implements vscode.Disposable {
         await this.stop();
         break;
       case "permission":
-        this.resolvePermission(m.id, { decision: m.decision, feedback: m.feedback });
+        this.resolvePermission(m.id, m.decision, m.feedback);
         break;
       case "openFile":
         await this.openFile(m.path, m.line);
@@ -118,13 +121,13 @@ export class Controller implements vscode.Disposable {
     return this.busy;
   }
 
-  private async ensureSession(): Promise<Session | undefined> {
+  private async ensureSession(): Promise<DotCodeSession | undefined> {
     if (this.session) return this.session;
     this.starting ??= this.startSession().finally(() => (this.starting = undefined));
     return this.starting;
   }
 
-  private async startSession(): Promise<Session | undefined> {
+  private async startSession(): Promise<DotCodeSession | undefined> {
     const cli = findCli();
     if (!cli) {
       await offerInstall();
@@ -136,13 +139,13 @@ export class Controller implements vscode.Disposable {
       this.client ??= new DotCodeClient({ cliPath: cli, cwd });
       const settings = config.get<Record<string, unknown>>("settings");
       this.session = await this.client.createSession({
-        cwd,
+        workingDirectory: cwd,
         model: config.get<string>("model") || undefined,
-        permissionMode: this.mode as never,
+        permissionMode: this.mode,
         settings: settings && Object.keys(settings).length > 0 ? settings : undefined,
         onPermissionRequest: (request) => this.askPermission(request),
-        onQuestion: (questions) => this.askQuestions(questions),
-        onPlanReview: (plan) => this.reviewPlan(plan),
+        onUserInputRequest: (request) => this.askQuestions(request),
+        onExitPlanMode: ({ plan }) => this.reviewPlan(plan),
       });
       this.session.on((event) => this.onEvent(event));
       this.postState();
@@ -156,7 +159,7 @@ export class Controller implements vscode.Disposable {
     }
   }
 
-  private onEvent(event: AgentEvent) {
+  private onEvent(event: SessionEvent) {
     if (event.type === "model.changed" || event.type === "mode.changed") {
       if (event.type === "mode.changed") this.mode = event.mode;
       this.postState();
@@ -178,13 +181,13 @@ export class Controller implements vscode.Disposable {
     try {
       const session = await this.ensureSession();
       if (!session) return undefined;
-      return await session.send(prompt);
+      return await session.sendAndWait({ prompt });
     } catch (e: any) {
       this.post({ type: "error", text: String(e?.message ?? e) });
       return undefined;
     } finally {
       this.busy = false;
-      for (const [id] of this.pendingPermissions) this.resolvePermission(id, { decision: "deny", feedback: "The turn ended." });
+      for (const [id] of this.pendingPermissions) this.resolvePermission(id, "deny", "The turn ended.");
       this.postState();
     }
   }
@@ -195,7 +198,7 @@ export class Controller implements vscode.Disposable {
 
   async newSession() {
     await this.stop();
-    await this.session?.close().catch(() => undefined);
+    await this.session?.disconnect().catch(() => undefined);
     this.session = undefined;
     this.history.length = 0;
     this.post({ type: "reset" });
@@ -213,12 +216,11 @@ export class Controller implements vscode.Disposable {
     );
     if (!pick) return;
     await session.setModel(pick.label);
-    session.model = pick.label;
     this.postState();
   }
 
   async setPermissionMode() {
-    const modes = [
+    const modes: { label: PermissionMode; detail: string }[] = [
       { label: "default", detail: "Ask before edits and commands" },
       { label: "acceptEdits", detail: "Apply file edits in the workspace without asking" },
       { label: "auto", detail: "A classifier model approves low-risk actions, asks for the rest" },
@@ -254,24 +256,26 @@ export class Controller implements vscode.Disposable {
       void vscode.window
         .showInformationMessage(`DotCode wants to run ${request.displayName}`, "Allow", "Deny", "Show Chat")
         .then((choice) => {
-          if (choice === "Allow") this.resolvePermission(request.toolUseId, { decision: "allow" });
-          else if (choice === "Deny") this.resolvePermission(request.toolUseId, { decision: "deny" });
+          if (choice === "Allow") this.resolvePermission(request.toolUseId, "allow");
+          else if (choice === "Deny") this.resolvePermission(request.toolUseId, "deny");
           else if (choice === "Show Chat") void vscode.commands.executeCommand("dotcode.openChat");
         });
     });
   }
 
-  private resolvePermission(id: string, decision: PermissionDecision) {
+  private resolvePermission(id: string, choice: ViewDecision, feedback?: string) {
     const pending = this.pendingPermissions.get(id);
     if (!pending) return;
     this.pendingPermissions.delete(id);
     // "Always" for edits means "accept edits for this session"; for commands it saves the suggested rule.
-    if (decision.decision === "allow_always") {
-      if (["Edit", "Write", "NotebookEdit"].includes(pending.request.toolName)) decision = { decision: "allow_session" };
-      else decision = { decision: "allow_always", rule: pending.request.suggestedRule };
-    }
-    pending.resolve(decision);
-    this.post({ type: "permissionResolved", id, decision: decision.decision });
+    const isEdit = ["Edit", "Write", "NotebookEdit"].includes(pending.request.toolName);
+    pending.resolve(
+      choice === "deny" ? PermissionDecision.reject(feedback)
+      : choice === "allow" ? PermissionDecision.approveOnce()
+      : isEdit ? PermissionDecision.approveForSession()
+      : PermissionDecision.approveAlways(pending.request.suggestedRule),
+    );
+    this.post({ type: "permissionResolved", id, decision: choice });
   }
 
   /** Opens the file next to its proposed content in VS Code's diff editor. */
@@ -300,7 +304,7 @@ export class Controller implements vscode.Disposable {
     await vscode.commands.executeCommand("vscode.diff", original, uri, `${path.basename(absolute)} ↔ DotCode proposal`, { preview: true, preserveFocus: true });
   }
 
-  private async askQuestions(questions: UserQuestion[]): Promise<UserQuestionAnswer[]> {
+  private async askQuestions({ questions }: UserInputRequest): Promise<UserQuestionAnswer[]> {
     const answers: UserQuestionAnswer[] = [];
     for (const q of questions) {
       const items = q.options.map((o) => ({ label: o.label, detail: o.description }));
@@ -318,16 +322,16 @@ export class Controller implements vscode.Disposable {
     return answers;
   }
 
-  private async reviewPlan(plan: string): Promise<boolean> {
+  private async reviewPlan(plan: string): Promise<ExitPlanModeResult> {
     const doc = await vscode.workspace.openTextDocument({ content: plan, language: "markdown" });
     await vscode.window.showTextDocument(doc, { preview: true, viewColumn: vscode.ViewColumn.Beside });
     const choice = await vscode.window.showInformationMessage("DotCode proposes this plan. Start implementing it?", { modal: true }, "Approve", "Keep planning");
     if (choice === "Approve") {
       this.mode = "default";
       this.postState();
-      return true;
+      return { approved: true };
     }
-    return false;
+    return { approved: false };
   }
 
   // ------------------------------------------------------------ files
@@ -347,11 +351,11 @@ export class Controller implements vscode.Disposable {
     const client = this.client;
     this.client = undefined;
     this.session = undefined;
-    await client?.close().catch(() => undefined);
+    await client?.stop().catch(() => undefined);
   }
 
   async dispose() {
-    for (const [id] of this.pendingPermissions) this.resolvePermission(id, { decision: "deny" });
+    for (const [id] of this.pendingPermissions) this.resolvePermission(id, "deny");
     await this.disposeClient();
     for (const d of this.disposables) d.dispose();
   }

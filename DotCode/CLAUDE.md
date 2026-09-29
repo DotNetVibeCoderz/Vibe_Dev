@@ -10,7 +10,7 @@ DotCode: a clean-room .NET 10 / C# 14 re-implementation of the Claude Code exper
 
 ```bash
 dotnet build DotCode.slnx
-dotnet test tests/DotCode.Tests                                            # xUnit (103 tests)
+dotnet test tests/DotCode.Tests                                            # xUnit (106 tests)
 dotnet test tests/DotCode.Tests --filter "FullyQualifiedName~AgentLoopTests.Runs_tools_until_the_model_stops"
 dotnet run --project src/DotCode.Cli -- --model mock:echo                  # offline, no keys
 dotnet src/DotCode.Cli/bin/Debug/net10.0/dotcode.dll -p "hi" --model mock:echo
@@ -18,6 +18,7 @@ dotnet src/DotCode.Cli/bin/Debug/net10.0/dotcode.dll -p "hi" --model mock:echo
 PATH="$PATH:/c/Program Files (x86)/Microsoft Visual Studio/Installer" dotnet publish src/DotCode.Cli -c Release -r win-x64 -o artifacts/win-x64
 cd sdk/typescript && npm run build && npm test     # SDK tests spawn src/DotCode.Cli/bin/Debug/net10.0/dotcode.dll
 cd sdk/python/tests && PYTHONPATH=../src python -m unittest -v
+cd sdk/python && python tests/typecheck/run.py        # mypy --strict + deliberate-typo check (pip install mypy pydantic)
 cd sdk/go && go test ./...
 cd sdk/rust && cargo test                          # needs the CLI built (or DOTCODE_CLI_PATH)
 # Java (JDK 17+, no deps): javac -d target/classes $(find src/main -name "*.java") … then run com.gravicode.dotcode.ConformanceTest (see .github/workflows/dotcode.yml)

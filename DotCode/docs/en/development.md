@@ -24,7 +24,9 @@ dotnet test tests/DotCode.Tests --filter "FullyQualifiedName~ProviderContractTes
 dotnet test tests/DotCode.Tests --filter "FullyQualifiedName~AgentLoopTests.Runs_tools_until_the_model_stops"
 cd sdk/typescript && npm install && npm run build && npm test
 cd sdk/python/tests && PYTHONPATH=../src python -m unittest -v
+cd sdk/python && python tests/typecheck/run.py   # needs mypy (+ pydantic)
 cd sdk/go && go test ./...
+cd sdk/rust && cargo test
 ```
 
 | Suite | What it covers |
@@ -33,7 +35,7 @@ cd sdk/go && go test ./...
 | `PermissionTests`, `UtilTests` | Rule parsing, shell analysis, path globs, diff, JSON repair, frontmatter, settings merge, schema profiles, catalog |
 | `AgentLoopTests` | The loop with the scripted provider: tools, permissions, plan mode, edits with CRLF, subagents, todos, commands/skills, rewind |
 | `TuiTests` | Display width, wrapping, markdown, themes × glyph sets, diffs |
-| `SdkConformanceTests` + `sdk/*` tests | The same scenario (host tool + streaming, permission handler) in-process and over JSON-RPC, in every language |
+| `SdkConformanceTests` + `sdk/*` tests | The same scenarios (typed host tool + streamed events, permission handler with `send` + `turn.completed`, invalid tool arguments reported to the model) in-process and over JSON-RPC, in every language; compile-time typo checks (`sdk/typescript/test/typecheck.ts`, `sdk/python/tests/typecheck/run.py` with mypy) |
 
 SDK tests find the CLI at `src/DotCode.Cli/bin/Debug/net10.0/dotcode.dll` or `DOTCODE_CLI_PATH`; build the solution first.
 

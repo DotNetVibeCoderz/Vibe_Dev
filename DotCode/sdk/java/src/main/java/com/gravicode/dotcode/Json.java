@@ -63,7 +63,23 @@ public final class Json {
             sb.append(']');
         } else if (v instanceof Object[] arr) write(sb, List.of(arr));
         else if (v instanceof RawJson raw) sb.append(raw.json());
+        else if (v instanceof Record r) write(sb, recordToMap(r));
         else quote(sb, v.toString());
+    }
+
+    /** Record components as a map (records returned by tool handlers are sent as JSON objects). */
+    static Map<String, Object> recordToMap(Record r) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        for (var c : r.getClass().getRecordComponents()) {
+            try {
+                var accessor = c.getAccessor();
+                accessor.setAccessible(true);
+                m.put(c.getName(), accessor.invoke(r));
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException("Cannot read record component " + c.getName(), e);
+            }
+        }
+        return m;
     }
 
     private static void quote(StringBuilder sb, String s) {

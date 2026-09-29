@@ -1,25 +1,34 @@
 // DotCode TypeScript SDK sample. Run: node samples/sdk/typescript/example.mjs azure:gpt-5-mini
-import { DotCodeClient, tool } from "../../../sdk/typescript/dist/index.js";
+import { DotCodeClient, defineTool, s, PermissionDecision } from "../../../sdk/typescript/dist/index.js";
+
+const getExchangeRate = defineTool("get_exchange_rate", {
+  description: "Get the exchange rate between two currencies",
+  parameters: s.object({
+    from: s.string().describe("ISO currency code, e.g. USD"),
+    to: s.string().describe("ISO currency code, e.g. IDR"),
+  }),
+  readOnly: true,
+  handler: ({ from, to }) => `1 ${from} = ${to === "IDR" ? "16,250" : "0.92"} ${to} (demo data)`,
+});
 
 const client = new DotCodeClient();
+await client.start();
 const session = await client.createSession({
   model: process.argv[2],
   persistSession: false,
-  tools: [tool({
-    name: "get_exchange_rate",
-    description: "Get the exchange rate between two currencies",
-    inputSchema: { type: "object", properties: { from: { type: "string" }, to: { type: "string" } }, required: ["from", "to"] },
-    readOnly: true,
-    handler: ({ from, to }) => `1 ${from} = ${to === "IDR" ? "16,250" : "0.92"} ${to} (demo data)`,
-  })],
-  onPermissionRequest: (req) => (console.log(`  [permission] ${req.displayName} → allowed`), { decision: "allow" }),
+  tools: [getExchangeRate],
+  onPermissionRequest: (req) => {
+    console.log(`  [permission] ${req.displayName} → allowed`);
+    return PermissionDecision.approveOnce();
+  },
 });
 
+session.on("assistant.text.delta", (e) => process.stdout.write(e.text));
+session.on("tool.started", (e) => console.log(`● ${e.displayName}`));
+session.on("tool.completed", (e) => console.log(`  ⎿  ${e.output}`));
+
 console.log(`DotCode SDK (TypeScript) · model ${session.model}\n`);
-for await (const e of session.stream("How many Indonesian Rupiah is 250 US dollars? Use the tool, then answer in one sentence.")) {
-  if (e.type === "assistant.text.delta") process.stdout.write(e.text);
-  else if (e.type === "tool.started") console.log(`● ${e.displayName}`);
-  else if (e.type === "tool.completed") console.log(`  ⎿  ${e.output}`);
-  else if (e.type === "turn.completed") console.log(`\n\n✔ ${e.numModelCalls} model calls · $${e.costUsd.toFixed(4)} · ${e.durationMs} ms`);
-}
-await client.close();
+const result = await session.sendAndWait("How many Indonesian Rupiah is 250 US dollars? Use the tool, then answer in one sentence.");
+console.log(`\n\n✔ ${result.numModelCalls} model calls · $${result.costUsd.toFixed(4)} · ${result.durationMs} ms`);
+await session.disconnect();
+await client.stop();

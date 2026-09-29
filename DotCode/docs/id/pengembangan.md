@@ -20,10 +20,12 @@ dotnet test tests/DotCode.Tests
 dotnet test tests/DotCode.Tests --filter "FullyQualifiedName~ProviderContractTests"
 cd sdk/typescript && npm install && npm run build && npm test
 cd sdk/python/tests && PYTHONPATH=../src python -m unittest -v
+cd sdk/python && python tests/typecheck/run.py   # butuh mypy (+ pydantic)
 cd sdk/go && go test ./...
+cd sdk/rust && cargo test
 ```
 
-Suite test mencakup: kontrak semua adapter provider (stream SSE/NDJSON via mock HTTP), aturan izin dan analisis shell, diff, perbaikan JSON, frontmatter, penggabungan settings, loop agen dengan provider skrip (tools, izin, plan mode, edit CRLF, subagent, todo, command/skill, rewind), UI terminal (lebar tampilan, wrap, markdown, tema), serta konformansi SDK di keempat bahasa.
+Suite test mencakup: kontrak semua adapter provider (stream SSE/NDJSON via mock HTTP), aturan izin dan analisis shell, diff, perbaikan JSON, frontmatter, penggabungan settings, loop agen dengan provider skrip (tools, izin, plan mode, edit CRLF, subagent, todo, command/skill, rewind), UI terminal (lebar tampilan, wrap, markdown, tema), serta konformansi SDK di keenam bahasa (tool bertipe + event streaming, handler izin dengan `send` + `turn.completed`, argumen tool tidak valid dilaporkan ke model) dan pemeriksaan salah ketik saat kompilasi (`sdk/typescript/test/typecheck.ts`, `sdk/python/tests/typecheck/run.py` dengan mypy).
 
 ## Publish
 

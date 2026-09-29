@@ -1,5 +1,7 @@
-use crate::session::{Session, SessionOptions, SessionShared};
-use crate::types::{Error, Result, SessionInfo};
+use crate::config::SessionConfig;
+use crate::event::SessionEvent;
+use crate::session::{Session, SessionShared};
+use crate::types::{Error, ModelInfo, Result, SessionInfo, SessionMetadata};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -21,7 +23,7 @@ pub struct ClientOptions {
     /// `dotcode` on `PATH`.
     pub cli_path: Option<String>,
     /// Extra arguments for `dotcode serve`.
-    pub server_args: Vec<String>,
+    pub cli_args: Vec<String>,
     /// Default working directory for sessions (and the server process).
     pub cwd: Option<PathBuf>,
     /// Extra environment variables for the server process.
@@ -35,6 +37,9 @@ pub(crate) struct Inner {
     next_id: AtomicI64,
     pending: Mutex<HashMap<i64, Sender<Reply>>>,
     pub(crate) sessions: Mutex<HashMap<String, Arc<SessionShared>>>,
+    /// Events of sessions still being created (the server may emit them before replying).
+    early: Mutex<HashMap<String, Vec<SessionEvent>>>,
+    opening: AtomicI64,
     closed: AtomicBool,
     pub(crate) default_cwd: Option<String>,
 }
@@ -104,7 +109,7 @@ pub struct Client {
 
 impl Client {
     /// Starts `dotcode serve` and performs the protocol handshake.
-    pub fn new(options: ClientOptions) -> Result<Client> {
+    pub fn start(options: ClientOptions) -> Result<Client> {
         let cli = options
             .cli_path
             .clone()
@@ -121,7 +126,7 @@ impl Client {
         } else {
             Command::new(&cli)
         };
-        command.arg("serve").args(&options.server_args);
+        command.arg("serve").args(&options.cli_args);
         if let Some(cwd) = &options.cwd {
             command.current_dir(cwd);
         }
@@ -145,6 +150,8 @@ impl Client {
             next_id: AtomicI64::new(0),
             pending: Mutex::new(HashMap::new()),
             sessions: Mutex::new(HashMap::new()),
+            early: Mutex::new(HashMap::new()),
+            opening: AtomicI64::new(0),
             closed: AtomicBool::new(false),
             default_cwd: options
                 .cwd
@@ -180,60 +187,107 @@ impl Client {
                 Ok(client)
             }
             Err(e) => {
-                client.close();
+                client.shutdown();
                 Err(e)
             }
         }
     }
 
-    /// Starts a new agent session.
-    pub fn create_session(&self, options: SessionOptions) -> Result<Session> {
-        self.open("session.create", options, None)
+    /// Creates a session. Without a permission handler it is deny-by-default.
+    pub fn create_session(&self, config: SessionConfig) -> Result<Session> {
+        self.open("session.create", config, None)
     }
 
-    /// Reopens a saved session; `fork` copies it under a new id.
-    pub fn resume_session(
-        &self,
-        session_id: &str,
-        options: SessionOptions,
-        fork: bool,
-    ) -> Result<Session> {
+    /// Reopens a saved session.
+    pub fn resume_session(&self, session_id: &str, config: SessionConfig) -> Result<Session> {
         self.open(
             "session.resume",
-            options,
-            Some(json!({"sessionId": session_id, "fork": fork})),
+            config,
+            Some(json!({"sessionId": session_id, "fork": false})),
         )
     }
 
-    fn open(&self, method: &str, options: SessionOptions, extra: Option<Value>) -> Result<Session> {
-        let mut params = options.wire(self.inner.default_cwd.as_deref());
+    /// Continues a saved session under a new id, leaving the original transcript untouched.
+    pub fn fork_session(&self, session_id: &str, config: SessionConfig) -> Result<Session> {
+        self.open(
+            "session.resume",
+            config,
+            Some(json!({"sessionId": session_id, "fork": true})),
+        )
+    }
+
+    fn open(&self, method: &str, config: SessionConfig, extra: Option<Value>) -> Result<Session> {
+        let mut params = config.wire(self.inner.default_cwd.as_deref());
         if let (Some(Value::Object(extra)), Value::Object(map)) = (extra, &mut params) {
             map.extend(extra);
         }
-        let info: SessionInfo = serde_json::from_value(self.inner.call(method, params, None)?)?;
-        let shared = Arc::new(SessionShared::new(options, info.model.clone()));
-        self.inner
-            .sessions
-            .lock()
-            .unwrap()
-            .insert(info.session_id.clone(), Arc::clone(&shared));
-        Ok(Session::new(Arc::clone(&self.inner), shared, info))
+        self.inner.opening.fetch_add(1, Ordering::SeqCst);
+        let reply = self.inner.call(method, params, None);
+        let result = (|| {
+            let info: SessionInfo = serde_json::from_value(reply?)?;
+            let shared = Arc::new(SessionShared::new(config, &info));
+            self.inner
+                .sessions
+                .lock()
+                .unwrap()
+                .insert(info.session_id.clone(), Arc::clone(&shared));
+            let early = self
+                .inner
+                .early
+                .lock()
+                .unwrap()
+                .remove(&info.session_id)
+                .unwrap_or_default();
+            for e in early {
+                shared.dispatch(e);
+            }
+            Ok(Session::new(Arc::clone(&self.inner), shared, info))
+        })();
+        if self.inner.opening.fetch_sub(1, Ordering::SeqCst) == 1 {
+            self.inner.early.lock().unwrap().clear();
+        }
+        result
     }
 
-    /// Configured providers and their models.
-    pub fn list_models(&self) -> Result<Value> {
-        self.inner
-            .call("models.list", json!({"cwd": self.inner.default_cwd}), None)
+    /// Models offered by the configured providers.
+    pub fn list_models(&self) -> Result<Vec<ModelInfo>> {
+        let v = self
+            .inner
+            .call("models.list", json!({"cwd": self.inner.default_cwd}), None)?;
+        Ok(serde_json::from_value(v["models"].clone()).unwrap_or_default())
     }
 
     /// Saved sessions for the working directory.
-    pub fn list_sessions(&self) -> Result<Value> {
-        self.inner
-            .call("session.list", json!({"cwd": self.inner.default_cwd}), None)
+    pub fn list_sessions(&self) -> Result<Vec<SessionMetadata>> {
+        let v = self
+            .inner
+            .call("session.list", json!({"cwd": self.inner.default_cwd}), None)?;
+        Ok(serde_json::from_value(v["sessions"].clone()).unwrap_or_default())
     }
 
-    /// Shuts the server down (also done on drop).
-    pub fn close(&mut self) {
+    /// Round-trips a message to the server.
+    pub fn ping(&self) -> Result<()> {
+        self.inner
+            .call("ping", json!({}), Some(Duration::from_secs(30)))
+            .map(|_| ())
+    }
+
+    /// Shuts the server down gracefully (also done on drop).
+    pub fn stop(mut self) -> Result<()> {
+        self.shutdown();
+        Ok(())
+    }
+
+    /// Kills the server without a graceful shutdown.
+    pub fn force_stop(self) {
+        if let Some(mut child) = self.child.lock().unwrap().take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        self.inner.fail_pending();
+    }
+
+    fn shutdown(&mut self) {
         if !self.inner.closed.load(Ordering::SeqCst) {
             let _ = self
                 .inner
@@ -262,7 +316,7 @@ impl Client {
 
 impl Drop for Client {
     fn drop(&mut self) {
-        self.close();
+        self.shutdown();
     }
 }
 
@@ -296,8 +350,22 @@ fn read_loop(inner: Arc<Inner>, stdout: std::process::ChildStdout) {
             // Engine event for a session.
             (Some("session.event"), None) => {
                 let params = &msg["params"];
-                if let Some(session) = params["sessionId"].as_str().and_then(|s| inner.session(s)) {
-                    session.dispatch(&params["event"]);
+                let Some(session_id) = params["sessionId"].as_str() else {
+                    continue;
+                };
+                let event = SessionEvent::parse(&params["event"]);
+                match inner.session(session_id) {
+                    Some(session) => session.dispatch(event),
+                    None if inner.opening.load(Ordering::SeqCst) > 0 => {
+                        inner
+                            .early
+                            .lock()
+                            .unwrap()
+                            .entry(session_id.to_string())
+                            .or_default()
+                            .push(event);
+                    }
+                    None => {}
                 }
             }
             // Server → client request (permission, question, plan review, host tool): answered on a worker thread

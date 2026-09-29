@@ -36,7 +36,7 @@ Semua surface mengonsumsi aliran `AgentEvent` yang sama, sehingga tidak ada fitu
 | `DotCode.Tui` | Renderer (scrollback statis + area live), editor input, markdown, tema, dialog, slash command. |
 | `DotCode.Cli` | Entry point, TUI, runner headless, subcommand. NativeAOT. |
 | `DotCode.Sdk` | SDK .NET (Spawn / Connect / InProcess). |
-| `sdk/typescript`, `sdk/python`, `sdk/go` | SDK bahasa lain. |
+| `sdk/typescript`, `sdk/python`, `sdk/go`, `sdk/java`, `sdk/rust` | SDK bahasa lain (tool, event, dan opsi bertipe; API bergaya Copilot SDK). |
 | `tools/DotCode.TermCapture` | Harness ConPTY untuk screenshot. |
 
 ## Loop agen

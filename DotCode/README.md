@@ -85,18 +85,25 @@ Configure several providers at once in `~/.dotcode/settings.json`:
 ## SDK in 10 lines
 
 ```python
-from dotcode_sdk import DotCodeClient, tool
+from dataclasses import dataclass
+from dotcode_sdk import DotCodeClient, PermissionHandler, define_tool
 
-@tool("get_exchange_rate", "Exchange rate", {"type": "object", "properties": {"from": {"type": "string"}, "to": {"type": "string"}}})
-def rate(args): return f"1 {args['from']} = 16,250 {args['to']}"
+@dataclass
+class RateParams:                      # typed parameters: the tool schema is generated from this class
+    from_currency: str
+    to_currency: str
+
+@define_tool(description="Exchange rate between two currencies")
+def get_rate(p: RateParams) -> str:
+    return f"1 {p.from_currency} = 16,250 {p.to_currency}"
 
 async with DotCodeClient() as client:
-    session = await client.create_session(model="azure:gpt-5-mini", tools=[rate],
-                                          on_permission_request=lambda r: {"decision": "allow"})
-    print((await session.send("How many IDR is 250 USD?"))["result"])
+    session = await client.create_session(model="azure:gpt-5-mini", tools=[get_rate],
+                                          on_permission_request=PermissionHandler.approve_all)
+    print((await session.send_and_wait("How many IDR is 250 USD?")).result)
 ```
 
-Same API in [.NET](docs/en/sdk.md#net), [TypeScript](docs/en/sdk.md#typescript), [Go](docs/en/sdk.md#go), [Java](docs/en/sdk.md#java) and [Rust](docs/en/sdk.md#rust).
+Same typed API (following the GitHub Copilot SDK conventions) in [.NET](docs/en/sdk.md#net), [TypeScript](docs/en/sdk.md#typescript), [Go](docs/en/sdk.md#go), [Java](docs/en/sdk.md#java) and [Rust](docs/en/sdk.md#rust).
 
 ## Documentation
 
@@ -123,9 +130,9 @@ Roadmap: [PLAN.md](PLAN.md) · Progress: [Progress.md](Progress.md) · Design: [
 
 ```
 src/        DotCode.Abstractions · Providers · Engine · Protocol · Tui · Cli · Sdk
-sdk/        typescript · python · go · java
+sdk/        typescript · python · go · java · rust
 schema/     protocol.schema.json (OpenRPC) · protocol-version.json
-samples/    mcp-server-notes · skills/csv-insights · plugins/gravicode-toolkit · marketplace · sdk/{dotnet,typescript,python,go,java}
+samples/    mcp-server-notes · skills/csv-insights · plugins/gravicode-toolkit · marketplace · sdk/{dotnet,typescript,python,go,java,rust}
 tests/      DotCode.Tests (xUnit: provider contracts, engine, TUI, SDK conformance)
 tools/      DotCode.TermCapture (ConPTY screenshot harness + scenarios)
 docs/       en · id · images

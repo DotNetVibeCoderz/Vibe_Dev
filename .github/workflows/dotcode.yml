@@ -76,6 +76,9 @@ jobs:
       - name: Python SDK
         working-directory: DotCode/sdk/python/tests
         run: PYTHONPATH=../src python -m unittest -v
+      - name: Python SDK static typing (mypy --strict, typos rejected)
+        working-directory: DotCode/sdk/python
+        run: pip install -q mypy pydantic && python tests/typecheck/run.py
       - name: Go SDK
         working-directory: DotCode/sdk/go
         run: go vet ./... && go test ./...
@@ -83,8 +86,8 @@ jobs:
         working-directory: DotCode/sdk/java
         run: |
           mkdir -p target/classes target/test-classes
-          javac -d target/classes $(find src/main -name "*.java")
-          javac -d target/test-classes -cp target/classes $(find src/test -name "*.java")
+          javac --release 17 -Xlint:all -Werror -d target/classes $(find src/main -name "*.java")
+          javac --release 17 -d target/test-classes -cp target/classes $(find src/test -name "*.java")
           java -cp target/classes:target/test-classes com.gravicode.dotcode.ConformanceTest
       - name: Installer test (install.sh against a fake release)
         run: sh install/test-install.sh

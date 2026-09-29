@@ -115,14 +115,14 @@ See [Headless mode](headless.md).
 ## 5. Embed it in your app
 
 ```ts
-import { DotCodeClient } from "dotcode-sdk";
+import { DotCodeClient, approveAll } from "dotcode-sdk";
 const client = new DotCodeClient();
-const session = await client.createSession({ model: "openai:gpt-5" });
-console.log((await session.send("List the TODOs in this repo")).result);
-await client.close();
+const session = await client.createSession({ model: "openai:gpt-5", onPermissionRequest: approveAll });
+console.log((await session.sendAndWait({ prompt: "List the TODOs in this repo" })).result);
+await client.stop();
 ```
 
-SDKs exist for .NET, TypeScript, Python, Go and Java — see [SDK](sdk.md).
+SDKs exist for .NET, TypeScript, Python, Go, Java and Rust, with typed tools, events and options — see [SDK](sdk.md).
 
 ## Next steps
 

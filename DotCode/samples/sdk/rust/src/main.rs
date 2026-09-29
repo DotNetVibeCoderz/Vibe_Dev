@@ -1,59 +1,59 @@
 //! DotCode Rust SDK sample. Run: cargo run -- azure:gpt-5-mini
-use dotcode_sdk::{Client, ClientOptions, PermissionDecision, SessionOptions, Tool};
-use serde_json::json;
+use dotcode_sdk::tool::{define_tool, JsonSchema};
+use dotcode_sdk::{Client, ClientOptions, PermissionDecision, SessionConfig, SessionEventData};
+use serde::Deserialize;
 use std::io::Write;
 
+/// Tool parameters are a Rust type: the JSON schema is generated from it and a typo does not compile.
+#[derive(Deserialize, JsonSchema)]
+struct ExchangeRateParams {
+    /// ISO currency code, e.g. USD
+    from: String,
+    /// ISO currency code, e.g. IDR
+    to: String,
+}
+
 fn main() -> Result<(), dotcode_sdk::Error> {
-    let client = Client::new(ClientOptions::default())?;
-    let mut options = SessionOptions {
-        persist_session: Some(false),
-        ..Default::default()
-    }
-    .tool(
-        Tool::new(
-            "get_exchange_rate",
-            "Get the exchange rate between two currencies",
-            json!({"type": "object", "properties": {"from": {"type": "string"}, "to": {"type": "string"}}, "required": ["from", "to"]}),
-            |input| {
-                let (from, to) = (input["from"].as_str().unwrap_or("?"), input["to"].as_str().unwrap_or("?"));
-                let rate = if to == "IDR" { "16,250" } else { "0.92" };
-                Ok(format!("1 {from} = {rate} {to} (demo data)"))
-            },
-        )
-        .read_only(),
+    let get_exchange_rate = define_tool(
+        "get_exchange_rate",
+        "Get the exchange rate between two currencies",
+        |_inv, p: ExchangeRateParams| {
+            let rate = if p.to == "IDR" { "16,250" } else { "0.92" };
+            Ok::<_, String>(format!("1 {} = {rate} {} (demo data)", p.from, p.to))
+        },
     )
-    .on_permission_request(|_| PermissionDecision::allow());
+    .read_only();
+
+    let client = Client::start(ClientOptions::default())?;
+    let mut config = SessionConfig::default()
+        .with_persist_session(false)
+        .with_tools([get_exchange_rate])
+        .on_permission_request(|req, _| {
+            println!("  [permission] {} → allowed", req.display_name);
+            PermissionDecision::approve_once()
+        });
     if let Some(model) = std::env::args().nth(1) {
-        options = options.model(model);
+        config = config.with_model(model);
     }
-    let session = client.create_session(options)?;
+    let session = client.create_session(config)?;
     println!("DotCode SDK (Rust) · model {}\n", session.model());
 
-    let mut stream = session.stream(
-        "How many Indonesian Rupiah is 250 US dollars? Use the tool, then answer in one sentence.",
-    );
-    let mut mid_line = false;
-    for e in stream.by_ref() {
-        match e.kind.as_str() {
-            "assistant.text.delta" => {
-                print!("{}", e.text.unwrap_or_default());
-                std::io::stdout().flush().ok();
-                mid_line = true;
-            }
-            "tool.started" => {
-                if std::mem::take(&mut mid_line) {
-                    println!();
-                }
-                println!("● {}", e.display_name.unwrap_or_default());
-            }
-            "tool.completed" => println!("  ⎿  {}", e.output.unwrap_or_default()),
-            "turn.completed" => println!(
-                "\n\n✔ {} model calls · ${:.4} · {} ms",
-                e.num_model_calls, e.cost_usd, e.duration_ms
-            ),
-            _ => {}
+    let _events = session.on(|e| match &e.data {
+        SessionEventData::AssistantTextDelta { text } => {
+            print!("{text}");
+            std::io::stdout().flush().ok();
         }
-    }
-    stream.result()?;
-    Ok(())
+        SessionEventData::ToolStarted { display_name, .. } => println!("\n● {display_name}"),
+        SessionEventData::ToolCompleted { output, .. } => println!("  ⎿  {output}"),
+        _ => {}
+    });
+    let result = session.send_and_wait(
+        "How many Indonesian Rupiah is 250 US dollars? Use the tool, then answer in one sentence.",
+    )?;
+    println!(
+        "\n\n✔ {} model calls · ${:.4} · {} ms",
+        result.num_model_calls, result.cost_usd, result.duration_ms
+    );
+    session.disconnect()?;
+    client.stop()
 }

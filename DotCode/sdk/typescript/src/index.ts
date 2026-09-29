@@ -3,188 +3,336 @@
  * Built by Gravicode Studios, led by Kang Fadhil.
  *
  * ```ts
- * import { DotCodeClient } from "dotcode-sdk";
- * const client = new DotCodeClient();
- * const session = await client.createSession({ model: "openai:gpt-5" });
- * const result = await session.send("Summarize README.md");
- * console.log(result.result);
- * await client.close();
+ * import { DotCodeClient, approveAll, defineTool, s } from "dotcode-sdk";
+ *
+ * await using client = new DotCodeClient();
+ * await client.start();
+ * await using session = await client.createSession({
+ *   model: "openai:gpt-5",
+ *   onPermissionRequest: approveAll,
+ *   tools: [defineTool("get_weather", {
+ *     description: "Weather for a city",
+ *     parameters: s.object({ city: s.string().describe("City name") }),
+ *     handler: ({ city }) => `${city}: sunny`,
+ *   })],
+ * });
+ * session.on("assistant.text.delta", (e) => process.stdout.write(e.text));
+ * const result = await session.sendAndWait({ prompt: "Weather in Bogor?" });
  * ```
  */
 import { spawn, type ChildProcess } from "node:child_process";
 import { JsonRpcPeer, JsonRpcError } from "./jsonrpc.js";
+import { toJsonSchema, type SchemaLike } from "./schema.js";
 import type {
-  AgentEvent, PermissionDecision, SendResult, SessionInfo, SessionOptions, ToolContent,
+  ExitPlanModeResult, MessageOptions, ModelList, PermissionDecision, PermissionMode, ReasoningEffort,
+  ResumeSessionConfig, SendResult, SessionConfig, SessionEvent, SessionEventHandler, SessionEventType,
+  SessionInfo, SessionMetadata, Tool, ToolHandler, ToolInfo, ToolInvocation, ToolResultObject,
+  TypedSessionEventHandler,
 } from "./types.js";
 
 export * from "./types.js";
+export * from "./schema.js";
 export { JsonRpcError } from "./jsonrpc.js";
 
 export const PROTOCOL_VERSION = "1.0";
+const SDK_VERSION = "0.2.0";
 
 export interface ClientOptions {
   /** Path to the dotcode executable (or dotcode.dll). Defaults to $DOTCODE_CLI_PATH or "dotcode" on PATH. */
   cliPath?: string;
   /** Extra arguments passed to `dotcode serve`. */
-  serverArgs?: string[];
-  /** Default working directory for sessions. */
+  cliArgs?: string[];
+  /** Default working directory for sessions and of the server process. */
   cwd?: string;
   env?: Record<string, string>;
+}
+
+export type ConnectionState = "disconnected" | "connecting" | "connected";
+
+/**
+ * Defines a custom tool. The handler's argument type is inferred from `parameters` (a {@link s} builder schema or
+ * a Zod 4 schema), so a misspelled property is a compile error; arguments are validated before the handler runs.
+ */
+export function defineTool<S extends SchemaLike<any> | undefined = undefined>(
+  name: string,
+  config: {
+    description: string;
+    parameters?: S;
+    handler: ToolHandler<S extends SchemaLike<infer T> ? T : Record<string, never>>;
+    readOnly?: boolean;
+  },
+): Tool<S extends SchemaLike<infer T> ? T : Record<string, never>> {
+  return { name, ...config } as Tool<any>;
 }
 
 export class DotCodeClient {
   private proc?: ChildProcess;
   private peer?: JsonRpcPeer;
-  private readonly sessions = new Map<string, Session>();
+  private readonly sessions = new Map<string, DotCodeSession>();
   private starting?: Promise<void>;
+  /** Events of sessions still being created (the server emits `session.started` before replying). */
+  private readonly early = new Map<string, SessionEvent[]>();
+  private opening = 0;
+  private _state: ConnectionState = "disconnected";
   serverVersion?: string;
 
   constructor(private readonly options: ClientOptions = {}) {}
 
-  /** Starts `dotcode serve` and performs the protocol handshake (called lazily by other methods). */
+  get state(): ConnectionState {
+    return this._state;
+  }
+
+  /** Starts `dotcode serve` and performs the protocol handshake (other methods call it lazily). */
   start(): Promise<void> {
-    this.starting ??= this.doStart();
+    this.starting ??= this.doStart().catch((e) => {
+      this.starting = undefined;
+      this._state = "disconnected";
+      throw e;
+    });
     return this.starting;
   }
 
   private async doStart() {
+    this._state = "connecting";
     const cli = this.options.cliPath ?? process.env.DOTCODE_CLI_PATH ?? "dotcode";
     const [cmd, args] = cli.endsWith(".dll") ? ["dotnet", [cli, "serve"]] : [cli, ["serve"]];
-    this.proc = spawn(cmd, [...args, ...(this.options.serverArgs ?? [])], {
+    const proc = spawn(cmd, [...args, ...(this.options.cliArgs ?? [])], {
       cwd: this.options.cwd,
       env: { ...process.env, ...this.options.env },
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
     });
-    const spawned = new Promise<void>((resolve, reject) => {
-      this.proc!.once("spawn", () => resolve());
-      this.proc!.once("error", (e) =>
+    this.proc = proc;
+    await new Promise<void>((resolve, reject) => {
+      proc.once("spawn", () => resolve());
+      proc.once("error", (e) =>
         reject(new Error(`Could not start '${cli}'. Install the DotCode CLI or set DOTCODE_CLI_PATH. (${e.message})`)),
       );
     });
-    await spawned;
-    this.proc.stderr!.on("data", () => {});
-    this.peer = new JsonRpcPeer(this.proc.stdout!, this.proc.stdin!);
-    this.peer.on("notification", (method: string, params: any) => {
-      if (method === "session.event") this.sessions.get(params.sessionId)?._dispatch(params.event as AgentEvent);
+    proc.stderr!.on("data", () => {});
+    const peer = new JsonRpcPeer(proc.stdout!, proc.stdin!);
+    this.peer = peer;
+    peer.on("notification", (method: string, params: any) => {
+      if (method !== "session.event") return;
+      const session = this.sessions.get(params.sessionId);
+      if (session) session._dispatch(params.event as SessionEvent);
+      else if (this.opening > 0) {
+        const list = this.early.get(params.sessionId) ?? [];
+        list.push(params.event as SessionEvent);
+        this.early.set(params.sessionId, list);
+      }
     });
-    this.peer.onRequest = async (method, params) => {
+    peer.on("close", () => (this._state = "disconnected"));
+    peer.onRequest = async (method, params) => {
       const session = this.sessions.get(params?.sessionId);
       if (!session) throw new JsonRpcError(-32001, "Unknown session");
       return session._handleServerRequest(method, params);
     };
-    const init = await this.peer.request("initialize", {
+    const init = await peer.request<{ serverInfo?: { version?: string } }>("initialize", {
       protocolVersion: PROTOCOL_VERSION,
-      clientInfo: { name: "dotcode-sdk-typescript", version: "0.1.0" },
+      clientInfo: { name: "dotcode-sdk-typescript", version: SDK_VERSION },
       capabilities: { permissions: true, questions: true },
     });
     this.serverVersion = init?.serverInfo?.version;
+    this._state = "connected";
   }
 
-  async createSession(options: SessionOptions = {}): Promise<Session> {
+  /** Creates a session. Without `onPermissionRequest` it is deny-by-default. */
+  async createSession(config: SessionConfig = {}): Promise<DotCodeSession> {
+    return this.open("session.create", config, {});
+  }
+
+  /** Resumes a saved session (or forks it with `fork: true`). */
+  async resumeSession(sessionId: string, config: ResumeSessionConfig = {}): Promise<DotCodeSession> {
+    return this.open("session.resume", config, { sessionId, fork: config.fork ?? false });
+  }
+
+  private async open(method: string, config: SessionConfig, extra: Record<string, unknown>) {
     await this.start();
-    const info = await this.peer!.request<SessionInfo>("session.create", toWire(options, this.options.cwd));
-    const session = new Session(this.peer!, info, options);
-    this.sessions.set(info.sessionId, session);
-    return session;
+    this.opening++;
+    try {
+      const info = await this.peer!.request<SessionInfo>(method, { ...toWire(config, this.options.cwd), ...extra });
+      const session = new DotCodeSession(this.peer!, info, config, () => this.sessions.delete(info.sessionId));
+      this.sessions.set(info.sessionId, session);
+      for (const e of this.early.get(info.sessionId) ?? []) session._dispatch(e);
+      return session;
+    } finally {
+      if (--this.opening === 0) this.early.clear();
+    }
   }
 
-  async resumeSession(sessionId: string, options: SessionOptions = {}, fork = false): Promise<Session> {
-    await this.start();
-    const info = await this.peer!.request<SessionInfo>("session.resume", { ...toWire(options, this.options.cwd), sessionId, fork });
-    const session = new Session(this.peer!, info, options);
-    this.sessions.set(info.sessionId, session);
-    return session;
-  }
-
-  async listModels(): Promise<{ default: string; providers: { name: string; type: string }[]; models: { provider: string; id: string; qualifiedId: string }[] }> {
+  async listModels(): Promise<ModelList> {
     await this.start();
     return this.peer!.request("models.list", { cwd: this.options.cwd });
   }
 
-  async listSessions(): Promise<{ sessions: { id: string; title?: string; firstPrompt: string; modified: string; messageCount: number }[] }> {
+  async listSessions(): Promise<SessionMetadata[]> {
     await this.start();
-    return this.peer!.request("session.list", { cwd: this.options.cwd });
+    const r = await this.peer!.request<{ sessions: SessionMetadata[] }>("session.list", { cwd: this.options.cwd });
+    return r.sessions;
   }
 
-  async close(): Promise<void> {
-    if (!this.proc) return;
+  /** Round-trips a message to the server. */
+  async ping(): Promise<void> {
+    await this.start();
+    await this.peer!.request("ping", {});
+  }
+
+  /** Disconnects all sessions and stops the server process. */
+  async stop(): Promise<void> {
+    const proc = this.proc;
+    if (!proc) return;
     try {
       await Promise.race([this.peer!.request("shutdown"), new Promise((r) => setTimeout(r, 1500))]);
     } catch { /* ignore */ }
-    this.proc.stdin?.end();
-    const exited = new Promise<void>((r) => this.proc!.once("exit", () => r()));
+    proc.stdin?.end();
+    const exited = new Promise<void>((r) => proc.once("exit", () => r()));
     await Promise.race([exited, new Promise((r) => setTimeout(r, 2000))]);
-    if (this.proc.exitCode === null) this.proc.kill();
+    if (proc.exitCode === null) proc.kill();
     this.proc = undefined;
+    this.peer = undefined;
+    this.starting = undefined;
+    this.sessions.clear();
+    this._state = "disconnected";
+  }
+
+  /** Kills the server process without a graceful shutdown. */
+  forceStop(): void {
+    this.proc?.kill();
+    this.proc = undefined;
+    this.peer = undefined;
+    this.starting = undefined;
+    this.sessions.clear();
+    this._state = "disconnected";
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.stop();
   }
 }
 
-function toWire(o: SessionOptions, defaultCwd?: string) {
+function toWire(c: SessionConfig, defaultCwd?: string) {
+  const settings: Record<string, unknown> = { ...(c.settings ?? {}) };
+  if (c.providers) settings.providers = { ...((settings.providers as object) ?? {}), ...c.providers };
   return {
-    cwd: o.cwd ?? defaultCwd,
-    model: o.model,
-    fallbackModel: o.fallbackModel,
-    permissionMode: o.permissionMode,
-    systemPrompt: o.systemPrompt,
-    appendSystemPrompt: o.appendSystemPrompt,
-    allowedTools: o.allowedTools,
-    disallowedTools: o.disallowedTools,
-    tools: o.builtinTools,
-    hostTools: o.tools?.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema ?? { type: "object", properties: {} }, readOnly: t.readOnly ?? false })),
-    mcpServers: o.mcpServers,
-    settings: o.settings,
-    maxTurns: o.maxTurns,
-    effort: o.effort,
-    persistSession: o.persistSession ?? true,
-    noMcp: o.noMcp,
-    worktree: o.worktree,
+    cwd: c.workingDirectory ?? defaultCwd,
+    model: c.model,
+    fallbackModel: c.fallbackModel,
+    permissionMode: c.permissionMode,
+    systemPrompt: c.systemMessage?.mode === "replace" ? c.systemMessage.content : undefined,
+    appendSystemPrompt: c.systemMessage && c.systemMessage.mode !== "replace" ? c.systemMessage.content : undefined,
+    allowedTools: c.allowedTools,
+    disallowedTools: c.excludedTools,
+    tools: c.availableTools,
+    hostTools: c.tools?.map((t) => ({
+      name: t.name,
+      description: t.description,
+      inputSchema: toJsonSchema(t.parameters),
+      readOnly: t.readOnly ?? false,
+    })),
+    mcpServers: c.mcpServers,
+    settings: Object.keys(settings).length > 0 ? settings : undefined,
+    maxTurns: c.maxTurns,
+    effort: c.reasoningEffort,
+    persistSession: c.persistSession ?? true,
+    noMcp: c.disableMcp,
+    worktree: c.worktree,
   };
 }
 
-export class Session {
-  readonly id: string;
-  model: string;
-  private listeners = new Set<(e: AgentEvent) => void>();
+function decisionToWire(d: PermissionDecision) {
+  switch (d.kind) {
+    case "approve-once": return { decision: "allow", updatedInput: d.updatedInput };
+    case "approve-for-session": return { decision: "allow_session", updatedInput: d.updatedInput };
+    case "approve-always": return { decision: "allow_always", rule: d.rule, updatedInput: d.updatedInput };
+    case "reject": return { decision: "deny", feedback: d.feedback };
+  }
+}
 
-  constructor(private readonly peer: JsonRpcPeer, public readonly info: SessionInfo, private readonly options: SessionOptions) {
-    this.id = info.sessionId;
+function planToWire(r: ExitPlanModeResult) {
+  if (r.approved) return { approval: r.acceptEdits ? "approve_accept_edits" : "approve" };
+  return { approval: "reject", feedback: r.feedback };
+}
+
+function isToolResultObject(v: unknown): v is ToolResultObject {
+  return typeof v === "object" && v !== null && typeof (v as ToolResultObject).textResultForLlm === "string";
+}
+
+function toolResultToWire(value: unknown) {
+  if (typeof value === "string") return { content: value };
+  if (isToolResultObject(value)) {
+    const images = value.binaryResultsForLlm ?? [];
+    const content = images.length === 0
+      ? value.textResultForLlm
+      : [{ type: "text", text: value.textResultForLlm }, ...images.map((b) => ({ type: "image", data: b.data, mediaType: b.mimeType }))];
+    return { content, isError: value.resultType === "failure" };
+  }
+  return { content: value === undefined ? "" : JSON.stringify(value) };
+}
+
+export class DotCodeSession {
+  readonly sessionId: string;
+  model: string;
+  private readonly handlers = new Set<SessionEventHandler>();
+  private readonly tools: Map<string, Tool>;
+
+  /** @internal */
+  constructor(
+    private readonly peer: JsonRpcPeer,
+    public readonly info: SessionInfo,
+    private readonly config: SessionConfig,
+    private readonly onDisconnect: () => void,
+  ) {
+    this.sessionId = info.sessionId;
     this.model = info.model;
+    this.tools = new Map((config.tools ?? []).map((t) => [t.name, t]));
   }
 
-  /** Subscribe to engine events; returns an unsubscribe function. */
-  on(listener: (e: AgentEvent) => void): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+  /** Subscribes to one event type with a typed handler. Returns an unsubscribe function. */
+  on<K extends SessionEventType>(type: K, handler: TypedSessionEventHandler<K>): () => void;
+  /** Subscribes to all events. Returns an unsubscribe function. */
+  on(handler: SessionEventHandler): () => void;
+  on(a: SessionEventType | SessionEventHandler, b?: (e: any) => void): () => void {
+    const handler: SessionEventHandler = typeof a === "function" ? a : (e) => { if (e.type === a) b!(e); };
+    this.handlers.add(handler);
+    return () => this.handlers.delete(handler);
   }
 
   /** @internal */
-  _dispatch(e: AgentEvent) {
+  _dispatch(e: SessionEvent) {
     if (e.type === "model.changed") this.model = e.model;
-    this.options.onEvent?.(e);
-    for (const l of this.listeners) l(e);
+    this.config.onEvent?.(e);
+    for (const h of this.handlers) {
+      try { h(e); } catch { /* a failing listener must not break the session */ }
+    }
   }
 
   /** @internal */
   async _handleServerRequest(method: string, params: any): Promise<unknown> {
+    const invocation = { sessionId: this.sessionId };
     switch (method) {
       case "permission.request": {
-        const handler = this.options.onPermissionRequest;
-        const decision: PermissionDecision = handler
-          ? await handler(params.request)
-          : { decision: "deny", feedback: "No permission handler registered in the SDK host (deny by default)." };
-        return decision;
+        const handler = this.config.onPermissionRequest;
+        if (!handler) return { decision: "deny", feedback: "No permission handler registered in the SDK host (deny by default)." };
+        return decisionToWire(await handler(params.request, invocation));
       }
-      case "user.question":
-        return { answers: this.options.onQuestion ? await this.options.onQuestion(params.questions) : [] };
-      case "plan.review":
-        return { approval: this.options.onPlanReview && !(await this.options.onPlanReview(params.plan)) ? "reject" : "approve" };
+      case "user.question": {
+        const handler = this.config.onUserInputRequest;
+        return { answers: handler ? await handler({ questions: params.questions }, invocation) : [] };
+      }
+      case "plan.review": {
+        const handler = this.config.onExitPlanMode;
+        return handler ? planToWire(await handler({ plan: params.plan }, invocation)) : { approval: "approve" };
+      }
       case "tool.call": {
-        const tool = this.options.tools?.find((t) => t.name === params.name);
+        const tool = this.tools.get(params.name);
         if (!tool) throw new JsonRpcError(-32601, `Unknown host tool ${params.name}`);
+        const toolInvocation: ToolInvocation = {
+          sessionId: this.sessionId, toolCallId: params.toolUseId, toolName: params.name, arguments: params.input,
+        };
         try {
-          const content: ToolContent = await tool.handler(params.input, { sessionId: this.id, toolUseId: params.toolUseId });
-          return { content: typeof content === "string" ? content : content };
+          const args = tool.parameters?.parse ? tool.parameters.parse(params.input ?? {}) : (params.input ?? {});
+          return toolResultToWire(await tool.handler(args, toolInvocation));
         } catch (e: any) {
           return { content: `Error: ${e?.message ?? e}`, isError: true };
         }
@@ -193,21 +341,49 @@ export class Session {
     throw new JsonRpcError(-32601, method);
   }
 
-  /** Runs a prompt to completion. */
-  send(prompt: string, options: { attachments?: { type: "image"; data: string; mediaType: string }[] } = {}): Promise<SendResult> {
-    return this.peer.request<SendResult>("session.send", { sessionId: this.id, prompt, attachments: options.attachments });
+  /**
+   * Starts a turn and returns once it is dispatched; follow progress with {@link on} (`turn.completed` marks the end).
+   * Failures are reported as an `error` event.
+   */
+  async send(message: string | MessageOptions): Promise<void> {
+    this.request(message).catch((e: any) =>
+      this._dispatch({ type: "error", sessionId: this.sessionId, code: "send_failed", message: e?.message ?? String(e), retryable: false }),
+    );
   }
 
-  /** Runs a prompt and yields events as they arrive; the last event is `turn.completed`. */
-  async *stream(prompt: string): AsyncGenerator<AgentEvent, SendResult> {
-    const queue: AgentEvent[] = [];
+  /** Runs a turn to completion and returns its result. With `timeoutMs` the turn is aborted when it takes longer. */
+  async sendAndWait(message: string | MessageOptions, timeoutMs?: number): Promise<SendResult> {
+    const run = this.request(message);
+    if (timeoutMs === undefined) return run;
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        this.abort().catch(() => {});
+        reject(new Error(`Turn did not complete within ${timeoutMs} ms`));
+      }, timeoutMs);
+    });
+    try {
+      return await Promise.race([run, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private request(message: string | MessageOptions): Promise<SendResult> {
+    const m = typeof message === "string" ? { prompt: message } : message;
+    return this.peer.request<SendResult>("session.send", { sessionId: this.sessionId, prompt: m.prompt, attachments: m.attachments });
+  }
+
+  /** Runs a turn and yields its events as they arrive; the last one is `turn.completed`. Returns the result. */
+  async *stream(message: string | MessageOptions): AsyncGenerator<SessionEvent, SendResult> {
+    const queue: SessionEvent[] = [];
     let wake: (() => void) | undefined;
     let done = false;
     const off = this.on((e) => {
       queue.push(e);
       wake?.();
     });
-    const result = this.send(prompt).finally(() => {
+    const result = this.request(message).finally(() => {
       done = true;
       wake?.();
     });
@@ -229,18 +405,34 @@ export class Session {
     return result;
   }
 
-  abort() { return this.peer.request("session.abort", { sessionId: this.id }); }
-  setModel(model: string) { return this.peer.request("session.setModel", { sessionId: this.id, model }); }
-  setPermissionMode(mode: string) { return this.peer.request("session.setMode", { sessionId: this.id, mode }); }
-  setEffort(effort: string) { return this.peer.request("session.setEffort", { sessionId: this.id, effort }); }
-  compact(instructions?: string) { return this.peer.request("session.compact", { sessionId: this.id, instructions }); }
-  clear() { return this.peer.request("session.clear", { sessionId: this.id }); }
-  messages(): Promise<{ messages: unknown[] }> { return this.peer.request("session.messages", { sessionId: this.id }); }
-  tools(): Promise<{ tools: { name: string; description: string; inputSchema: unknown }[] }> { return this.peer.request("tools.list", { sessionId: this.id }); }
-  close() { return this.peer.request("session.close", { sessionId: this.id }); }
-}
+  /** Cancels the running turn. */
+  async abort(): Promise<void> { await this.call("session.abort"); }
+  async setModel(model: string): Promise<void> { await this.call("session.setModel", { model }); this.model = model; }
+  async setPermissionMode(mode: PermissionMode): Promise<void> { await this.call("session.setMode", { mode }); }
+  async setReasoningEffort(effort: ReasoningEffort): Promise<void> { await this.call("session.setEffort", { effort }); }
+  /** Summarizes the conversation to free context. */
+  async compact(instructions?: string): Promise<void> { await this.call("session.compact", { instructions }); }
+  /** Clears the conversation. */
+  async clear(): Promise<void> { await this.call("session.clear"); }
+  /** The conversation so far (provider-neutral messages). */
+  async getMessages(): Promise<unknown[]> {
+    return (await this.call<{ messages: unknown[] }>("session.messages")).messages;
+  }
+  /** Tools available to the model (built-in, MCP and yours). */
+  async listTools(): Promise<ToolInfo[]> {
+    return (await this.call<{ tools: ToolInfo[] }>("tools.list")).tools;
+  }
 
-/** Helper to define a typed tool. */
-export function tool<TInput = any>(definition: import("./types.js").DotCodeTool<TInput>) {
-  return definition;
+  /** Closes the session on the server; the transcript stays on disk for {@link DotCodeClient.resumeSession}. */
+  async disconnect(): Promise<void> {
+    try { await this.call("session.close"); } finally { this.onDisconnect(); this.handlers.clear(); }
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.disconnect();
+  }
+
+  private call<T = unknown>(method: string, extra: Record<string, unknown> = {}): Promise<T> {
+    return this.peer.request<T>(method, { sessionId: this.sessionId, ...extra });
+  }
 }

@@ -1,242 +1,59 @@
 use crate::client::Inner;
+use crate::config::SessionConfig;
+use crate::event::{SessionEvent, SessionEventData};
+use crate::tool::ToolInvocation;
 use crate::types::{
-    Error, Event, McpServer, PermissionDecision, PermissionRequest, Result, SendResult,
-    SessionInfo, UserQuestion, UserQuestionAnswer,
+    Attachment, Error, ExitPlanModeResult, Invocation, MessageOptions, PermissionDecision,
+    PermissionMode, PermissionRequest, ReasoningEffort, Result, SendResult, SessionInfo, ToolInfo,
+    UserQuestion,
 };
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
+use std::time::Duration;
 
-type ToolHandler = dyn Fn(&Value) -> std::result::Result<String, String> + Send + Sync;
-
-/// A tool implemented by your application and offered to the model.
-#[derive(Clone)]
-pub struct Tool {
-    pub name: String,
-    pub description: String,
-    /// JSON Schema of the input object.
-    pub input_schema: Value,
-    /// Read-only tools can run in parallel and need no approval.
-    pub read_only: bool,
-    handler: Arc<ToolHandler>,
-}
-
-impl Tool {
-    /// `handler` receives the input JSON and returns the tool output (or an error message shown to the model).
-    pub fn new(
-        name: impl Into<String>,
-        description: impl Into<String>,
-        input_schema: Value,
-        handler: impl Fn(&Value) -> std::result::Result<String, String> + Send + Sync + 'static,
-    ) -> Tool {
-        Tool {
-            name: name.into(),
-            description: description.into(),
-            input_schema,
-            read_only: false,
-            handler: Arc::new(handler),
-        }
-    }
-
-    pub fn read_only(mut self) -> Tool {
-        self.read_only = true;
-        self
-    }
-}
-
-impl std::fmt::Debug for Tool {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Tool")
-            .field("name", &self.name)
-            .field("read_only", &self.read_only)
-            .finish()
-    }
-}
-
-pub type PermissionHandler = Arc<dyn Fn(&PermissionRequest) -> PermissionDecision + Send + Sync>;
-pub type QuestionHandler = Arc<dyn Fn(&[UserQuestion]) -> Vec<UserQuestionAnswer> + Send + Sync>;
-pub type PlanHandler = Arc<dyn Fn(&str) -> bool + Send + Sync>;
-pub type EventHandler = Arc<dyn Fn(&Event) + Send + Sync>;
-
-/// Session configuration; unset fields fall back to the user's DotCode settings.
-#[derive(Clone, Default)]
-pub struct SessionOptions {
-    /// `provider:model`, an alias or a role, e.g. `anthropic:claude-sonnet-4-5`, `openai:gpt-5`, `ollama:qwen3-coder`.
-    pub model: Option<String>,
-    pub fallback_model: Option<String>,
-    pub cwd: Option<String>,
-    /// `default` | `acceptEdits` | `auto` | `plan` | `bypassPermissions`
-    pub permission_mode: Option<String>,
-    pub system_prompt: Option<String>,
-    pub append_system_prompt: Option<String>,
-    /// Permission rules, e.g. `Bash(npm test:*)`.
-    pub allowed_tools: Vec<String>,
-    pub disallowed_tools: Vec<String>,
-    /// Restrict the built-in tools (empty = all).
-    pub builtin_tools: Vec<String>,
-    pub tools: Vec<Tool>,
-    pub mcp_servers: HashMap<String, McpServer>,
-    /// Inline settings merged over settings files, e.g. `{"providers": {...}}` for bring-your-own-key.
-    pub settings: Option<Value>,
-    pub max_turns: Option<u32>,
-    /// `off` | `low` | `medium` | `high` | `xhigh`
-    pub effort: Option<String>,
-    pub persist_session: Option<bool>,
-    pub no_mcp: bool,
-    /// Run in a fresh git worktree (`Some("")`) or a named one (`Some("name")`).
-    pub worktree: Option<String>,
-    /// Approves tool calls. Without it the session is deny-by-default.
-    pub on_permission_request: Option<PermissionHandler>,
-    pub on_question: Option<QuestionHandler>,
-    pub on_plan_review: Option<PlanHandler>,
-    pub on_event: Option<EventHandler>,
-}
-
-impl SessionOptions {
-    pub fn model(mut self, model: impl Into<String>) -> Self {
-        self.model = Some(model.into());
-        self
-    }
-    pub fn permission_mode(mut self, mode: impl Into<String>) -> Self {
-        self.permission_mode = Some(mode.into());
-        self
-    }
-    pub fn settings(mut self, settings: Value) -> Self {
-        self.settings = Some(settings);
-        self
-    }
-    pub fn tool(mut self, tool: Tool) -> Self {
-        self.tools.push(tool);
-        self
-    }
-    pub fn allow_tool(mut self, rule: impl Into<String>) -> Self {
-        self.allowed_tools.push(rule.into());
-        self
-    }
-    pub fn on_permission_request(
-        mut self,
-        f: impl Fn(&PermissionRequest) -> PermissionDecision + Send + Sync + 'static,
-    ) -> Self {
-        self.on_permission_request = Some(Arc::new(f));
-        self
-    }
-    pub fn on_question(
-        mut self,
-        f: impl Fn(&[UserQuestion]) -> Vec<UserQuestionAnswer> + Send + Sync + 'static,
-    ) -> Self {
-        self.on_question = Some(Arc::new(f));
-        self
-    }
-    pub fn on_plan_review(mut self, f: impl Fn(&str) -> bool + Send + Sync + 'static) -> Self {
-        self.on_plan_review = Some(Arc::new(f));
-        self
-    }
-    pub fn on_event(mut self, f: impl Fn(&Event) + Send + Sync + 'static) -> Self {
-        self.on_event = Some(Arc::new(f));
-        self
-    }
-
-    pub(crate) fn wire(&self, default_cwd: Option<&str>) -> Value {
-        let mut m = Map::new();
-        let mut set = |k: &str, v: &Option<String>| {
-            if let Some(v) = v.as_ref().filter(|v| !v.is_empty()) {
-                m.insert(k.into(), Value::String(v.clone()));
-            }
-        };
-        set(
-            "cwd",
-            &self.cwd.clone().or_else(|| default_cwd.map(str::to_string)),
-        );
-        set("model", &self.model);
-        set("fallbackModel", &self.fallback_model);
-        set("permissionMode", &self.permission_mode);
-        set("systemPrompt", &self.system_prompt);
-        set("appendSystemPrompt", &self.append_system_prompt);
-        set("effort", &self.effort);
-        if !self.allowed_tools.is_empty() {
-            m.insert("allowedTools".into(), json!(self.allowed_tools));
-        }
-        if !self.disallowed_tools.is_empty() {
-            m.insert("disallowedTools".into(), json!(self.disallowed_tools));
-        }
-        if !self.builtin_tools.is_empty() {
-            m.insert("tools".into(), json!(self.builtin_tools));
-        }
-        if !self.mcp_servers.is_empty() {
-            m.insert(
-                "mcpServers".into(),
-                serde_json::to_value(&self.mcp_servers).unwrap_or(Value::Null),
-            );
-        }
-        if let Some(s) = &self.settings {
-            m.insert("settings".into(), s.clone());
-        }
-        if let Some(t) = self.max_turns {
-            m.insert("maxTurns".into(), json!(t));
-        }
-        if let Some(p) = self.persist_session {
-            m.insert("persistSession".into(), json!(p));
-        }
-        if self.no_mcp {
-            m.insert("noMcp".into(), json!(true));
-        }
-        match self.worktree.as_deref() {
-            Some("") => {
-                m.insert("worktree".into(), json!(true));
-            }
-            Some(name) => {
-                m.insert("worktree".into(), json!(name));
-            }
-            None => {}
-        }
-        if !self.tools.is_empty() {
-            let tools: Vec<Value> = self
-                .tools
-                .iter()
-                .map(|t| {
-                    let schema = if t.input_schema.is_null() { json!({"type": "object", "properties": {}}) } else { t.input_schema.clone() };
-                    json!({"name": t.name, "description": t.description, "inputSchema": schema, "readOnly": t.read_only})
-                })
-                .collect();
-            m.insert("hostTools".into(), Value::Array(tools));
-        }
-        Value::Object(m)
-    }
-}
+type Callback = Arc<dyn Fn(&SessionEvent) + Send + Sync>;
 
 pub(crate) enum StreamItem {
-    Event(Box<Event>),
+    Event(Box<SessionEvent>),
     Done(Result<SendResult>),
 }
 
-/// Per-session state shared with the reader thread (callbacks and stream watchers).
+/// Per-session state shared with the reader thread (callbacks and subscribers).
 pub(crate) struct SessionShared {
-    options: SessionOptions,
+    config: SessionConfig,
+    session_id: Mutex<String>,
     model: Mutex<String>,
+    next_sub: AtomicU64,
+    handlers: Mutex<HashMap<u64, Callback>>,
     watchers: Mutex<Vec<Sender<StreamItem>>>,
 }
 
 impl SessionShared {
-    pub(crate) fn new(options: SessionOptions, model: String) -> Self {
+    pub(crate) fn new(config: SessionConfig, info: &SessionInfo) -> Self {
         SessionShared {
-            options,
-            model: Mutex::new(model),
+            config,
+            session_id: Mutex::new(info.session_id.clone()),
+            model: Mutex::new(info.model.clone()),
+            next_sub: AtomicU64::new(0),
+            handlers: Mutex::new(HashMap::new()),
             watchers: Mutex::new(Vec::new()),
         }
     }
 
-    pub(crate) fn dispatch(&self, raw: &Value) {
-        let mut event: Event = serde_json::from_value(raw.clone()).unwrap_or_default();
-        event.raw = raw.clone();
-        if event.kind == "model.changed" {
-            if let Some(m) = &event.model {
-                *self.model.lock().unwrap() = m.clone();
-            }
+    pub(crate) fn dispatch(&self, event: SessionEvent) {
+        if let SessionEventData::ModelChanged { model } = &event.data {
+            *self.model.lock().unwrap() = model.clone();
         }
-        if let Some(f) = &self.options.on_event {
+        if let Some(f) = &self.config.on_event {
             f(&event);
+        }
+        let handlers: Vec<Callback> = self.handlers.lock().unwrap().values().cloned().collect();
+        for h in handlers {
+            h(&event);
         }
         self.watchers
             .lock()
@@ -249,49 +66,77 @@ impl SessionShared {
         method: &str,
         params: &Value,
     ) -> std::result::Result<Value, String> {
+        let invocation = Invocation {
+            session_id: self.session_id.lock().unwrap().clone(),
+        };
         match method {
             "permission.request" => {
                 let request: PermissionRequest =
                     serde_json::from_value(params["request"].clone()).map_err(|e| e.to_string())?;
-                let decision = match &self.options.on_permission_request {
-                    Some(f) => f(&request),
-                    None => PermissionDecision::deny_with(
-                        "No permission handler registered in the SDK host (deny by default).",
-                    ),
+                let decision = match &self.config.permission_handler {
+                    Some(h) => h.handle(&request, &invocation),
+                    None => PermissionDecision::reject(Some(
+                        "No permission handler registered in the SDK host (deny by default)."
+                            .into(),
+                    )),
                 };
-                serde_json::to_value(decision).map_err(|e| e.to_string())
+                Ok(decision.wire())
             }
             "user.question" => {
                 let questions: Vec<UserQuestion> =
                     serde_json::from_value(params["questions"].clone()).unwrap_or_default();
                 let answers = self
-                    .options
-                    .on_question
+                    .config
+                    .user_input_handler
                     .as_ref()
-                    .map(|f| f(&questions))
+                    .map(|h| h.handle(&questions, &invocation))
                     .unwrap_or_default();
                 Ok(json!({"answers": answers}))
             }
             "plan.review" => {
-                let approve = self
-                    .options
-                    .on_plan_review
-                    .as_ref()
-                    .map(|f| f(params["plan"].as_str().unwrap_or("")))
-                    .unwrap_or(true);
-                Ok(json!({"approval": if approve { "approve" } else { "reject" }}))
+                let plan = params["plan"].as_str().unwrap_or("");
+                Ok(
+                    match self
+                        .config
+                        .exit_plan_mode_handler
+                        .as_ref()
+                        .map(|h| h.handle(plan, &invocation))
+                    {
+                        None | Some(ExitPlanModeResult::Approve) => json!({"approval": "approve"}),
+                        Some(ExitPlanModeResult::ApproveAndAcceptEdits) => {
+                            json!({"approval": "approve_accept_edits"})
+                        }
+                        Some(ExitPlanModeResult::Reject { feedback }) => {
+                            json!({"approval": "reject", "feedback": feedback})
+                        }
+                    },
+                )
             }
             "tool.call" => {
                 let name = params["name"].as_str().unwrap_or("");
                 let tool = self
-                    .options
+                    .config
                     .tools
                     .iter()
                     .find(|t| t.name == name)
                     .ok_or_else(|| format!("unknown host tool {name}"))?;
-                Ok(match (tool.handler)(&params["input"]) {
-                    Ok(out) => json!({"content": out}),
-                    Err(e) => json!({"content": format!("Error: {e}"), "isError": true}),
+                let handler = tool
+                    .handler
+                    .as_ref()
+                    .ok_or_else(|| format!("tool {name} has no handler"))?;
+                let call = ToolInvocation {
+                    session_id: invocation.session_id,
+                    tool_call_id: params["toolUseId"].as_str().unwrap_or("").to_string(),
+                    tool_name: name.to_string(),
+                    arguments: params["input"].clone(),
+                };
+                let handler = Arc::clone(handler);
+                let result =
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| handler.call(call)));
+                Ok(match result {
+                    Ok(Ok(r)) => r.wire(),
+                    Ok(Err(e)) => json!({"content": format!("Error: {e}"), "isError": true}),
+                    Err(_) => json!({"content": "Error: tool handler panicked", "isError": true}),
                 })
             }
             other => Err(format!("unsupported callback {other}")),
@@ -299,12 +144,13 @@ impl SessionShared {
     }
 }
 
-/// One conversation with the agent.
+/// One conversation with the agent. The API is synchronous (thread-based); from async code, call it inside
+/// `spawn_blocking`.
 pub struct Session {
     inner: Arc<Inner>,
     shared: Arc<SessionShared>,
     /// Session id (use it with `Client::resume_session`).
-    pub id: String,
+    pub session_id: String,
     pub info: SessionInfo,
 }
 
@@ -313,7 +159,7 @@ impl Session {
         Session {
             inner,
             shared,
-            id: info.session_id.clone(),
+            session_id: info.session_id.clone(),
             info,
         }
     }
@@ -323,23 +169,113 @@ impl Session {
         self.shared.model.lock().unwrap().clone()
     }
 
-    /// Runs a prompt to completion.
-    pub fn send(&self, prompt: &str) -> Result<SendResult> {
-        let v = self.inner.call(
-            "session.send",
-            json!({"sessionId": self.id, "prompt": prompt}),
-            None,
-        )?;
+    /// Calls `handler` for every event; returns a [`Subscription`] that unsubscribes when dropped (or
+    /// [`Subscription::detach`]ed to keep it for the session's lifetime).
+    pub fn on<F>(&self, handler: F) -> Subscription
+    where
+        F: Fn(&SessionEvent) + Send + Sync + 'static,
+    {
+        let id = self.shared.next_sub.fetch_add(1, Ordering::SeqCst);
+        self.shared
+            .handlers
+            .lock()
+            .unwrap()
+            .insert(id, Arc::new(handler));
+        Subscription {
+            shared: Arc::downgrade(&self.shared),
+            id: Some(id),
+        }
+    }
+
+    /// A channel receiving every event from now on.
+    pub fn subscribe(&self) -> Receiver<SessionEvent> {
+        let (tx, rx) = mpsc::channel();
+        self.on(move |e| {
+            let _ = tx.send(e.clone());
+        })
+        .detach();
+        rx
+    }
+
+    fn send_params(&self, message: MessageOptions) -> Value {
+        let attachments: Vec<Value> = message
+            .attachments
+            .iter()
+            .map(|a| match a {
+                Attachment::File { path } => json!({"type": "file", "path": path}),
+                Attachment::Image { data, media_type } => {
+                    json!({"type": "image", "data": data, "mediaType": media_type})
+                }
+            })
+            .collect();
+        let mut params = json!({"sessionId": self.session_id, "prompt": message.prompt});
+        if !attachments.is_empty() {
+            params["attachments"] = Value::Array(attachments);
+        }
+        params
+    }
+
+    /// Starts a turn and returns once it is dispatched; follow it with [`Session::on`] (a `TurnCompleted` event
+    /// ends it). Failures are delivered as an `Error` event.
+    pub fn send(&self, message: impl Into<MessageOptions>) -> Result<()> {
+        let params = self.send_params(message.into());
+        let inner = Arc::clone(&self.inner);
+        let shared = Arc::clone(&self.shared);
+        let session_id = self.session_id.clone();
+        thread::Builder::new()
+            .name("dotcode-sdk-send".into())
+            .spawn(move || {
+                if let Err(e) = inner.call("session.send", params, None) {
+                    shared.dispatch(SessionEvent {
+                        session_id: Some(session_id),
+                        parent_tool_use_id: None,
+                        data: SessionEventData::Error {
+                            code: "send_failed".into(),
+                            message: e.to_string(),
+                            retryable: false,
+                        },
+                    });
+                }
+            })?;
+        Ok(())
+    }
+
+    /// Runs a turn to completion and returns its result.
+    pub fn send_and_wait(&self, message: impl Into<MessageOptions>) -> Result<SendResult> {
+        let v = self
+            .inner
+            .call("session.send", self.send_params(message.into()), None)?;
         Ok(serde_json::from_value(v)?)
     }
 
-    /// Runs a prompt and yields its events as they happen; the iterator ends after the turn completes, then
+    /// Like [`Session::send_and_wait`]; when the turn takes longer than `timeout` it is aborted and
+    /// [`Error::Timeout`] is returned.
+    pub fn send_and_wait_timeout(
+        &self,
+        message: impl Into<MessageOptions>,
+        timeout: Duration,
+    ) -> Result<SendResult> {
+        match self.inner.call(
+            "session.send",
+            self.send_params(message.into()),
+            Some(timeout),
+        ) {
+            Ok(v) => Ok(serde_json::from_value(v)?),
+            Err(Error::Timeout) => {
+                let _ = self.abort();
+                Err(Error::Timeout)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Runs a turn and yields its events as they happen; the iterator ends after the turn completes, then
     /// [`EventStream::result`] returns the outcome.
-    pub fn stream(&self, prompt: &str) -> EventStream {
+    pub fn stream(&self, message: impl Into<MessageOptions>) -> EventStream {
         let (tx, rx) = mpsc::channel();
         self.shared.watchers.lock().unwrap().push(tx.clone());
         let inner = Arc::clone(&self.inner);
-        let params = json!({"sessionId": self.id, "prompt": prompt});
+        let params = self.send_params(message.into());
         let worker = thread::spawn(move || {
             let result = inner
                 .call("session.send", params, None)
@@ -355,49 +291,90 @@ impl Session {
         }
     }
 
-    fn simple(&self, method: &str, extra: Value) -> Result<()> {
-        let mut params = json!({"sessionId": self.id});
+    fn call(&self, method: &str, extra: Value) -> Result<Value> {
+        let mut params = json!({"sessionId": self.session_id});
         if let (Value::Object(p), Value::Object(e)) = (&mut params, extra) {
             p.extend(e);
         }
-        self.inner.call(method, params, None).map(|_| ())
+        self.inner.call(method, params, None)
     }
 
-    /// Interrupts the running turn.
+    /// Cancels the running turn.
     pub fn abort(&self) -> Result<()> {
-        self.simple("session.abort", json!({}))
+        self.call("session.abort", json!({})).map(|_| ())
     }
 
     /// Switches the model (any configured provider).
     pub fn set_model(&self, model: &str) -> Result<()> {
-        self.simple("session.setModel", json!({"model": model}))?;
+        self.call("session.setModel", json!({"model": model}))?;
         *self.shared.model.lock().unwrap() = model.to_string();
         Ok(())
     }
 
-    /// `default` | `acceptEdits` | `auto` | `plan` | `bypassPermissions`
-    pub fn set_permission_mode(&self, mode: &str) -> Result<()> {
-        self.simple("session.setMode", json!({"mode": mode}))
+    pub fn set_permission_mode(&self, mode: PermissionMode) -> Result<()> {
+        self.call("session.setMode", json!({"mode": mode}))
+            .map(|_| ())
+    }
+
+    pub fn set_reasoning_effort(&self, effort: ReasoningEffort) -> Result<()> {
+        self.call("session.setEffort", json!({"effort": effort}))
+            .map(|_| ())
     }
 
     /// Summarizes the conversation to free context.
     pub fn compact(&self, instructions: Option<&str>) -> Result<()> {
-        self.simple("session.compact", json!({"instructions": instructions}))
+        self.call("session.compact", json!({"instructions": instructions}))
+            .map(|_| ())
     }
 
-    /// The raw transcript messages.
-    pub fn messages(&self) -> Result<Vec<Value>> {
-        let v = self
-            .inner
-            .call("session.messages", json!({"sessionId": self.id}), None)?;
-        Ok(v["messages"].as_array().cloned().unwrap_or_default())
+    /// Clears the conversation.
+    pub fn clear(&self) -> Result<()> {
+        self.call("session.clear", json!({})).map(|_| ())
     }
 
-    /// Ends the session on the server (an unchanged worktree is removed).
-    pub fn close(self) -> Result<()> {
-        let r = self.simple("session.close", json!({}));
-        self.inner.sessions.lock().unwrap().remove(&self.id);
+    /// The conversation so far (provider-neutral messages).
+    pub fn get_messages(&self) -> Result<Vec<Value>> {
+        Ok(self.call("session.messages", json!({}))?["messages"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    /// Tools available to the model (built-in, MCP and yours).
+    pub fn list_tools(&self) -> Result<Vec<ToolInfo>> {
+        Ok(
+            serde_json::from_value(self.call("tools.list", json!({}))?["tools"].clone())
+                .unwrap_or_default(),
+        )
+    }
+
+    /// Closes the session; the transcript stays on disk for `Client::resume_session` (an unchanged worktree is
+    /// removed).
+    pub fn disconnect(self) -> Result<()> {
+        let r = self.call("session.close", json!({})).map(|_| ());
+        self.inner.sessions.lock().unwrap().remove(&self.session_id);
         r
+    }
+}
+
+/// Unsubscribes its handler when dropped.
+pub struct Subscription {
+    shared: std::sync::Weak<SessionShared>,
+    id: Option<u64>,
+}
+
+impl Subscription {
+    /// Keeps the handler for the session's lifetime.
+    pub fn detach(mut self) {
+        self.id = None;
+    }
+}
+
+impl Drop for Subscription {
+    fn drop(&mut self) {
+        if let (Some(id), Some(shared)) = (self.id, self.shared.upgrade()) {
+            shared.handlers.lock().unwrap().remove(&id);
+        }
     }
 }
 
@@ -410,9 +387,9 @@ pub struct EventStream {
 }
 
 impl Iterator for EventStream {
-    type Item = Event;
+    type Item = SessionEvent;
 
-    fn next(&mut self) -> Option<Event> {
+    fn next(&mut self) -> Option<SessionEvent> {
         if self.done {
             return None;
         }

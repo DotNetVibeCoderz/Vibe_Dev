@@ -27,7 +27,7 @@ describe("DotCode extension", () => {
     const asked: string[] = [];
     controller.autoPermission = (request) => {
       asked.push(`${request.toolName}:${request.displayName}`);
-      return { decision: "allow" };
+      return { kind: "approve-once" };
     };
     const seen: HostMessage[] = [];
     const sub = controller.onMessage((m) => seen.push(m));
@@ -49,7 +49,7 @@ describe("DotCode extension", () => {
 
   it("reports a denied edit back to the model and leaves the file untouched", async () => {
     const { controller } = await api();
-    controller.autoPermission = () => ({ decision: "deny", feedback: "Not in this test" });
+    controller.autoPermission = () => ({ kind: "reject", feedback: "Not in this test" });
     const result = await controller.send("now try an edit");
     assert.strictEqual(result!.result, "Understood, I will not write it.");
     assert.ok(!fs.existsSync(path.join(workspace, "denied.txt")), "file not written");

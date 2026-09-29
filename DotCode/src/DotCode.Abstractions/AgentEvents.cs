@@ -101,6 +101,15 @@ public sealed record PermissionDecision(PermissionDecisionKind Kind, string? Fee
     public bool Allowed => Kind != PermissionDecisionKind.Deny;
     public static readonly PermissionDecision AllowOnce = new(PermissionDecisionKind.AllowOnce);
     public static PermissionDecision Deny(string? feedback = null) => new(PermissionDecisionKind.Deny, feedback);
+
+    /// <summary>Allow this single call (optionally with modified input).</summary>
+    public static PermissionDecision ApproveOnce(JsonElement? updatedInput = null) => new(PermissionDecisionKind.AllowOnce, UpdatedInput: updatedInput);
+    /// <summary>Allow matching calls for the rest of the session.</summary>
+    public static PermissionDecision ApproveForSession() => new(PermissionDecisionKind.AllowSession);
+    /// <summary>Allow and persist a rule (null: the request's suggested rule).</summary>
+    public static PermissionDecision ApproveAlways(string? rule = null) => new(PermissionDecisionKind.AllowAlways, Rule: rule);
+    /// <summary>Deny; <paramref name="feedback"/> is returned to the model.</summary>
+    public static PermissionDecision Reject(string? feedback = null) => new(PermissionDecisionKind.Deny, feedback);
 }
 
 public sealed record QuestionOption(string Label, string? Description = null);
