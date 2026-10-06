@@ -1,0 +1,189 @@
+@page "/channels"
+@inherits LiveComponent
+@inject ChannelGateway Gateway
+@inject BotRegistry Registry
+@inject NavigationManager Nav
+
+<PageTitle>@T["nav.channels"] · Marbots</PageTitle>
+<div class="page">
+    <div class="page-head">
+        <div>
+            <h1>@T["nav.channels"]</h1>
+            <p>Let people reach your bots from web chat, Telegram, Slack, WhatsApp, Discord or any webhook. Each external conversation becomes a thread, so the bot remembers it. Messages from channels are untrusted input: give channel bots a narrow permission profile.</p>
+        </div>
+        <button class="btn primary" @onclick="New"><Icon Name="plus" /> Add channel</button>
+    </div>
+    @if (_message is not null) { <div class="@(_isError ? "error-box" : "ok-box")">@_message</div> }
+
+    @if (_edit is not null)
+    {
+        <div class="panel panel-pad" style="margin-bottom:16px">
+            <div class="split">
+                <label class="field"><span>Name</span><input class="input" @bind="_edit.Name" placeholder="Website chat" /></label>
+                <label class="field"><span>Kind</span>
+                    <select class="select" @bind="_edit.Kind">
+                        @foreach (var k in ChannelKinds.All) { <option value="@k">@Label(k)</option> }
+                    </select>
+                </label>
+                <label class="field"><span>Bot that answers</span>
+                    <select class="select" @bind="_edit.BotId">@foreach (var b in _bots) { <option value="@b.Id">@b.Name — @b.Role</option> }</select>
+                </label>
+                <label class="field"><span>Allowed senders <small>(ids, comma separated; empty = everyone)</small></span><input class="input" @bind="AllowedText" /></label>
+            </div>
+            <p class="small-text muted">@Help(_edit.Kind)</p>
+            <div class="split">
+                @foreach (var s in SettingFields(_edit.Kind))
+                {
+                    <label class="field"><span>@s.Label</span><input class="input" value="@_edit.Settings.GetValueOrDefault(s.Key)" placeholder="@s.Placeholder" @onchange="e => _edit.Settings[s.Key] = e.Value?.ToString() ?? string.Empty" /></label>
+                }
+                @foreach (var s in SecretFields(_edit.Kind))
+                {
+                    <label class="field"><span>@s.Label @if (_edit.SecretRefs.ContainsKey(s.Key)) { <small>(stored — leave empty to keep)</small> }</span>
+                        <input class="input" type="password" autocomplete="off" placeholder="@s.Placeholder" @onchange="e => _secrets[s.Key] = e.Value?.ToString() ?? string.Empty" /></label>
+                }
+            </div>
+            <label class="row" style="margin-bottom:12px"><input type="checkbox" @bind="_edit.Enabled" /> Enabled</label>
+            <div class="row">
+                <button class="btn primary" @onclick="Save">@T["save"]</button>
+                <button class="btn" @onclick="() => _edit = null">@T["cancel"]</button>
+            </div>
+        </div>
+    }
+
+    <div class="card-grid">
+        @foreach (var v in _channels)
+        {
+            var c = v.Channel;
+            <article class="panel bot-card">
+                <header>
+                    <div style="min-width:0">
+                        <h3>@c.Name</h3>
+                        <div class="muted small-text">@Label(c.Kind) → @(_bots.FirstOrDefault(b => b.Id == c.BotId)?.Name ?? c.BotId)</div>
+                    </div>
+                    <span class="state @(c.LastError is not null ? "failed" : c.Enabled ? "running" : "paused")">@(c.LastError is not null ? "error" : c.Enabled ? "on" : "off")</span>
+                </header>
+                <div class="small-text">In @c.MessagesIn · out @c.MessagesOut</div>
+                <div class="small-text muted" style="overflow-wrap:anywhere">Inbound: <code>@v.InboundUrl</code></div>
+                @if (c.Kind == ChannelKinds.WebChat)
+                {
+                    <code class="small-text" style="overflow-wrap:anywhere">&lt;iframe src="@v.InboundUrl" style="width:380px;height:560px;border:0"&gt;&lt;/iframe&gt;</code>
+                }
+                @if (c.LastError is not null) { <p class="small-text" style="color:var(--danger)">@c.LastError</p> }
+                <footer>
+                    @if (c.Kind == ChannelKinds.WebChat) { <a class="btn small primary" href="/webchat/@c.Id" target="_blank">Open chat</a> }
+                    <button class="btn small" @onclick="() => Edit(c)">@T["edit"]</button>
+                    <button class="btn small danger" @onclick="() => Delete(c)">@T["delete"]</button>
+                </footer>
+            </article>
+        }
+    </div>
+    @if (_channels.Count == 0 && _edit is null)
+    {
+        <div class="panel panel-pad"><p class="muted" style="margin:0">No channels yet. Start with <b>Web chat</b>: it needs no external account and you can embed it on any website.</p></div>
+    }
+</div>
+
+@code {
+    private sealed record Field(string Key, string Label, string Placeholder);
+
+    private List<Marbots.Server.Api.ChannelView> _channels = [];
+    private IReadOnlyList<BotDefinition> _bots = [];
+    private ChannelConfig? _edit;
+    private Dictionary<string, string> _secrets = [];
+    private string? _message;
+    private bool _isError;
+
+    private string AllowedText
+    {
+        get => string.Join(", ", _edit?.AllowedSenders ?? []);
+        set { if (_edit is not null) _edit.AllowedSenders = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(); }
+    }
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    protected override bool Accept(AgentEvent e) => e.Type is EventTypes.ChannelMessageReceived or EventTypes.ChannelMessageSent;
+
+    protected override Task RefreshAsync(IReadOnlyList<AgentEvent> events) => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _bots = await Registry.ActiveAsync();
+        var baseUrl = Nav.BaseUri.TrimEnd('/');
+        _channels = (await Gateway.ListAsync()).Select(c => new Marbots.Server.Api.ChannelView(c, [.. c.SecretRefs.Keys], InboundUrl(baseUrl, c))).ToList();
+    }
+
+    private static string InboundUrl(string baseUrl, ChannelConfig c) => c.Kind switch
+    {
+        ChannelKinds.WebChat => $"{baseUrl}/webchat/{c.Id}",
+        ChannelKinds.Slack => $"{baseUrl}/api/v1/channels/{c.Id}/slack",
+        ChannelKinds.WhatsApp => $"{baseUrl}/api/v1/channels/{c.Id}/whatsapp",
+        ChannelKinds.Telegram => ChannelContext.Setting(c, "mode", "polling") == "webhook" ? $"{baseUrl}/api/v1/channels/{c.Id}/telegram" : "long polling (no public URL needed)",
+        _ => $"{baseUrl}/api/v1/channels/{c.Id}/inbound",
+    };
+
+    private static string Label(string kind) => kind switch
+    {
+        ChannelKinds.WebChat => "Web chat", ChannelKinds.Webhook => "Webhook", ChannelKinds.Telegram => "Telegram",
+        ChannelKinds.Slack => "Slack", ChannelKinds.WhatsApp => "WhatsApp", ChannelKinds.Discord => "Discord", _ => kind,
+    };
+
+    private static string Help(string kind) => kind switch
+    {
+        ChannelKinds.WebChat => "A chat page you can open or embed with an iframe. Visitors are anonymous; each browser gets its own conversation.",
+        ChannelKinds.Webhook => "POST {\"conversationId\",\"text\",\"senderName\"} to the inbound URL with header X-Marbots-Secret. Replies are POSTed to the outbound URL (optional). Works with Zapier, n8n, Make and Teams workflows.",
+        ChannelKinds.Telegram => "Create a bot with @BotFather and paste its token. Polling works behind NAT; set mode=webhook to use the inbound URL instead.",
+        ChannelKinds.Slack => "Create a Slack app with a bot token (chat:write) and the Events API (message.channels, app_mention) pointing at the inbound URL.",
+        ChannelKinds.WhatsApp => "WhatsApp Cloud API: set the phone number id, a permanent token, the app secret and a verify token; point the webhook at the inbound URL.",
+        ChannelKinds.Discord => "Replies go to a Discord channel webhook. Incoming messages arrive through a relay that POSTs to the inbound URL with X-Marbots-Secret.",
+        _ => "",
+    };
+
+    private static IEnumerable<Field> SettingFields(string kind) => kind switch
+    {
+        ChannelKinds.WebChat => [new("title", "Title", "Ask Marbots"), new("welcome", "Welcome message", "Hi! How can we help?"), new("color", "Colour", "#2C3BA3")],
+        ChannelKinds.Webhook => [new("outboundUrl", "Outbound URL", "https://hooks.example.com/marbots")],
+        ChannelKinds.Telegram => [new("mode", "Mode", "polling | webhook")],
+        ChannelKinds.WhatsApp => [new("phoneNumberId", "Phone number id", "1234567890")],
+        _ => [],
+    };
+
+    private static IEnumerable<Field> SecretFields(string kind) => kind switch
+    {
+        ChannelKinds.Webhook => [new("inboundSecret", "Inbound secret", "shared secret for X-Marbots-Secret"), new("outboundSecret", "Outbound secret", "sent as X-Marbots-Secret")],
+        ChannelKinds.Telegram => [new("token", "Bot token", "123456:ABC…"), new("webhookSecret", "Webhook secret (webhook mode)", "random string")],
+        ChannelKinds.Slack => [new("token", "Bot token", "xoxb-…"), new("signingSecret", "Signing secret", "from Basic Information")],
+        ChannelKinds.WhatsApp => [new("token", "Access token", "EAAG…"), new("appSecret", "App secret", "for X-Hub-Signature-256"), new("verifyToken", "Verify token", "any string you choose")],
+        ChannelKinds.Discord => [new("webhookUrl", "Channel webhook URL", "https://discord.com/api/webhooks/…"), new("inboundSecret", "Inbound secret", "for your relay")],
+        _ => [],
+    };
+
+    private void New()
+    {
+        _edit = new ChannelConfig { Kind = ChannelKinds.WebChat, Name = "Website chat", BotId = WellKnown.BossManId };
+        _secrets = [];
+    }
+
+    private void Edit(ChannelConfig c)
+    {
+        _edit = c;
+        _secrets = [];
+    }
+
+    private async Task Save()
+    {
+        if (_edit is null) return;
+        try
+        {
+            await Gateway.SaveAsync(_edit, _secrets);
+            _message = $"Saved {_edit.Name}."; _isError = false; _edit = null;
+        }
+        catch (ArgumentException ex) { _message = ex.Message; _isError = true; }
+        await LoadAsync();
+    }
+
+    private async Task Delete(ChannelConfig c)
+    {
+        await Gateway.DeleteAsync(c.Id);
+        await LoadAsync();
+    }
+}

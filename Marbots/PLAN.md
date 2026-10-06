@@ -48,15 +48,16 @@ Legend: ✅ done · 🟡 partial / preview · ⏳ planned
 - ⏳ Offline/reconnect with idempotent event sync; host drift + rolling updates
 - 🟡 Today: one local host (`local-default`) with live metrics; per-thread workspaces isolate concurrent work
 
-## Phase 3 — Productivity + ecosystem 🟡
+## Phase 3 — Productivity + ecosystem ✅
 - ✅ Scheduler (cron + one-shot, time zones, run now, misfire on startup)
 - ✅ Skill Gallery and MCP Gallery (catalogue + custom servers, trust labels, health)
 - ✅ `.marbot` export/import (checksums, secrets stripped, imported MCP disabled until reviewed)
-- 🟡 A2A: Agent Cards + JSON-RPC `message/send`, `tasks/get`, `tasks/cancel` (no streaming/push yet)
+- ✅ A2A: Agent Cards + JSON-RPC `message/send`, `message/stream` (SSE), `tasks/get`, `tasks/cancel` (push notifications later)
 - ✅ Official SDKs: .NET, Python, TypeScript, Go
-- ⏳ Channel gateway: Telegram, WhatsApp, Slack, Teams, Discord, Email, WebChat (normalised events)
-- ⏳ Webhook triggers and event-triggered tasks
-- ⏳ Suggest-mode delegation (Boss Man proposes, user confirms)
+- ✅ Channel gateway: WebChat, Webhook (Teams/Zapier/n8n), Telegram, Slack, WhatsApp, Discord; per-conversation threads; allow-lists
+- ⏳ Email channel (IMAP/SMTP)
+- ✅ Webhook triggers (secret or HMAC) and event-triggered tasks with loop guards
+- ✅ Suggest-mode delegation (Boss Man proposes the plan, user approves)
 
 ## Phase 4 — Rich clients ⏳
 - ⏳ Avalonia desktop app (embedded runtime or remote control plane)

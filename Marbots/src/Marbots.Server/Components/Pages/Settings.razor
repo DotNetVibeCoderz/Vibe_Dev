@@ -42,6 +42,15 @@
     </div>
 
     <div class="panel panel-pad" style="margin-bottom:16px">
+        <h2 style="margin-bottom:6px">Delegation</h2>
+        <p class="small-text muted">Auto: Boss Man hands work to the team on its own. Suggest: Boss Man proposes the plan (who does what, in which order) and waits for your approval before anyone starts.</p>
+        <div class="row">
+            <button class="btn @(_delegation == DelegationMode.Auto ? "primary" : "")" @onclick="() => SetDelegation(DelegationMode.Auto)">Auto</button>
+            <button class="btn @(_delegation == DelegationMode.Suggest ? "primary" : "")" @onclick="() => SetDelegation(DelegationMode.Suggest)">Suggest (approve plans)</button>
+        </div>
+    </div>
+
+    <div class="panel panel-pad" style="margin-bottom:16px">
         <h2 style="margin-bottom:6px">Default model</h2>
         <p class="small-text muted">Every bot whose model is set to <b>Default</b> uses this model. Bots with their own model keep it, and fall back to this one if their model is unavailable.</p>
         <div class="row">
@@ -130,6 +139,17 @@
     private ModelProfile _prof = new() { Name = "", Provider = "", Model = "" };
     [Inject] private BotRegistry Registry { get; set; } = default!;
     [Inject] private ApprovalService Approvals { get; set; } = default!;
+
+    private DelegationMode _delegation;
+
+    protected override async Task OnParametersSetAsync() => _delegation = (await Approvals.GetSettingsAsync()).Delegation;
+
+    private async Task SetDelegation(DelegationMode mode)
+    {
+        await Approvals.SetDelegationModeAsync(mode, "web");
+        _delegation = mode;
+        _message = $"Delegation mode: {mode}."; _isError = false;
+    }
 
     private async Task SetSkip(bool skip)
     {

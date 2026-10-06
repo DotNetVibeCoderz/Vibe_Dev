@@ -180,6 +180,8 @@ public sealed class ApprovalRequest
     public PermissionCategory Category { get; set; }
     public RiskLevel Risk { get; set; }
     public string Reason { get; set; } = "";
+    /// <summary>Optional human-readable summary (Markdown), e.g. a delegation plan.</summary>
+    public string? Summary { get; set; }
     public ApprovalState State { get; set; } = ApprovalState.Pending;
     public ApprovalScope Scope { get; set; } = ApprovalScope.Once;
     public string? ResolvedBy { get; set; }
@@ -303,8 +305,102 @@ public sealed class WorkspaceSettings
     public string Id { get; set; } = SingletonId;
     /// <summary>Allow every "ask" action without a human approval (dangerous).</summary>
     public bool DangerouslySkipApprovals { get; set; }
+    /// <summary>Auto: Boss Man delegates on its own. Suggest: every delegation plan waits for the user's approval.</summary>
+    public DelegationMode Delegation { get; set; } = DelegationMode.Auto;
     public string? ChangedBy { get; set; }
     public DateTimeOffset? ChangedAt { get; set; }
+}
+
+/// <summary>Kinds of external messaging channels.</summary>
+public static class ChannelKinds
+{
+    /// <summary>Embeddable web chat widget served by Marbots.</summary>
+    public const string WebChat = "webchat";
+    /// <summary>Generic JSON webhook in, HTTP POST out (Zapier, n8n, Power Automate, Teams workflows…).</summary>
+    public const string Webhook = "webhook";
+    public const string Telegram = "telegram";
+    public const string Slack = "slack";
+    public const string WhatsApp = "whatsapp";
+    public const string Discord = "discord";
+
+    public static readonly IReadOnlyList<string> All = [WebChat, Webhook, Telegram, Slack, WhatsApp, Discord];
+}
+
+/// <summary>An external channel (Telegram, Slack, WhatsApp, web chat, webhook…) routed to a bot.</summary>
+public sealed class ChannelConfig
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Kind { get; set; } = ChannelKinds.WebChat;
+    /// <summary>The bot that answers this channel (Boss Man by default).</summary>
+    public string BotId { get; set; } = WellKnown.BossManId;
+    public bool Enabled { get; set; } = true;
+    /// <summary>Non-secret settings, e.g. outboundUrl, phoneNumberId, welcome.</summary>
+    public Dictionary<string, string> Settings { get; set; } = [];
+    /// <summary>Secret settings by role (token, signingSecret, verifyToken, inboundSecret) → secret name in the secret store.</summary>
+    public Dictionary<string, string> SecretRefs { get; set; } = [];
+    /// <summary>Optional allow-list of sender ids; empty = everyone.</summary>
+    public List<string> AllowedSenders { get; set; } = [];
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public long MessagesIn { get; set; }
+    public long MessagesOut { get; set; }
+    public string? LastError { get; set; }
+}
+
+/// <summary>Maps an external conversation (chat id, Slack channel, phone number…) to a Marbots thread.</summary>
+public sealed class ChannelConversation
+{
+    /// <summary><c>{channelId}|{conversationId}</c></summary>
+    public string Id { get; set; } = "";
+    public string ChannelId { get; set; } = "";
+    public string ConversationId { get; set; } = "";
+    public string ThreadId { get; set; } = "";
+    public string? SenderName { get; set; }
+    public DateTimeOffset LastMessageAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>Kinds of triggers that start a bot without a person typing.</summary>
+public static class TriggerKinds
+{
+    /// <summary>An HTTP POST to /api/v1/hooks/{id} (authenticated with the trigger secret).</summary>
+    public const string Webhook = "webhook";
+    /// <summary>A platform event, e.g. a task of bot X completed.</summary>
+    public const string Event = "event";
+}
+
+/// <summary>Starts a bot from a webhook call or a platform event. Prompt placeholders: {{payload}}, {{bot}}, {{result}}, {{task}}.</summary>
+public sealed class TriggerConfig
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Kind { get; set; } = TriggerKinds.Webhook;
+    /// <summary>Bot that runs the prompt.</summary>
+    public string BotId { get; set; } = WellKnown.BossManId;
+    public string PromptTemplate { get; set; } = "";
+    public bool Enabled { get; set; } = true;
+    /// <summary>Webhook: name of the secret (in the secret store) that callers must present.</summary>
+    public string? SecretRef { get; set; }
+    /// <summary>Event: the event type to react to (TaskStateChanged by default).</summary>
+    public string EventType { get; set; } = EventTypes.TaskStateChanged;
+    /// <summary>Event: only events of this bot (empty = any bot).</summary>
+    public string? SourceBotId { get; set; }
+    /// <summary>Event: for TaskStateChanged, the state to react to (Completed by default).</summary>
+    public string? EventData { get; set; } = "Completed";
+    public string? ThreadId { get; set; }
+    public long FireCount { get; set; }
+    public DateTimeOffset? LastFiredAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>Usage statistics of a skill, used to evaluate learned skills (promote / roll back).</summary>
+public sealed class SkillStats
+{
+    public string Id { get; set; } = "";
+    public long Loads { get; set; }
+    public long Successes { get; set; }
+    public long Failures { get; set; }
+    public DateTimeOffset? LastUsedAt { get; set; }
+    public double SuccessRate => Successes + Failures == 0 ? 0 : (double)Successes / (Successes + Failures);
 }
 
 /// <summary>A todo item maintained by a bot during a task.</summary>

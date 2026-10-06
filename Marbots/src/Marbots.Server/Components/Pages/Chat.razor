@@ -137,7 +137,14 @@
                             <span class="chip">@a.Risk risk</span>
                         </div>
                         <p class="small-text muted" style="margin:6px 0">@a.Reason</p>
-                        <pre>@a.Arguments</pre>
+                        @if (a.Summary is { Length: > 0 })
+                        {
+                            <div class="md small-text">@((MarkupString)Md.ToHtml(a.Summary))</div>
+                        }
+                        else
+                        {
+                            <pre>@a.Arguments</pre>
+                        }
                         <div class="row" style="margin-top:8px">
                             <button class="btn small primary" @onclick="() => Resolve(a, true, ApprovalScope.Once)">@T["approve.once"]</button>
                             <button class="btn small" @onclick="() => Resolve(a, true, ApprovalScope.Session)">@T["approve.session"]</button>

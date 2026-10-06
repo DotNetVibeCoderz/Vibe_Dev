@@ -135,7 +135,11 @@ public sealed class MarbotsEngine(
     // ---------------- root tasks ----------------
 
     /// <summary>Accepts a user message and starts the bot in the background. Supports /compact and /reset commands.</summary>
-    public async Task<TaskRecord> SendAsync(string threadId, string text, CancellationToken ct = default)
+    public Task<TaskRecord> SendAsync(string threadId, string text, CancellationToken ct = default) =>
+        SendAsync(threadId, text, WellKnown.UserAuthor, ct);
+
+    /// <summary>Like <see cref="SendAsync(string, string, CancellationToken)"/>, recording who started the task (user, trigger:id, channel:id).</summary>
+    public async Task<TaskRecord> SendAsync(string threadId, string text, string assignedBy, CancellationToken ct = default)
     {
         var thread = await threads.GetAsync(threadId, ct) ?? throw new BotValidationException("Thread not found.");
         var bot = await registry.GetAsync(thread.BotId, ct) ?? throw new BotValidationException("The bot for this thread no longer exists.");
@@ -156,7 +160,7 @@ public sealed class MarbotsEngine(
         var task = new TaskRecord
         {
             Id = Ids.New("task"), ThreadId = threadId, TranscriptId = threadId, BotId = bot.Id,
-            AssignedBy = WellKnown.UserAuthor, Objective = text, Depth = 0,
+            AssignedBy = assignedBy, Objective = text, Depth = 0,
         };
         task.RootTaskId = task.Id;
         await tasks.UpsertAsync(task, ct);

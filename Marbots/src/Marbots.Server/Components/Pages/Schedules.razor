@@ -3,6 +3,8 @@
 @inject SchedulerService Scheduler
 @inject BotRegistry Registry
 @inject NavigationManager Nav
+@inject TriggerService Triggers
+@inject LocalSecretProvider Secrets
 
 <PageTitle>@T["nav.schedules"] · Marbots</PageTitle>
 <div class="page">
@@ -53,6 +55,51 @@
         </table>
         @if (_jobs.Count == 0) { <p class="muted panel-pad">No schedules yet.</p> }
     </div>
+
+    <h2 style="margin:28px 0 12px">Triggers</h2>
+    <p class="muted small-text">Start a bot from a webhook call (Zapier, GitHub, n8n, cron jobs elsewhere…) or when something happens in Marbots. Placeholders: <code>{{payload}}</code>, <code>{{bot}}</code>, <code>{{result}}</code>, <code>{{task}}</code>.</p>
+    <div class="panel panel-pad" style="margin-bottom:16px">
+        <div class="split">
+            <label class="field"><span>Name</span><input class="input" @bind="_trg.Name" placeholder="New GitHub issue" /></label>
+            <label class="field"><span>Kind</span>
+                <select class="select" @bind="_trg.Kind"><option value="@TriggerKinds.Webhook">Webhook</option><option value="@TriggerKinds.Event">Event in Marbots</option></select>
+            </label>
+            <label class="field"><span>Bot</span>
+                <select class="select" @bind="_trg.BotId">@foreach (var b in _bots) { <option value="@b.Id">@b.Name</option> }</select>
+            </label>
+            @if (_trg.Kind == TriggerKinds.Webhook)
+            {
+                <label class="field"><span>Secret <small>(callers send X-Marbots-Secret or an HMAC X-Marbots-Signature)</small></span><input class="input" type="password" @bind="_trgSecret" autocomplete="off" /></label>
+            }
+            else
+            {
+                <label class="field"><span>When this bot finishes a task</span>
+                    <select class="select" @bind="_trg.SourceBotId"><option value="">any bot</option>@foreach (var b in _bots) { <option value="@b.Id">@b.Name</option> }</select>
+                </label>
+            }
+        </div>
+        <label class="field"><span>Prompt template</span><textarea class="textarea" rows="3" @bind="_trg.PromptTemplate" placeholder="Triage this GitHub issue and propose next steps: {{payload}}"></textarea></label>
+        <button class="btn primary" @onclick="SaveTrigger">Save trigger</button>
+    </div>
+    <div class="panel">
+        <table class="table">
+            <thead><tr><th>Trigger</th><th>Bot</th><th>Kind</th><th>Fired</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var t in _triggers)
+                {
+                    <tr>
+                        <td><b>@t.Name</b><div class="muted small-text">@AgentRuntime.Preview(t.PromptTemplate, 90)</div>
+                            @if (t.Kind == TriggerKinds.Webhook) { <code class="small-text">POST @(Nav.BaseUri)api/v1/hooks/@t.Id</code> }</td>
+                        <td>@(_bots.FirstOrDefault(b => b.Id == t.BotId)?.Name ?? t.BotId)</td>
+                        <td>@(t.Kind == TriggerKinds.Webhook ? "webhook" : $"after {(string.IsNullOrEmpty(t.SourceBotId) ? "any bot" : t.SourceBotId)} completes")</td>
+                        <td class="small-text">@t.FireCount× @(t.LastFiredAt?.ToLocalTime().ToString("dd MMM HH:mm")) @if (t.ThreadId is not null) { <a href="/chat/@t.ThreadId">thread</a> }</td>
+                        <td><button class="btn small danger" @onclick="() => DeleteTrigger(t)">@T["delete"]</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (_triggers.Count == 0) { <p class="muted panel-pad">No triggers yet.</p> }
+    </div>
 </div>
 
 @code {
@@ -78,16 +125,51 @@
         }
     }
 
+    private IReadOnlyList<TriggerConfig> _triggers = [];
+    private TriggerConfig _trg = new() { BotId = WellKnown.BossManId };
+    private string _trgSecret = "";
+
+    private async Task SaveTrigger()
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(_trg.Id)) _trg.Id = Ids.New("trg");
+            if (_trg.Kind == TriggerKinds.Webhook && _trgSecret.Length > 0)
+            {
+                _trg.SecretRef = $"trigger:{_trg.Id}";
+                Secrets.Set(_trg.SecretRef, _trgSecret);
+            }
+            if (_trg.Kind == TriggerKinds.Event && string.IsNullOrEmpty(_trg.SourceBotId)) _trg.SourceBotId = null;
+            await Triggers.SaveAsync(_trg);
+            _message = $"Saved trigger '{_trg.Name}'."; _isError = false;
+            _trg = new() { BotId = WellKnown.BossManId };
+            _trgSecret = "";
+        }
+        catch (ArgumentException ex) { _message = ex.Message; _isError = true; }
+        _triggers = await Triggers.ListAsync();
+    }
+
+    private async Task DeleteTrigger(TriggerConfig t)
+    {
+        await Triggers.DeleteAsync(t.Id);
+        _triggers = await Triggers.ListAsync();
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _triggers = await Triggers.ListAsync();
         _bots = await Registry.ActiveAsync();
         _job.BotId = WellKnown.BossManId;
         _jobs = await Scheduler.ListAsync();
     }
 
-    protected override bool Accept(AgentEvent e) => e.Type == EventTypes.ScheduleTriggered;
+    protected override bool Accept(AgentEvent e) => e.Type is EventTypes.ScheduleTriggered or EventTypes.TriggerFired;
 
-    protected override async Task RefreshAsync(IReadOnlyList<AgentEvent> events) => _jobs = await Scheduler.ListAsync();
+    protected override async Task RefreshAsync(IReadOnlyList<AgentEvent> events)
+    {
+        _jobs = await Scheduler.ListAsync();
+        _triggers = await Triggers.ListAsync();
+    }
 
     private async Task Save()
     {

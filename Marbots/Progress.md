@@ -23,14 +23,15 @@ Development log and current status. The roadmap is in [PLAN.md](PLAN.md).
 | `.marbot` packages | ✅ | Checksums, no secrets, bundled skills, imported MCP disabled, schema version |
 | Web UI (Blazor) | ✅ | Chat, Office, Tasks, Approvals, Team, Bot editor, Templates, Skills, MCP, Schedules, Memory, Dashboard, Settings, About; EN/ID; light/dark |
 | REST + SSE API | ✅ | `/api/v1`, OpenAPI, optional API key |
-| A2A | 🟡 | Agent cards, `message/send`, `tasks/get`, `tasks/cancel` (no streaming yet) |
+| A2A | ✅ | Agent cards, `message/send`, `message/stream` (SSE), `tasks/get`, `tasks/cancel` |
+| Channels | ✅ | WebChat (real-LLM tested), Webhook, Telegram, Slack, WhatsApp, Discord (provider APIs simulated in tests) |
+| Triggers & suggest mode | ✅ | Webhook (secret/HMAC) and event triggers with loop guards; delegation plans can require approval |
 | Per-bot models | ✅ | `default` / `provider/model` / profile per bot; workspace default; fallback to default; model recorded per task; UI, API, CLI, SDKs, `create_bot` |
 | Skip approvals | ✅ | Dangerous mode like `--dangerously-skip-permissions`: Settings toggle, `marbots approvals skip on`, server flag `--dangerously-skip-approvals`, API/SDK; profile denies still apply; audited |
 | SDKs (typed, DotCode style) | ✅ | .NET, Python (`marbots-sdk`, mypy --strict + typo test), TypeScript (`@gravicode/marbots`, `@ts-expect-error` typo test), Go, Java (JitPack, javac -Werror), Rust (`marbots-sdk`, clippy -D warnings) — each with a conformance test against a real server, all in CI |
 | CLI | ✅ | status, bots, bot *, templates, chat (streaming activity), tasks, approvals, skills, mcp, schedules, hosts, logs, themes |
 | Docs | ✅ | 11 pages × EN/ID, glossary, screenshots, README EN/ID |
 | Remote hosts / AgentHost | ⏳ | Phase 2 |
-| Channels (Telegram, WhatsApp, …) | ⏳ | Phase 3 |
 | Desktop / mobile / 3D office | ⏳ | Phases 4–5 (2D office view available) |
 
 ## Tests
@@ -67,6 +68,9 @@ Seven concurrent jobs plus A2A: **16/16 tasks completed**, ~1.02 M tokens, ≈ $
   Atlas on azure/gpt-5.6-luna, Wren on deepseek/deepseek-v4-flash, Alice on the default azure/gpt-5-mini). Dangerous
   "skip approvals" mode (UI, CLI, server flag, API). SDKs rewritten in DotCode's typed style for .NET, Python and
   TypeScript with compile-time typo tests and conformance tests against a real server. GitHub Actions workflow.
+
+- **2026-10-07 (b)**: Phase 3 complete: channel gateway (web chat, webhook, Telegram, Slack, WhatsApp, Discord),
+  webhook/event triggers, suggest-mode delegation, A2A streaming. 94 tests. Real-LLM web chat conversation in Indonesian.
 
 ## Known limitations
 

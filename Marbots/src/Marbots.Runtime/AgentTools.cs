@@ -61,6 +61,28 @@ public sealed class DelegateTasksFunction : KernelFunctionBase
         }
         var engine = ctx.Services.GetRequiredService<MarbotsEngine>();
         var parent = await engine.GetTaskAsync(ctx.TaskId, ct) ?? throw new InvalidOperationException("Parent task not found.");
+
+        // Suggest mode: the user approves the plan before anyone starts working.
+        var approvals = ctx.Services.GetRequiredService<ApprovalService>();
+        if ((await approvals.GetSettingsAsync(ct)).Delegation == DelegationMode.Suggest)
+        {
+            var plan = new StringBuilder("**Proposed plan**\n\n");
+            foreach (var s in specs)
+            {
+                plan.Append("- **").Append(s.Key).Append("** → `").Append(s.Bot).Append('`');
+                if (s.DependsOn.Count > 0) plan.Append(" (after ").Append(string.Join(", ", s.DependsOn)).Append(')');
+                plan.Append(": ").AppendLine(s.Objective.Length > 300 ? s.Objective[..300] + "…" : s.Objective);
+            }
+            var decision = await approvals.RequestAsync(new ApprovalRequest
+            {
+                TaskId = ctx.TaskId, ThreadId = ctx.ThreadId, BotId = ctx.Bot.Id, ToolName = "delegate_tasks",
+                Arguments = call.Arguments.GetRawText(), Category = PermissionCategory.AgentControl, Risk = RiskLevel.Low,
+                Reason = $"Suggest mode: {ctx.Bot.Name} proposes {specs.Count} sub-task(s). Approve to start them.",
+                Summary = plan.ToString(),
+            }, ct);
+            if (decision.State != ApprovalState.Approved)
+                return FunctionResult.Fail("The user did not approve this delegation plan. Ask what to change, or do the work yourself.");
+        }
         try
         {
             var outcomes = await engine.DelegateAsync(parent, ctx.Bot, specs, ct);

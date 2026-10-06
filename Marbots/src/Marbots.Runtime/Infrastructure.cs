@@ -288,13 +288,20 @@ public sealed class EventBus(IEventStore store, ILogger<EventBus> log) : IEventB
         {
             log.LogWarning(ex, "Failed to persist event {Type}", evt.Type);
         }
+        Fanout(evt);
+        return evt;
+    }
+
+    public void PublishTransient(AgentEvent evt) => Fanout(evt);
+
+    private void Fanout(AgentEvent evt)
+    {
         foreach (var h in _handlers)
         {
             try { h(evt); }
             catch (Exception ex) when (ex is not OutOfMemoryException) { log.LogDebug(ex, "Event handler failed"); }
         }
         foreach (var ch in _channels) ch.Writer.TryWrite(evt);
-        return evt;
     }
 
     public IDisposable Subscribe(Action<AgentEvent> handler)
@@ -401,10 +408,30 @@ public sealed class ApprovalService(IDocumentStore<ApprovalRequest> store, IDocu
     }
 
     /// <summary>Turns dangerous mode on or off. Turning it on also approves everything currently pending.</summary>
+    /// <summary>Current workspace settings (never null).</summary>
+    public async Task<WorkspaceSettings> GetSettingsAsync(CancellationToken ct = default) =>
+        await settings.GetAsync(WorkspaceSettings.SingletonId, ct) ?? new WorkspaceSettings();
+
+    private async Task SaveSettingsAsync(Action<WorkspaceSettings> change, string by, CancellationToken ct)
+    {
+        var s = await GetSettingsAsync(ct);
+        change(s);
+        s.ChangedBy = by;
+        s.ChangedAt = DateTimeOffset.UtcNow;
+        await settings.UpsertAsync(s, ct);
+    }
+
+    /// <summary>Auto: Boss Man delegates freely. Suggest: every delegation plan needs the user's approval first.</summary>
+    public async Task SetDelegationModeAsync(DelegationMode mode, string by, CancellationToken ct = default)
+    {
+        await SaveSettingsAsync(s => s.Delegation = mode, by, ct);
+        await bus.PublishAsync(new AgentEvent { Type = EventTypes.SettingsChanged, Message = $"Delegation mode is now {mode}, by {by}", Data = "delegation:" + mode }, ct);
+    }
+
     public async Task SetSkipApprovalsAsync(bool skip, string by, CancellationToken ct = default)
     {
         policy.SkipApprovals = skip;
-        await settings.UpsertAsync(new WorkspaceSettings { DangerouslySkipApprovals = skip, ChangedBy = by, ChangedAt = DateTimeOffset.UtcNow }, ct);
+        await SaveSettingsAsync(s => s.DangerouslySkipApprovals = skip, by, ct);
         await bus.PublishAsync(new AgentEvent
         {
             Type = EventTypes.SettingsChanged, Message = skip ? $"Approvals are now skipped (dangerous mode), by {by}" : $"Approvals are required again, by {by}",

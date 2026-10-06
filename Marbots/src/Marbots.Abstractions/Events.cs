@@ -42,12 +42,20 @@ public static class EventTypes
     public const string HostConnected = "HostConnected";
     public const string TodoUpdated = "TodoUpdated";
     public const string SettingsChanged = "SettingsChanged";
+    /// <summary>Streaming text from a model (transient: not stored). Message = the new text fragment.</summary>
+    public const string AssistantDelta = "AssistantDelta";
+    public const string ChannelMessageReceived = "ChannelMessageReceived";
+    public const string ChannelMessageSent = "ChannelMessageSent";
+    public const string TriggerFired = "TriggerFired";
 }
 
 public interface IEventBus
 {
     /// <summary>Persist and fan out an event. Returns the event with its assigned id.</summary>
     ValueTask<AgentEvent> PublishAsync(AgentEvent evt, CancellationToken cancellationToken = default);
+
+    /// <summary>Fan out without persisting (high-frequency events such as streaming text deltas).</summary>
+    void PublishTransient(AgentEvent evt);
 
     /// <summary>Synchronous in-process subscription (used by Blazor circuits). Handlers must be fast.</summary>
     IDisposable Subscribe(Action<AgentEvent> handler);

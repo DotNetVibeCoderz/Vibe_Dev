@@ -21,6 +21,11 @@ internal sealed record ScopeBody(string Scope);
 internal sealed record SourceBody(string Source);
 internal sealed record NameBody(string? Name);
 internal sealed record ModelBody(string Model);
+internal sealed record SaveChannelBody(ChannelConfig Channel, Dictionary<string, string>? Secrets);
+internal sealed record SaveTriggerBody(TriggerConfig Trigger, string? Secret);
+internal sealed record DelegationBody(string Mode);
+/// <summary>A channel with the names of its configured secrets and the URL providers should call.</summary>
+public sealed record ChannelView(ChannelConfig Channel, List<string> ConfiguredSecrets, string InboundUrl);
 /// <summary>Whether approvals are skipped (dangerous mode).</summary>
 public sealed record ApprovalSettings(bool DangerouslySkipApprovals);
 internal sealed record DefaultModelResult(string Default);
@@ -35,6 +40,11 @@ internal sealed record DefaultModelResult(string Default);
 [JsonSerializable(typeof(SourceBody))]
 [JsonSerializable(typeof(NameBody))]
 [JsonSerializable(typeof(ModelBody))]
+[JsonSerializable(typeof(SaveChannelBody))]
+[JsonSerializable(typeof(SaveTriggerBody))]
+[JsonSerializable(typeof(DelegationBody))]
+[JsonSerializable(typeof(ChannelView))]
+[JsonSerializable(typeof(List<ChannelView>))]
 [JsonSerializable(typeof(ApprovalSettings))]
 [JsonSerializable(typeof(DefaultModelResult))]
 [JsonSerializable(typeof(ModelCatalog))]
@@ -81,6 +91,8 @@ public sealed class MarbotsClient : IDisposable
         Memory = new MemoryClient(this);
         Events = new EventsClient(this);
         Models = new ModelsClient(this);
+        Channels = new ChannelsClient(this);
+        Triggers = new TriggersClient(this);
     }
 
     public BotsClient Bots { get; }
@@ -94,6 +106,15 @@ public sealed class MarbotsClient : IDisposable
     public MemoryClient Memory { get; }
     public EventsClient Events { get; }
     public ModelsClient Models { get; }
+    public ChannelsClient Channels { get; }
+    public TriggersClient Triggers { get; }
+
+    /// <summary>Auto: Boss Man delegates on its own. Suggest: delegation plans wait for approval.</summary>
+    public async Task<DelegationMode> GetDelegationModeAsync(CancellationToken ct = default) =>
+        Enum.Parse<DelegationMode>((await GetAsync<DelegationBody>("api/v1/system/delegation", ct).ConfigureAwait(false)).Mode);
+
+    public async Task<DelegationMode> SetDelegationModeAsync(DelegationMode mode, CancellationToken ct = default) =>
+        Enum.Parse<DelegationMode>((await SendAsync<DelegationBody>(HttpMethod.Put, "api/v1/system/delegation", new DelegationBody(mode.ToString()), ct).ConfigureAwait(false)).Mode);
 
     public Task<SystemInfo> SystemAsync(CancellationToken ct = default) => GetAsync<SystemInfo>("api/v1/system", ct);
 
@@ -301,6 +322,30 @@ public sealed class ModelsClient(MarbotsClient c)
     /// <summary>Changes the workspace default model used by every bot whose model is <see cref="ModelRef.Default"/>.</summary>
     public async Task<string> SetDefaultAsync(string model, CancellationToken ct = default) =>
         (await c.SendAsync<DefaultModelResult>(HttpMethod.Put, "api/v1/models/default", new ModelBody(model), ct).ConfigureAwait(false)).Default;
+}
+
+/// <summary>External channels (web chat, webhook, Telegram, Slack, WhatsApp, Discord). Use <see cref="ChannelKinds"/>.</summary>
+public sealed class ChannelsClient(MarbotsClient c)
+{
+    public Task<List<ChannelView>> ListAsync(CancellationToken ct = default) => c.GetAsync<List<ChannelView>>("api/v1/channels", ct);
+
+    /// <summary>Creates or updates a channel. <paramref name="secrets"/> (by role, e.g. token, signingSecret) are stored encrypted.</summary>
+    public Task<ChannelView> SaveAsync(ChannelConfig channel, Dictionary<string, string>? secrets = null, CancellationToken ct = default) =>
+        c.SendAsync<ChannelView>(HttpMethod.Post, "api/v1/channels", new SaveChannelBody(channel, secrets), ct);
+
+    public Task DeleteAsync(string id, CancellationToken ct = default) => c.SendAsync(HttpMethod.Delete, $"api/v1/channels/{MarbotsClient.E(id)}", null, ct);
+}
+
+/// <summary>Webhook and event triggers. Use <see cref="TriggerKinds"/>.</summary>
+public sealed class TriggersClient(MarbotsClient c)
+{
+    public Task<List<TriggerConfig>> ListAsync(CancellationToken ct = default) => c.GetAsync<List<TriggerConfig>>("api/v1/triggers", ct);
+
+    /// <summary>Creates or updates a trigger. Webhook triggers need <paramref name="secret"/> (callers send X-Marbots-Secret).</summary>
+    public Task<TriggerConfig> SaveAsync(TriggerConfig trigger, string? secret = null, CancellationToken ct = default) =>
+        c.SendAsync<TriggerConfig>(HttpMethod.Post, "api/v1/triggers", new SaveTriggerBody(trigger, secret), ct);
+
+    public Task DeleteAsync(string id, CancellationToken ct = default) => c.SendAsync(HttpMethod.Delete, $"api/v1/triggers/{MarbotsClient.E(id)}", null, ct);
 }
 
 public sealed class EventsClient(MarbotsClient c)

@@ -92,6 +92,20 @@ internal sealed class Commands(MarbotsClient client, Ui ui)
             case "schedules": return await SchedulesAsync(ct);
             case "hosts": return await HostsAsync(ct);
             case "models": return await ModelsAsync(a, ct);
+            case "channels":
+                foreach (var v in await client.Channels.ListAsync(ct))
+                    ui.Row(v.Channel.Name, v.Channel.Kind, v.Channel.BotId, v.Channel.Enabled ? "on" : "off", $"in {v.Channel.MessagesIn}/out {v.Channel.MessagesOut}", v.InboundUrl);
+                return 0;
+            case "triggers":
+                foreach (var t in await client.Triggers.ListAsync(ct))
+                    ui.Row(t.Name, t.Kind, t.BotId, $"{t.FireCount}x", t.Kind == TriggerKinds.Webhook ? $"POST /api/v1/hooks/{t.Id}" : $"after {t.SourceBotId ?? "any bot"}");
+                return 0;
+            case "delegation" when a.Count > 1 && Enum.TryParse<DelegationMode>(a[1], true, out var mode):
+                ui.Ok($"Delegation mode: {await client.SetDelegationModeAsync(mode, ct)}");
+                return 0;
+            case "delegation":
+                ui.Line($"Delegation mode: {await client.GetDelegationModeAsync(ct)} (set with: marbots delegation auto|suggest)");
+                return 0;
             case "logs": return await LogsAsync(Opt("--thread"), ct);
             case "chat": return await ChatAsync(Arg(1), a.Count > 2 && !a[2].StartsWith("--", StringComparison.Ordinal) ? string.Join(' ', a.Skip(2)) : null, ct);
             case "theme" when a.Count > 2 && a[1] == "set": Theme.Save(a[2]); ui.Ok($"Theme set to {a[2]}."); return 0;
@@ -114,6 +128,8 @@ internal sealed class Commands(MarbotsClient client, Ui ui)
           bot pause|resume|delete <bot>
           bot model <bot> [model]        Show or set a bot's model (default | provider/model | profile)
           models                         Default model, choices and profiles
+          channels | triggers            External channels and webhook/event triggers
+          delegation [auto|suggest]      Show or set whether Boss Man's plans need approval
           models default <provider/model>  Change the workspace default model
           templates [query]              Search the template gallery
           chat <bot> [message]           Chat (interactive when no message is given)

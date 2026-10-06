@@ -333,11 +333,21 @@ public static class WorkspaceFiles
 /// <summary>Optional API key protection for /api and /a2a (set Marbots:ApiKey). The in-process Blazor UI is unaffected.</summary>
 public sealed class ApiKeyMiddleware(RequestDelegate next, IConfiguration config)
 {
+    /// <summary>Webhook and channel inbound endpoints authenticate with their own secret or signature.</summary>
+    private static bool IsSelfAuthenticated(PathString path)
+    {
+        var p = path.Value ?? "";
+        if (p.StartsWith("/api/v1/hooks/", StringComparison.Ordinal)) return true;
+        return p.StartsWith("/api/v1/channels/", StringComparison.Ordinal) &&
+               (p.EndsWith("/inbound", StringComparison.Ordinal) || p.EndsWith("/slack", StringComparison.Ordinal) ||
+                p.EndsWith("/whatsapp", StringComparison.Ordinal) || p.EndsWith("/telegram", StringComparison.Ordinal));
+    }
+
     public async Task InvokeAsync(HttpContext ctx)
     {
         var key = config["Marbots:ApiKey"];
         var path = ctx.Request.Path;
-        if (!string.IsNullOrEmpty(key) && (path.StartsWithSegments("/api") || path.StartsWithSegments("/a2a")))
+        if (!string.IsNullOrEmpty(key) && (path.StartsWithSegments("/api") || path.StartsWithSegments("/a2a")) && !IsSelfAuthenticated(path))
         {
             var supplied = ctx.Request.Headers["X-Api-Key"].ToString();
             if (string.IsNullOrEmpty(supplied) && ctx.Request.Headers.Authorization.ToString() is { } auth && auth.StartsWith("Bearer ", StringComparison.Ordinal))

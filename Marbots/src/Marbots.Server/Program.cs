@@ -45,6 +45,7 @@ app.MapStaticAssets();
 app.MapOpenApi();
 app.MapMarbotsApi();
 app.MapA2a();
+app.MapIntegrations();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 app.Run();

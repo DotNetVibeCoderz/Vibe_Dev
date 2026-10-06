@@ -15,6 +15,7 @@ memori, skill, tool MCP, dan batasan izin masing-masing.
 | [Server MCP](mcp.md) | Galeri, server terikat workspace, server stdio/HTTP kustom |
 | [Keamanan](security.md) | Mesin kebijakan, persetujuan, secret, prompt injection, API key |
 | [Jadwal](scheduling.md) | Job cron dan sekali jalan |
+| [Kanal dan trigger](channels-and-triggers.md) | Web chat, webhook, Telegram, Slack, WhatsApp, Discord; trigger webhook dan event; mode suggest; streaming A2A |
 | [API, A2A, SDK, dan CLI](api-and-sdks.md) | REST + SSE, Agent2Agent, SDK .NET/Python/TypeScript/Go, CLI `marbots` |
 | [Arsitektur](architecture.md) | Modul, alur permintaan, performa, konfigurasi |
 | [Uji coba](trials.md) | Apa yang dibangun para bot dengan LLM sungguhan, lengkap dengan tangkapan layar |

@@ -24,12 +24,17 @@ public static class ServiceCollectionExtensions
         AddDocs(services, "provider", ctx.ProviderConfig, p => p.Name);
         AddDocs(services, "modelprofile", ctx.ModelProfile, p => p.Name);
         AddDocs(services, "settings", ctx.WorkspaceSettings, s => s.Id);
+        AddDocs(services, "channel", ctx.ChannelConfig, c => c.Id);
+        AddDocs(services, "channelconv", ctx.ChannelConversation, c => c.Id);
+        AddDocs(services, "trigger", ctx.TriggerConfig, t => t.Id);
+        AddDocs(services, "skillstats", ctx.SkillStats, s => s.Id);
         services.AddSingleton<IMessageStore, SqliteMessageStore>();
         services.AddSingleton<IEventStore, SqliteEventStore>();
         services.AddSingleton<IMemoryStore, SqliteMemoryStore>();
 
         services.AddHttpClient("marbots-llm", c => c.Timeout = TimeSpan.FromMinutes(6));
         services.AddHttpClient("marbots-mcp", c => c.Timeout = TimeSpan.FromMinutes(5));
+        services.AddHttpClient(ChannelContext.HttpClientName, c => c.Timeout = TimeSpan.FromMinutes(2));
         services.AddSingleton<LocalSecretProvider>();
         services.AddSingleton<ISecretProvider>(sp => sp.GetRequiredService<LocalSecretProvider>());
         services.AddSingleton<ModelRouter>();
@@ -63,6 +68,20 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<SchedulerService>();
         services.AddHostedService<MarbotsBootstrapper>();
         services.AddHostedService(sp => sp.GetRequiredService<SchedulerService>());
+
+        // Phase 3: triggers and channels
+        services.AddSingleton<TriggerService>();
+        services.AddHostedService(sp => sp.GetRequiredService<TriggerService>());
+        services.AddSingleton<ChannelContext>();
+        services.AddSingleton<IChannelAdapter, WebChatAdapter>();
+        services.AddSingleton<IChannelAdapter, WebhookChannelAdapter>();
+        services.AddSingleton<IChannelAdapter, TelegramAdapter>();
+        services.AddSingleton<IChannelAdapter, SlackAdapter>();
+        services.AddSingleton<IChannelAdapter, WhatsAppAdapter>();
+        services.AddSingleton<IChannelAdapter, DiscordAdapter>();
+        services.AddSingleton<ChannelGateway>();
+        services.AddHostedService(sp => sp.GetRequiredService<ChannelGateway>());
+        services.AddHostedService<TelegramPoller>();
         return services;
     }
 

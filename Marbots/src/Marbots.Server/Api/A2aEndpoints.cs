@@ -37,7 +37,7 @@ public static class A2aEndpoints
             ["preferredTransport"] = "JSONRPC",
             ["version"] = "0.1.0",
             ["provider"] = new JsonObject { ["organization"] = "Gravicode Studios", ["url"] = "https://github.com/DotNetVibeCoderz/Vibe_Dev/tree/main/Marbots" },
-            ["capabilities"] = new JsonObject { ["streaming"] = false, ["pushNotifications"] = false, ["stateTransitionHistory"] = false },
+            ["capabilities"] = new JsonObject { ["streaming"] = true, ["pushNotifications"] = false, ["stateTransitionHistory"] = false },
             ["defaultInputModes"] = new JsonArray("text/plain"),
             ["defaultOutputModes"] = new JsonArray("text/plain", "text/markdown"),
             ["skills"] = skills,
@@ -45,7 +45,7 @@ public static class A2aEndpoints
         return Results.Content(card.ToJsonString(), "application/json");
     }
 
-    private static async Task<IResult> HandleAsync(string botId, HttpRequest req, BotRegistry registry, MarbotsEngine engine, IMessageStore messages)
+    private static async Task<IResult> HandleAsync(string botId, HttpRequest req, BotRegistry registry, MarbotsEngine engine, IMessageStore messages, IEventBus bus)
     {
         JsonNode? body;
         try { body = await JsonNode.ParseAsync(req.Body); }
@@ -58,6 +58,16 @@ public static class A2aEndpoints
 
         switch (method)
         {
+            case "message/stream":
+            {
+                var msg = p?["message"];
+                var text = string.Join("\n", (msg?["parts"] as JsonArray ?? []).Where(x => x?["kind"]?.GetValue<string>() is "text" or null && x?["text"] is not null).Select(x => x!["text"]!.GetValue<string>()));
+                if (text.Length == 0) return Rpc(id, error: (-32602, "message.parts must contain text"));
+                var contextId = msg?["contextId"]?.GetValue<string>();
+                var thread = contextId is null ? null : await engine.GetThreadAsync(contextId);
+                if (thread is null || thread.BotId != bot.Id) thread = await engine.CreateThreadAsync(bot.Id, "A2A: " + AgentRuntime.Preview(text, 40));
+                return new A2aStreamResult(id, thread.Id, text, engine, messages, bus);
+            }
             case "message/send":
             {
                 var msg = p?["message"];
@@ -88,7 +98,7 @@ public static class A2aEndpoints
         }
     }
 
-    private static async Task<JsonObject> TaskJsonAsync(TaskRecord task, IMessageStore messages)
+    internal static async Task<JsonObject> TaskJsonAsync(TaskRecord task, IMessageStore messages)
     {
         var state = task.State switch
         {
@@ -125,5 +135,74 @@ public static class A2aEndpoints
         if (error is { } e) o["error"] = new JsonObject { ["code"] = e.Code, ["message"] = e.Message };
         else o["result"] = result;
         return Results.Content(o.ToJsonString(), "application/json");
+    }
+}
+
+/// <summary>
+/// A2A <c>message/stream</c>: Server-Sent Events carrying JSON-RPC responses — the task, status updates while the bot
+/// works (thinking, tools, delegation), then the final task with its artifact.
+/// </summary>
+internal sealed class A2aStreamResult(JsonNode? id, string threadId, string text, MarbotsEngine engine, IMessageStore messages, IEventBus bus) : IResult
+{
+    public async Task ExecuteAsync(HttpContext http)
+    {
+        http.Response.Headers.ContentType = "text/event-stream";
+        http.Response.Headers.CacheControl = "no-cache";
+        var ct = http.RequestAborted;
+        // Subscribe before sending so no update is missed.
+        var stream = bus.StreamAsync(e => e.ThreadId == threadId, ct).GetAsyncEnumerator(ct);
+        var task = await engine.SendAsync(threadId, text, ct);
+        await WriteAsync(http, await A2aEndpoints.TaskJsonAsync(task, messages), ct);
+        try
+        {
+            while (await stream.MoveNextAsync())
+            {
+                var e = stream.Current;
+                var state = e.Type switch
+                {
+                    EventTypes.ApprovalRequested => "input-required",
+                    EventTypes.TaskStateChanged when e.TaskId == task.Id && e.Data is "Completed" or "Failed" or "Cancelled" or "TimedOut" => null,
+                    EventTypes.AgentThinkingStarted or EventTypes.ToolCallStarted or EventTypes.TaskDelegated or EventTypes.ToolCallCompleted => "working",
+                    _ => "",
+                };
+                if (state is null)
+                {
+                    var done = await engine.GetTaskAsync(task.Id, ct) ?? task;
+                    var final = await A2aEndpoints.TaskJsonAsync(done, messages);
+                    await WriteAsync(http, new JsonObject
+                    {
+                        ["kind"] = "status-update", ["taskId"] = task.Id, ["contextId"] = threadId,
+                        ["status"] = final["status"]!.DeepClone(), ["final"] = true,
+                    }, ct);
+                    if (final["artifacts"] is JsonArray arts)
+                        foreach (var a in arts)
+                            await WriteAsync(http, new JsonObject { ["kind"] = "artifact-update", ["taskId"] = task.Id, ["contextId"] = threadId, ["artifact"] = a!.DeepClone(), ["lastChunk"] = true }, ct);
+                    return;
+                }
+                if (state.Length == 0) continue;
+                await WriteAsync(http, new JsonObject
+                {
+                    ["kind"] = "status-update", ["taskId"] = task.Id, ["contextId"] = threadId, ["final"] = false,
+                    ["status"] = new JsonObject
+                    {
+                        ["state"] = state, ["timestamp"] = e.Timestamp.ToString("O"),
+                        ["message"] = new JsonObject
+                        {
+                            ["kind"] = "message", ["role"] = "agent", ["messageId"] = Ids.New("msg"), ["taskId"] = task.Id, ["contextId"] = threadId,
+                            ["parts"] = new JsonArray(new JsonObject { ["kind"] = "text", ["text"] = $"{e.BotId}: {e.Type} {e.Message}".Trim() }),
+                        },
+                    },
+                }, ct);
+            }
+        }
+        catch (OperationCanceledException) { }
+        finally { await stream.DisposeAsync(); }
+    }
+
+    private async Task WriteAsync(HttpContext http, JsonObject result, CancellationToken ct)
+    {
+        var envelope = new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id?.DeepClone(), ["result"] = result };
+        await http.Response.WriteAsync($"data: {envelope.ToJsonString()}\n\n", ct);
+        await http.Response.Body.FlushAsync(ct);
     }
 }
