@@ -1,0 +1,84 @@
+# Marbots — CI and release (Gravicode Studios, led by Kang Fadhil)
+#  • Every push/PR touching Marbots/: build + .NET tests (incl. .NET SDK conformance) + SDK checks
+#    (Python: mypy --strict + typo test + conformance; TypeScript: typo test + conformance; Go: vet + build)
+#  • Tag "marbots-v*" (e.g. marbots-v0.1.0) or manual run with publish=true: pack and push NuGet packages
+#    (uses the repository secret NUGET_API_KEY)
+name: Marbots
+
+on:
+  push:
+    branches: [main]
+    paths: ["Marbots/**", ".github/workflows/marbots.yml"]
+    tags: ["marbots-v*"]
+  pull_request:
+    paths: ["Marbots/**", ".github/workflows/marbots.yml"]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish NuGet packages (Marbots.Abstractions, Marbots.Sdk, Marbots.Cli)"
+        type: boolean
+        default: false
+
+defaults:
+  run:
+    working-directory: Marbots
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: "10.0.x" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.22" }
+
+      - name: Build
+        run: dotnet build Marbots.slnx -c Debug
+      - name: .NET tests (runtime, engine, models, approvals, .NET SDK conformance)
+        run: dotnet test tests/Marbots.Tests --no-build -c Debug
+      - name: Python SDK static typing (mypy --strict, typos rejected)
+        working-directory: Marbots/sdk/python
+        run: pip install -q mypy && python tests/typecheck/run.py
+      - name: Python SDK conformance
+        working-directory: Marbots/sdk/python/tests
+        run: PYTHONPATH=../src python -m unittest -v
+      - name: TypeScript SDK (typo test + conformance)
+        working-directory: Marbots/sdk/typescript
+        run: npm ci && npm run build && npm test
+      - name: Go SDK
+        working-directory: Marbots/sdk/go
+        run: go vet ./... && go build ./...
+
+  nuget:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/marbots-v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: "10.0.x" }
+      - name: Version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/marbots-v* ]]; then echo "version=${GITHUB_REF_NAME#marbots-v}" >> "$GITHUB_OUTPUT";
+          else echo "version=$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props)" >> "$GITHUB_OUTPUT"; fi
+      - name: Pack
+        run: |
+          for p in Marbots.Abstractions Marbots.Sdk Marbots.Cli; do
+            dotnet pack src/$p -c Release -o nupkgs -p:Version=${{ steps.version.outputs.version }}
+          done
+      - uses: actions/upload-artifact@v4
+        with: { name: marbots-nuget, path: Marbots/nupkgs }
+      - name: Push to NuGet.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: dotnet nuget push "nupkgs/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate

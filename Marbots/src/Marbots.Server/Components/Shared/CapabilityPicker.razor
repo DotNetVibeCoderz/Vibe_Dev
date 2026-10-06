@@ -1,0 +1,58 @@
+@* Shared picker for skills, MCP servers and kernel packs (used by the bot and template editors). *@
+@inject SkillRegistry SkillRegistry
+@inject IDocumentStore<McpServerConfig> McpStore
+
+<div class="field">
+    <span>Kernel functions</span>
+    <div class="check-grid">
+        @foreach (var (pack, desc) in Packs)
+        {
+            <label><input type="checkbox" checked="@Kernel.Contains(pack)" @onchange="e => Toggle(Kernel, pack, e)" />
+                <span>@pack<small>@desc</small></span></label>
+        }
+    </div>
+</div>
+<div class="field">
+    <span>Skills <small>(@Skills.Count selected — loaded on demand)</small></span>
+    <div class="check-grid">
+        @foreach (var s in SkillRegistry.All.Where(s => !s.Pending))
+        {
+            <label><input type="checkbox" checked="@Skills.Contains(s.Name)" @onchange="e => Toggle(Skills, s.Name, e)" />
+                <span>@s.Name<small>@s.Description</small></span></label>
+        }
+    </div>
+</div>
+<div class="field">
+    <span>MCP servers <small>(installed servers only — <a href="/mcp">open gallery</a>)</small></span>
+    <div class="check-grid">
+        @foreach (var m in _mcp)
+        {
+            <label><input type="checkbox" checked="@Mcp.Contains(m.Id)" @onchange="e => Toggle(Mcp, m.Id, e)" />
+                <span>@m.Name<small>@m.Description</small></span></label>
+        }
+        @if (_mcp.Count == 0) { <span class="muted small-text">No MCP servers installed.</span> }
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<string> Kernel { get; set; } = [];
+    [Parameter] public List<string> Skills { get; set; } = [];
+    [Parameter] public List<string> Mcp { get; set; } = [];
+    [Parameter] public bool AllowAgents { get; set; } = true;
+    [Parameter] public EventCallback Changed { get; set; }
+
+    private IReadOnlyList<McpServerConfig> _mcp = [];
+
+    private IEnumerable<(string, string)> Packs => Marbots.Kernel.KernelCatalog.Packs
+        .Concat(AllowAgents ? [("agents", "Delegate to and coordinate other bots")] : []);
+
+    protected override async Task OnInitializedAsync() =>
+        _mcp = (await McpStore.ListAsync()).Where(m => !m.IsCatalogEntry).OrderBy(m => m.Name).ToList();
+
+    private async Task Toggle(List<string> list, string value, ChangeEventArgs e)
+    {
+        if (e.Value is true) { if (!list.Contains(value)) list.Add(value); }
+        else list.Remove(value);
+        await Changed.InvokeAsync();
+    }
+}

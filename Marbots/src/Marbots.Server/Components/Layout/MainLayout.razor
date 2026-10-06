@@ -1,0 +1,103 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject UiText T
+@inject ApprovalService Approvals
+@inject IEventBus Bus
+@inject IJSRuntime JS
+
+<div class="shell">
+    <nav class="rail" aria-label="Main">
+        <a class="brand" href="/" aria-label="Marbots home">
+            <Marble Color="#2C3BA3" Size="30" />
+            <span class="brand-name">Marbots<span class="brand-sub">Marvelous Bots</span></span>
+        </a>
+
+        <div class="nav-group">@T["nav.group.work"]</div>
+        <NavLink class="nav-link" href="/" Match="NavLinkMatch.All"><Icon Name="chat" />@T["nav.chat"]</NavLink>
+        <NavLink class="nav-link" href="/office"><Icon Name="office" />@T["nav.office"]</NavLink>
+        <NavLink class="nav-link" href="/tasks"><Icon Name="tasks" />@T["nav.tasks"]</NavLink>
+        <NavLink class="nav-link" href="/approvals"><Icon Name="approvals" />@T["nav.approvals"]
+            @if (_pending > 0) { <span class="nav-badge" aria-label="@_pending pending">@_pending</span> }
+        </NavLink>
+
+        <div class="nav-group">@T["nav.group.build"]</div>
+        <NavLink class="nav-link" href="/team"><Icon Name="team" />@T["nav.team"]</NavLink>
+        <NavLink class="nav-link" href="/templates"><Icon Name="templates" />@T["nav.templates"]</NavLink>
+        <NavLink class="nav-link" href="/skills"><Icon Name="skills" />@T["nav.skills"]</NavLink>
+        <NavLink class="nav-link" href="/mcp"><Icon Name="mcp" />@T["nav.mcp"]</NavLink>
+        <NavLink class="nav-link" href="/schedules"><Icon Name="schedules" />@T["nav.schedules"]</NavLink>
+
+        <div class="nav-group">@T["nav.group.observe"]</div>
+        <NavLink class="nav-link" href="/dashboard"><Icon Name="dashboard" />@T["nav.dashboard"]</NavLink>
+        <NavLink class="nav-link" href="/memory"><Icon Name="memory" />@T["nav.memory"]</NavLink>
+        <NavLink class="nav-link" href="/settings"><Icon Name="settings" />@T["nav.settings"]</NavLink>
+        <NavLink class="nav-link" href="/about"><Icon Name="about" />@T["nav.about"]</NavLink>
+
+        <div class="rail-foot">
+            <div class="row">
+                <div class="lang-toggle" role="group" aria-label="Language">
+                    <button class="@(T.Lang == "en" ? "on" : "")" @onclick='() => SetLang("en")'>EN</button>
+                    <button class="@(T.Lang == "id" ? "on" : "")" @onclick='() => SetLang("id")'>ID</button>
+                </div>
+                <button class="btn ghost small" @onclick="ToggleTheme" title="Toggle light/dark">◐</button>
+            </div>
+            <span>@T["credits"]</span>
+        </div>
+    </nav>
+    <main class="main">
+        @if (Approvals.SkipApprovals)
+        {
+            <div class="danger-banner" role="alert">⚠ @T["skip.banner"] <a href="/settings">@T["nav.settings"]</a></div>
+        }
+        @Body
+    </main>
+</div>
+
+<div id="blazor-error-ui" style="display:none">
+    An unhandled error has occurred. <a href="." class="reload">Reload</a>
+</div>
+
+@code {
+    private int _pending;
+    private IDisposable? _sub;
+    private string _theme = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _pending = (await Approvals.PendingAsync()).Count;
+        T.Changed += OnLang;
+        _sub = Bus.Subscribe(e =>
+        {
+            if (e.Type is EventTypes.ApprovalRequested or EventTypes.ApprovalResolved or EventTypes.SettingsChanged)
+                _ = InvokeAsync(async () => { _pending = (await Approvals.PendingAsync()).Count; StateHasChanged(); });
+        });
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var lang = await JS.InvokeAsync<string?>("marbots.get", "marbots.lang");
+        _theme = await JS.InvokeAsync<string?>("marbots.get", "marbots.theme") ?? "";
+        if (lang is "id" or "en" && lang != T.Lang) T.Set(lang);
+    }
+
+    private async Task SetLang(string lang)
+    {
+        T.Set(lang);
+        await JS.InvokeVoidAsync("marbots.set", "marbots.lang", lang);
+    }
+
+    private async Task ToggleTheme()
+    {
+        _theme = _theme switch { "" => "dark", "dark" => "light", _ => "" };
+        await JS.InvokeVoidAsync("marbots.setTheme", _theme);
+    }
+
+    private void OnLang() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        T.Changed -= OnLang;
+        _sub?.Dispose();
+    }
+}

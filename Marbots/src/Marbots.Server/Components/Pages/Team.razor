@@ -1,0 +1,122 @@
+@page "/team"
+@inherits LiveComponent
+@inject BotRegistry Registry
+@inject BotPackageService Packages
+@inject ModelRouter Router
+
+<PageTitle>@T["team.title"] · Marbots</PageTitle>
+<div class="page">
+    <div class="page-head">
+        <div>
+            <h1>@T["team.title"]</h1>
+            <p>@T["team.subtitle"]</p>
+        </div>
+        <div class="row">
+            <label class="btn">
+                @T["team.import"]
+                <InputFile OnChange="Import" accept=".marbot,.zip" style="display:none" />
+            </label>
+            <a class="btn" href="/templates">@T["team.fromTemplate"]</a>
+            <a class="btn primary" href="/team/new"><Icon Name="plus" /> @T["team.new"]</a>
+        </div>
+    </div>
+    @if (_message is not null) { <div class="@(_isError ? "error-box" : "ok-box")">@_message</div> }
+
+    <div class="card-grid">
+        @foreach (var b in _bots)
+        {
+            <article class="panel bot-card">
+                <header>
+                    <Marble Color="@b.Color" Name="@b.Name" Size="46" State="@b.Status.ToString()" />
+                    <div style="min-width:0">
+                        <h3>@b.Name @if (b.IsSystem) { <span class="chip">system</span> }</h3>
+                        <div class="muted small-text">@b.Role</div>
+                    </div>
+                    <span class="state @b.Status.ToString().ToLowerInvariant()" style="margin-left:auto">@b.Status</span>
+                </header>
+                <p class="desc">@b.Description</p>
+                <div class="chips">
+                    @foreach (var k in b.KernelFunctions) { <span class="chip">@k</span> }
+                    @foreach (var m in b.McpServers) { <span class="chip">mcp:@m</span> }
+                </div>
+                <div class="small-text muted">
+                    @(b.Skills.Contains("*") ? "All skills" : $"{b.Skills.Count} skills") · @b.PermissionProfile · auto-learn @b.AutoLearn
+                </div>
+                <div class="small-text" title="@(ModelRouter.IsDefaultSetting(b.ModelProfile) ? "Follows the workspace default model" : b.ModelProfile)">
+                    @T["model.label"]: <b>@Router.Resolve(b.ModelProfile).Label</b>@(ModelRouter.IsDefaultSetting(b.ModelProfile) ? " · default" : "")
+                </div>
+                <footer>
+                    <a class="btn small primary" href="/?bot=@b.Id">@T["chat"]</a>
+                    <a class="btn small" href="/team/@b.Id">@T["edit"]</a>
+                    @if (b.Status == BotStatus.Paused)
+                    {
+                        <button class="btn small" @onclick="() => SetStatus(b, BotStatus.Ready)">@T["resume"]</button>
+                    }
+                    else if (!b.IsSystem)
+                    {
+                        <button class="btn small" @onclick="() => SetStatus(b, BotStatus.Paused)">@T["pause"]</button>
+                    }
+                    <a class="btn small" href="/api/v1/bots/@b.Id/export" download>@T["export"]</a>
+                    @if (!b.IsSystem)
+                    {
+                        <button class="btn small danger" @onclick="() => Delete(b)">@T["delete"]</button>
+                    }
+                </footer>
+            </article>
+        }
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<BotDefinition> _bots = [];
+    private string? _message;
+    private bool _isError;
+
+    protected override async Task OnInitializedAsync() => _bots = await Registry.ActiveAsync();
+
+    protected override bool Accept(AgentEvent e) => e.Type is EventTypes.BotStateChanged or EventTypes.BotCreated or EventTypes.BotDeleted or EventTypes.BotUpdated;
+
+    protected override async Task RefreshAsync(IReadOnlyList<AgentEvent> events) => _bots = await Registry.ActiveAsync();
+
+    private async Task SetStatus(BotDefinition b, BotStatus s)
+    {
+        await Registry.SetStatusAsync(b.Id, s);
+        _bots = await Registry.ActiveAsync();
+    }
+
+    private async Task Delete(BotDefinition b)
+    {
+        try
+        {
+            await Registry.DeleteAsync(b.Id);
+            _message = $"{b.Name} was removed.";
+            _isError = false;
+        }
+        catch (BotValidationException ex)
+        {
+            _message = ex.Message;
+            _isError = true;
+        }
+        _bots = await Registry.ActiveAsync();
+    }
+
+    private async Task Import(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            await using var s = e.File.OpenReadStream(50_000_000);
+            using var ms = new MemoryStream();
+            await s.CopyToAsync(ms);
+            ms.Position = 0;
+            var bot = await Packages.ImportAsync(ms, default);
+            _message = $"Imported {bot.Name}. Imported MCP servers stay disabled until you review them.";
+            _isError = false;
+        }
+        catch (Exception ex) when (ex is BotValidationException or InvalidDataException or System.Text.Json.JsonException or IOException)
+        {
+            _message = "Import failed: " + ex.Message;
+            _isError = true;
+        }
+        _bots = await Registry.ActiveAsync();
+    }
+}

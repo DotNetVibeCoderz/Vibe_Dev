@@ -1,0 +1,28 @@
+@* A bot avatar rendered as a glass marble. State adds an orbit ring (running) or a marigold ring (waiting). *@
+<span class="marble @StateClass" style="--c:@(Color); --s:@(Size)px" title="@Title" aria-hidden="@(Title is null ? "true" : null)">@Initials</span>
+
+@code {
+    [Parameter] public string Color { get; set; } = "#2C3BA3";
+    [Parameter] public string? Name { get; set; }
+    [Parameter] public int Size { get; set; } = 36;
+    [Parameter] public string? State { get; set; }
+    [Parameter] public string? Title { get; set; }
+
+    private string StateClass => State switch
+    {
+        "Running" => "st-running",
+        "Waiting" => "st-waiting",
+        "Paused" or "Archived" => "st-paused",
+        _ => "",
+    };
+
+    private string Initials
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(Name)) return "";
+            var parts = Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length >= 2 ? $"{char.ToUpperInvariant(parts[0][0])}{char.ToUpperInvariant(parts[1][0])}" : char.ToUpperInvariant(Name[0]).ToString();
+        }
+    }
+}

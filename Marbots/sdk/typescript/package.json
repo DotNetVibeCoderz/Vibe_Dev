@@ -1,0 +1,51 @@
+{
+  "name": "@gravicode/marbots",
+  "version": "0.1.0",
+  "description": "Typed TypeScript/JavaScript SDK for Marbots, the multi-agent collaboration platform (Boss Man orchestration, per-bot models, skills, MCP, A2A). By Gravicode Studios, led by Kang Fadhil.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsc -p test/tsconfig.json && node --test test/*.test.mjs",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "multi-agent",
+    "llm",
+    "mcp",
+    "a2a",
+    "marbots"
+  ],
+  "author": "Gravicode Studios (Kang Fadhil)",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.9.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DotNetVibeCoderz/Vibe_Dev.git",
+    "directory": "Marbots/sdk/typescript"
+  },
+  "homepage": "https://github.com/DotNetVibeCoderz/Vibe_Dev/tree/main/Marbots",
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,466 @@
+@page "/"
+@page "/chat/{ThreadId}"
+@inherits LiveComponent
+@inject MarbotsEngine Engine
+@inject BotRegistry Registry
+@inject IMessageStore Messages
+@inject IEventStore EventStore
+@inject ApprovalService Approvals
+@inject Marbots.Kernel.TodoBoard Todos
+@inject IMemoryStore Memory
+@inject MarkdownRenderer Md
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject ModelRouter Router
+
+<PageTitle>@(_thread?.Title ?? "Chat") · Marbots</PageTitle>
+
+<div class="chat @(_thread is null ? "no-activity" : "")">
+    <aside class="threads" aria-label="Threads">
+        <div class="threads-head">
+            <div class="bot-switch" role="listbox" aria-label="Choose a bot">
+                @foreach (var b in _bots)
+                {
+                    <button class="@(b.Id == _bot?.Id ? "on" : "")" title="@b.Name — @b.Role" @onclick="() => SelectBot(b.Id)" aria-selected="@(b.Id == _bot?.Id)">
+                        <Marble Color="@b.Color" Name="@b.Name" Size="30" State="@b.Status.ToString()" />
+                    </button>
+                }
+            </div>
+            <button class="btn small" @onclick="NewThread"><Icon Name="plus" /> @T["chat.newThread"]</button>
+        </div>
+        <div class="thread-list">
+            @foreach (var t in _threads)
+            {
+                <a class="thread-item @(t.Id == _thread?.Id ? "active" : "")" href="/chat/@t.Id">
+                    @(t.Pinned ? "📌 " : "")@t.Title
+                    <small>@t.UpdatedAt.ToLocalTime().ToString("dd MMM HH:mm")</small>
+                </a>
+            }
+            @if (_threads.Count == 0)
+            {
+                <p class="muted small-text" style="padding:8px 10px">No threads with @_bot?.Name yet.</p>
+            }
+        </div>
+    </aside>
+
+    <section class="convo">
+        <header class="convo-head">
+            @if (_bot is not null)
+            {
+                <Marble Color="@_bot.Color" Name="@_bot.Name" State="@(_running ? "Running" : _bot.Status.ToString())" />
+                <div style="min-width:0;flex:1">
+                    <div class="title">@(_thread?.Title ?? _bot.Name)</div>
+                    <div class="role">@_bot.Name · @_bot.Role · <span title="Model">@Router.Resolve(_bot.ModelProfile).Label</span></div>
+                </div>
+                @if (_thread is not null)
+                {
+                    <button class="btn small ghost" @onclick="TogglePin">@(_thread.Pinned ? T["chat.unpin"] : T["chat.pin"])</button>
+                    <button class="btn small ghost" @onclick="Reset">@T["chat.reset"]</button>
+                    <button class="btn small ghost" @onclick="Fork">@T["chat.fork"]</button>
+                    <a class="btn small ghost" href="/api/v1/threads/@_thread.Id/export" target="_blank">@T["chat.export"]</a>
+                }
+            }
+        </header>
+
+        <div class="messages" @ref="_scroller">
+            @if (_thread is null || _turns.Count == 0)
+            {
+                <div class="empty-state">
+                    <Marble Color="@(_bot?.Color ?? "#2C3BA3")" Name="@_bot?.Name" Size="64" />
+                    @if (_bot?.Id == WellKnown.BossManId)
+                    {
+                        <h2>@T["chat.empty.title"]</h2>
+                        <p>@T["chat.empty.body"]</p>
+                        <div class="suggestions">
+                            @foreach (var s in Suggestions)
+                            {
+                                <button @onclick="() => UseSuggestion(s)">@s</button>
+                            }
+                        </div>
+                    }
+                    else if (_bot is not null)
+                    {
+                        <h2>@_bot.Name</h2>
+                        <p>@_bot.Description</p>
+                    }
+                </div>
+            }
+            else
+            {
+                @foreach (var turn in _turns)
+                {
+                    @if (turn.Message?.Role == "user")
+                    {
+                        <div class="msg user"><div class="bubble">@turn.Message.Content</div></div>
+                    }
+                    else if (turn.Message?.Role == "system")
+                    {
+                        <div class="msg system"><div class="body">@turn.Message.Content</div></div>
+                    }
+                    else
+                    {
+                        var author = BotFor(turn.Author);
+                        <div class="msg">
+                            <Marble Color="@(author?.Color ?? "#5B6482")" Name="@(author?.Name ?? turn.Author)" Size="32" />
+                            <div class="body">
+                                <div class="who">@(author?.Name ?? turn.Author) <time>@turn.Time.ToLocalTime().ToString("HH:mm")</time></div>
+                                @if (turn.Steps.Count > 0)
+                                {
+                                    <details class="steps" open="@(turn.Message is null)">
+                                        <summary>@StepSummary(turn.Steps)</summary>
+                                        @foreach (var step in turn.Steps)
+                                        {
+                                            <div class="step">
+                                                <code>@step.Name</code> <span class="muted">@AgentRuntime.Preview(step.Args, 140)</span>
+                                                @if (step.Result is not null)
+                                                {
+                                                    <pre>@AgentRuntime.Preview(step.Result, 1200)</pre>
+                                                }
+                                            </div>
+                                        }
+                                    </details>
+                                }
+                                @if (turn.Message is not null)
+                                {
+                                    <div class="md">@((MarkupString)Md.ToHtml(turn.Message.Content))</div>
+                                }
+                            </div>
+                        </div>
+                    }
+                }
+                @foreach (var a in _approvals)
+                {
+                    var who = BotFor(a.BotId);
+                    <div class="approval-card" role="alert">
+                        <div class="row"><Marble Color="@(who?.Color ?? "#C98A0C")" Name="@who?.Name" Size="24" State="Waiting" />
+                            <b>@(who?.Name ?? a.BotId) wants to run <code>@a.ToolName</code></b>
+                            <span class="chip">@a.Risk risk</span>
+                        </div>
+                        <p class="small-text muted" style="margin:6px 0">@a.Reason</p>
+                        <pre>@a.Arguments</pre>
+                        <div class="row" style="margin-top:8px">
+                            <button class="btn small primary" @onclick="() => Resolve(a, true, ApprovalScope.Once)">@T["approve.once"]</button>
+                            <button class="btn small" @onclick="() => Resolve(a, true, ApprovalScope.Session)">@T["approve.session"]</button>
+                            <button class="btn small danger" @onclick="() => Resolve(a, false, ApprovalScope.Once)">@T["reject"]</button>
+                        </div>
+                    </div>
+                }
+                @if (_running)
+                {
+                    <div class="typing"><Marble Color="@(_bot?.Color ?? "#2C3BA3")" Size="22" State="Running" /> @_bot?.Name @T["chat.working"] — @(_activity ?? "…")</div>
+                }
+            }
+        </div>
+
+        <div class="composer">
+            @if (_error is not null) { <div class="error-box" style="max-width:80ch;margin:0 auto 8px">@_error</div> }
+            <div class="composer-box">
+                <textarea @ref="_textarea" rows="1" @bind="_input" @bind:event="oninput" placeholder="@string.Format(T["chat.placeholder"], _bot?.Name)" aria-label="Message"></textarea>
+                @if (_running && _activeTaskId is not null)
+                {
+                    <button class="btn" @onclick="Stop" title="@T["chat.stop"]"><Icon Name="stop" /> @T["chat.stop"]</button>
+                }
+                <button @ref="_sendButton" class="btn primary" @onclick="Send" disabled="@(_sending || string.IsNullOrWhiteSpace(_input))"><Icon Name="send" /> @T["chat.send"]</button>
+            </div>
+        </div>
+    </section>
+
+    @if (_thread is not null)
+    {
+        <aside class="activity" aria-label="@T["chat.activity"]">
+            <div class="activity-head"><h3>@T["chat.activity"]</h3><a class="small-text" href="/office">@T["nav.office"]</a></div>
+            <div class="activity-list">
+                @if (_todos.Count > 0)
+                {
+                    <ul class="todo">
+                        @foreach (var td in _todos) { <li class="@td.Status">@td.Text</li> }
+                    </ul>
+                }
+                @if (_events.Count == 0)
+                {
+                    <p class="muted">@T["chat.noActivity"]</p>
+                }
+                @foreach (var e in _events.AsEnumerable().Reverse().Take(80))
+                {
+                    var b = BotFor(e.BotId);
+                    <div class="ev @(e.Type == EventTypes.ApprovalRequested ? "attention" : "")">
+                        <Marble Color="@(b?.Color ?? "#5B6482")" Name="@(b?.Name ?? "·")" Size="20" />
+                        <div class="txt"><time>@e.Timestamp.ToLocalTime().ToString("HH:mm:ss")</time> · <b>@(b?.Name ?? e.BotId)</b> @Describe(e)</div>
+                    </div>
+                }
+            </div>
+            @if (_files.Count > 0)
+            {
+                <div class="files">
+                    <h3 style="margin:10px 0 6px">@T["chat.files"]</h3>
+                    @foreach (var f in _files.Take(60))
+                    {
+                        <a href="/api/v1/threads/@_thread.Id/files/@f.Path" target="_blank">@f.Path <span class="muted">(@FormatSize(f.Size))</span></a>
+                    }
+                </div>
+            }
+        </aside>
+    }
+</div>
+
+@code {
+    [Parameter] public string? ThreadId { get; set; }
+    [SupplyParameterFromQuery(Name = "bot")] public string? BotQuery { get; set; }
+
+    private sealed record Step(string Id, string Name, string Args) { public string? Result { get; set; } }
+    private sealed class Turn
+    {
+        public ChatMessage? Message { get; init; }
+        public string Author { get; init; } = "";
+        public DateTimeOffset Time { get; init; }
+        public List<Step> Steps { get; init; } = [];
+    }
+
+    private IReadOnlyList<BotDefinition> _bots = [];
+    private BotDefinition? _bot;
+    private IReadOnlyList<ChatThread> _threads = [];
+    private ChatThread? _thread;
+    private List<ChatMessage> _messages = [];
+    private List<Turn> _turns = [];
+    private List<AgentEvent> _events = [];
+    private IReadOnlyList<ApprovalRequest> _approvals = [];
+    private IReadOnlyList<TodoItem> _todos = [];
+    private IReadOnlyList<Marbots.Server.Api.WorkspaceFile> _files = [];
+    private bool _running, _sending, _scrollForce;
+    private string? _activeTaskId, _activity, _error;
+    private string _input = "";
+    private ElementReference _scroller, _textarea, _sendButton;
+    private Dictionary<string, BotDefinition> _botMap = [];
+
+    private string[] Suggestions => T.Lang == "id" ? SuggestionsId : SuggestionsEn;
+
+    private static readonly string[] SuggestionsEn =
+    [
+        "Research 3 competitors of POS apps for small shops in Indonesia, then have the team build a simple HTML landing page for our product.",
+        "Create a Python script that turns a CSV of expenses into a monthly summary spreadsheet, and have QA test it.",
+        "Write a bilingual (English & Bahasa Indonesia) onboarding guide for new employees as Markdown.",
+        "Every Monday at 08:00, ask Atlas for a short AI industry news brief.",
+    ];
+
+    private static readonly string[] SuggestionsId =
+    [
+        "Riset 3 kompetitor aplikasi kasir untuk UMKM di Indonesia, lalu minta tim membuat landing page HTML sederhana untuk produk kita.",
+        "Buat skrip Python yang mengubah CSV pengeluaran menjadi spreadsheet ringkasan bulanan, lalu minta QA mengujinya.",
+        "Tulis panduan onboarding karyawan baru dalam dua bahasa (Indonesia & Inggris) sebagai Markdown.",
+        "Setiap Senin jam 08:00, minta Atlas membuat ringkasan singkat berita industri AI.",
+    ];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _error = null;
+        _bots = await Registry.ActiveAsync();
+        _botMap = _bots.ToDictionary(b => b.Id);
+        if (ThreadId is not null)
+        {
+            _thread = await Engine.GetThreadAsync(ThreadId);
+            if (_thread is null) { Nav.NavigateTo("/"); return; }
+            _bot = _botMap.GetValueOrDefault(_thread.BotId) ?? await Registry.GetAsync(_thread.BotId);
+        }
+        else
+        {
+            _thread = null;
+            _bot = (BotQuery is not null ? await Registry.ResolveAsync(BotQuery) : null) ?? _botMap.GetValueOrDefault(WellKnown.BossManId);
+        }
+        _threads = _bot is null ? [] : await Engine.ListThreadsAsync(_bot.Id);
+        await LoadThreadAsync();
+        _scrollForce = true;
+    }
+
+    private async Task LoadThreadAsync()
+    {
+        if (_thread is null)
+        {
+            _messages = []; _turns = []; _events = []; _approvals = []; _todos = []; _files = []; _running = false;
+            return;
+        }
+        _messages = (await Messages.ListAsync(_thread.Id, 0, 5000)).ToList();
+        BuildTurns();
+        _events = (await EventStore.ListAsync(_thread.Id, null, 0, 5000)).Where(IsActivity).TakeLast(150).ToList();
+        await RefreshStateAsync();
+    }
+
+    private async Task RefreshStateAsync()
+    {
+        if (_thread is null) return;
+        var tasks = (await Engine.ListTasksAsync()).Where(t => t.ThreadId == _thread.Id).ToList();
+        var active = tasks.FirstOrDefault(t => t.Depth == 0 && !t.State.IsTerminal());
+        _running = active is not null;
+        _activeTaskId = active?.Id;
+        var runningTask = tasks.Where(t => !t.State.IsTerminal()).OrderByDescending(t => t.Depth).FirstOrDefault();
+        _activity = runningTask is null ? null : $"{BotFor(runningTask.BotId)?.Name}: {runningTask.CurrentActivity}";
+        _todos = active is null ? [] : tasks.Where(t => !t.State.IsTerminal()).Select(t => Todos.Get(t.Id)).FirstOrDefault(l => l.Count > 0) ?? [];
+        _approvals = (await Approvals.PendingAsync()).Where(a => a.ThreadId == _thread.Id).ToList();
+        _files = Marbots.Server.Api.WorkspaceFiles.List(Engine.WorkspaceFor(_thread.Id));
+    }
+
+    private static bool IsActivity(AgentEvent e) => e.Type is not (EventTypes.MessageAdded or EventTypes.AgentThinkingCompleted);
+
+    protected override bool Accept(AgentEvent e) =>
+        _thread is not null && e.ThreadId == _thread.Id || e.Type is EventTypes.BotStateChanged or EventTypes.BotCreated;
+
+    protected override async Task RefreshAsync(IReadOnlyList<AgentEvent> events)
+    {
+        if (_thread is null) return;
+        if (events.Any(e => e.Type is EventTypes.BotStateChanged or EventTypes.BotCreated))
+        {
+            _bots = await Registry.ActiveAsync();
+            _botMap = _bots.ToDictionary(b => b.Id);
+            _bot = _botMap.GetValueOrDefault(_bot?.Id ?? "") ?? _bot;
+        }
+        var lastSeq = _messages.Count == 0 ? 0 : _messages[^1].Seq;
+        var newer = await Messages.ListAsync(_thread.Id, lastSeq, 1000);
+        if (newer.Count > 0)
+        {
+            _messages.AddRange(newer);
+            BuildTurns();
+        }
+        foreach (var e in events.Where(e => e.ThreadId == _thread.Id && IsActivity(e))) _events.Add(e);
+        if (_events.Count > 300) _events.RemoveRange(0, _events.Count - 300);
+        await RefreshStateAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await JS.InvokeVoidAsync("marbots.bindComposer", _textarea, _sendButton);
+        await JS.InvokeVoidAsync("marbots.scrollToEnd", _scroller, _scrollForce);
+        _scrollForce = false;
+    }
+
+    private void BuildTurns()
+    {
+        var turns = new List<Turn>();
+        var pending = new List<Step>();
+        string pendingAuthor = "";
+        DateTimeOffset pendingTime = default;
+        foreach (var m in _messages)
+        {
+            switch (m.Role)
+            {
+                case "user":
+                case "system":
+                    Flush();
+                    turns.Add(new Turn { Message = m, Author = m.Author, Time = m.CreatedAt });
+                    break;
+                case "assistant" when m.ToolCalls is { Count: > 0 }:
+                    if (pending.Count == 0) { pendingAuthor = m.Author; pendingTime = m.CreatedAt; }
+                    foreach (var c in m.ToolCalls) pending.Add(new Step(c.Id, c.Name, c.Arguments));
+                    break;
+                case "tool":
+                    var step = pending.LastOrDefault(s => s.Id == m.ToolCallId);
+                    if (step is not null) step.Result = m.Content;
+                    break;
+                default:
+                    turns.Add(new Turn { Message = m, Author = m.Author, Time = m.CreatedAt, Steps = [.. pending] });
+                    pending.Clear();
+                    break;
+            }
+        }
+        Flush();
+        _turns = turns;
+
+        void Flush()
+        {
+            if (pending.Count == 0) return;
+            turns.Add(new Turn { Author = pendingAuthor, Time = pendingTime, Steps = [.. pending] });
+            pending.Clear();
+        }
+    }
+
+    private BotDefinition? BotFor(string? id) => id is not null && _botMap.TryGetValue(id, out var b) ? b : null;
+
+    private static string StepSummary(List<Step> steps)
+    {
+        var groups = steps.GroupBy(s => s.Name).Select(g => g.Count() > 1 ? $"{g.Key} ×{g.Count()}" : g.Key);
+        return $"{steps.Count} step{(steps.Count == 1 ? "" : "s")}: {string.Join(" · ", groups)}";
+    }
+
+    private string Describe(AgentEvent e) => e.Type switch
+    {
+        EventTypes.TaskDelegated => "📤 " + e.Message,
+        EventTypes.ToolCallStarted => "▶ " + e.Message,
+        EventTypes.ToolCallCompleted => (e.Data == "error" ? "✖ " : "✓ ") + e.Message,
+        EventTypes.ApprovalRequested => "⏸ needs approval — " + e.Message,
+        EventTypes.ApprovalResolved => "✔ " + e.Message,
+        EventTypes.TaskStateChanged => "● " + e.Message,
+        EventTypes.AgentThinkingStarted => "💭 thinking",
+        EventTypes.SkillLoaded => "📘 loaded skill " + e.Message,
+        EventTypes.MemoryWritten => "🧠 " + e.Message,
+        EventTypes.ContextCompacted => "🗜 " + e.Message,
+        EventTypes.TodoUpdated => "☑ todo " + e.Message,
+        _ => $"{e.Type} {e.Message}",
+    };
+
+    private static string FormatSize(long bytes) => bytes < 1024 ? $"{bytes} B" : bytes < 1024 * 1024 ? $"{bytes / 1024.0:0.#} KB" : $"{bytes / 1048576.0:0.#} MB";
+
+    private void SelectBot(string id) => Nav.NavigateTo($"/?bot={id}");
+
+    private async Task NewThread()
+    {
+        if (_bot is null) return;
+        var t = await Engine.CreateThreadAsync(_bot.Id);
+        Nav.NavigateTo($"/chat/{t.Id}");
+    }
+
+    private void UseSuggestion(string s)
+    {
+        _input = s;
+        _ = JS.InvokeVoidAsync("marbots.focus", _textarea);
+    }
+
+    private async Task Send()
+    {
+        var text = _input.Trim();
+        if (text.Length == 0 || _bot is null || _sending) return;
+        _sending = true;
+        _error = null;
+        try
+        {
+            var thread = _thread ?? await Engine.CreateThreadAsync(_bot.Id);
+            _input = "";
+            await Engine.SendAsync(thread.Id, text);
+            if (_thread is null) { Nav.NavigateTo($"/chat/{thread.Id}"); return; }
+            _running = true;
+            _scrollForce = true;
+            await RefreshAsync([]);
+        }
+        catch (BotValidationException ex) { _error = ex.Message; _input = text; }
+        finally { _sending = false; }
+    }
+
+    private async Task Stop()
+    {
+        if (_activeTaskId is not null) await Engine.CancelAsync(_activeTaskId);
+    }
+
+    private async Task Resolve(ApprovalRequest a, bool approve, ApprovalScope scope)
+    {
+        await Approvals.ResolveAsync(a.Id, approve, scope, "web");
+        await RefreshStateAsync();
+    }
+
+    private async Task TogglePin()
+    {
+        if (_thread is null) return;
+        _thread = await Engine.UpdateThreadAsync(_thread.Id, t => t.Pinned = !t.Pinned);
+        _threads = await Engine.ListThreadsAsync(_bot!.Id);
+    }
+
+    private async Task Reset()
+    {
+        if (_thread is null) return;
+        _thread = await Engine.ResetContextAsync(_thread.Id, false, Memory);
+        await LoadThreadAsync();
+    }
+
+    private async Task Fork()
+    {
+        if (_thread is null) return;
+        var fork = await Engine.ForkAsync(_thread.Id, 0);
+        Nav.NavigateTo($"/chat/{fork.Id}");
+    }
+}

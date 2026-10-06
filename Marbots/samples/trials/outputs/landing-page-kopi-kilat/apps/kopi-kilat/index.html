@@ -1,0 +1,232 @@
+<!--
+Kopi Kilat - Landing page (single file)
+
+How to edit:
+- To change WhatsApp number or prefilled message, edit the variables near the top inside the <script> block (phoneNumber, prefilledMessage).
+- Testimonials are located in the HTML under the "testimonials" section; replace text and author as needed.
+- Keunggulan (competitive advantages) are written using insights from research/kopi-competitors.md (see that file for source details).
+
+Cited research file: research/kopi-competitors.md
+
+Note: Testimonials are simulated placeholders and marked as such in the UI.
+-->
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Kopi Kilat — Pesan kopi lewat WhatsApp dalam 30 detik</title>
+  <meta name="description" content="Kopi Kilat — pesan kopi lewat WhatsApp tanpa install, cepat, dan siap diambil atau diantar.">
+  <style>
+    :root{
+      --bg:#0f1724; /* dark navy */
+      --card:#0b1220;
+      --muted:#94a3b8;
+      --accent:#ffb86b; /* warm coffee */
+      --accent-2:#ffd9b3;
+      --white:#ffffff;
+      --radius:14px;
+      --max-width:880px;
+      --container-padding:18px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background:linear-gradient(180deg,#071024 0%, #07121a 100%);
+      color:var(--white);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      line-height:1.4;
+      padding:24px 12px;
+      display:flex; justify-content:center;
+    }
+    .wrap{
+      width:100%; max-width:var(--max-width);
+    }
+    header.hero{
+      background:linear-gradient(180deg, rgba(255,184,107,0.12), transparent 60%), radial-gradient(400px 120px at 10% 10%, rgba(255,184,107,0.06), transparent 20%);
+      border-radius:var(--radius);
+      padding:28px var(--container-padding);
+      display:flex; gap:18px; align-items:center; justify-content:space-between;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+    }
+    .brand{
+      display:flex; gap:12px; align-items:center;
+    }
+    .logo{
+      width:64px; height:64px; background:linear-gradient(135deg,var(--accent),var(--accent-2)); border-radius:12px; display:flex; align-items:center; justify-content:center; color:#2b1a00; font-weight:700; font-size:20px;
+    }
+    h1{font-size:20px; margin:0}
+    p.lead{margin:6px 0 0; color:var(--muted); font-size:14px}
+    .cta-col{display:flex; gap:12px; align-items:center}
+    .btn-whatsapp{background:#25D366; color:#05341b; padding:10px 14px; border-radius:10px; font-weight:700; text-decoration:none; display:inline-flex; gap:8px; align-items:center; box-shadow: 0 6px 12px rgba(37,211,102,0.12);}
+    .btn-outline{background:transparent; border:1px solid rgba(255,255,255,0.06); color:var(--accent-2); padding:10px 12px; border-radius:10px; text-decoration:none; font-weight:600}
+
+    main{margin-top:18px}
+    section.card{background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent); padding:18px; border-radius:12px; margin-bottom:14px}
+    .features{display:grid; grid-template-columns:1fr; gap:10px}
+    .feature{display:flex; gap:12px; align-items:flex-start}
+    .feature .icon{background:rgba(255,255,255,0.03); width:44px; height:44px; display:flex; align-items:center; justify-content:center; border-radius:10px; font-size:20px}
+    .feature h3{margin:0; font-size:15px}
+    .feature p{margin:4px 0 0; color:var(--muted); font-size:13px}
+
+    .steps{display:flex; gap:8px; flex-direction:column}
+    .step{display:flex; gap:12px; align-items:flex-start}
+    .step .num{background:var(--accent); color:#2b1a00; width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:700}
+    .step p{margin:0; font-size:14px}
+
+    .testimonials{display:grid; grid-template-columns:1fr; gap:10px}
+    .testimonial{background:rgba(255,255,255,0.02); padding:12px; border-radius:10px}
+    .testi-text{color:var(--muted); font-size:14px; margin:0}
+    .testi-author{font-size:13px; margin-top:8px; color:var(--accent-2); font-weight:700}
+
+    footer{display:flex; gap:12px; align-items:center; justify-content:space-between; margin-top:10px}
+    .small{font-size:12px; color:var(--muted)}
+
+    /* Responsive adjustments */
+    @media(min-width:740px){
+      header.hero{padding:36px 34px}
+      .features{grid-template-columns:repeat(3,1fr)}
+      .testimonials{grid-template-columns:repeat(3,1fr)}
+    }
+
+    /* Accessibility: focus states */
+    a:focus{outline:3px solid rgba(255,184,107,0.24); outline-offset:2px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <header class="hero" role="banner">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">KK</div>
+        <div>
+          <h1>Kopi Kilat</h1>
+          <p class="lead">Pesan kopi lewat WhatsApp dalam 30 detik</p>
+        </div>
+      </div>
+      <div class="cta-col">
+        <a id="whatsappTop" class="btn-whatsapp" href="#" aria-label="Pesan lewat WhatsApp">
+          <span aria-hidden="true">📲</span>
+          Pesan Sekarang
+        </a>
+        <a class="btn-outline" href="#learn" aria-label="Pelajari cara pesan">Cara pesan</a>
+      </div>
+    </header>
+
+    <main>
+      <!-- Keunggulan (3) - based on research/kopi-competitors.md -->
+      <section id="keunggulan" class="card" aria-labelledby="keunggulan-title">
+        <h2 id="keunggulan-title">3 Keunggulan Kopi Kilat</h2>
+        <p class="small" style="margin-top:6px;color:var(--muted)">Dibandingkan app-first competitors (Kopi Kenangan, Flash Coffee, Janji Jiwa) — fokus kami: cepat, tanpa install, experience yang sederhana.</p>
+        <div class="features" style="margin-top:12px">
+          <div class="feature" role="article">
+            <div class="icon" aria-hidden="true">⚡</div>
+            <div>
+              <h3>Zero-install, pesan dalam 30 detik</h3>
+              <p>Langsung melalui WhatsApp — tanpa install atau login. Mengurangi friction yang biasa ditemui di aplikasi proprietary.</p>
+            </div>
+          </div>
+
+          <div class="feature" role="article">
+            <div class="icon" aria-hidden="true">🧭</div>
+            <div>
+              <h3>Smart routing outlet terdekat</h3>
+              <p>Opsi otomatis memilih outlet terdekat sehingga minuman siap lebih cepat — memaksimalkan janji waktu siap.</p>
+            </div>
+          </div>
+
+          <div class="feature" role="article">
+            <div class="icon" aria-hidden="true">🔁</div>
+            <div>
+              <h3>Repeat order super cepat</h3>
+              <p>Simpan pilihan favorit via chat templates dan quick-reply untuk pemesanan ulang tanpa repot.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Cara pesan -->
+      <section id="learn" class="card" aria-labelledby="how-title">
+        <h2 id="how-title">Cara pesan — 3 langkah sederhana</h2>
+        <div class="steps" style="margin-top:12px">
+          <div class="step">
+            <div class="num">1</div>
+            <p><strong>Buka WhatsApp</strong> → klik tombol "Pesan Sekarang" atau buka chat Kopi Kilat.</p>
+          </div>
+          <div class="step">
+            <div class="num">2</div>
+            <p><strong>Pilih menu</strong> atau ketik singkat (contoh: "1 Es Kopi Susu Medium") — sistem akan konfirmasi outlet dan waktu siap.</p>
+          </div>
+          <div class="step">
+            <div class="num">3</div>
+            <p><strong>Konfirmasi & bayar</strong> → terima perkiraan siap; ambil di outlet atau pilih antar. Selesai!</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Testimoni -->
+      <section class="card" aria-labelledby="testi-title">
+        <h2 id="testi-title">Testimoni</h2>
+        <p class="small" style="margin-top:6px;color:var(--muted)">Berikut contoh testimoni (simulated placeholders):</p>
+        <div class="testimonials" style="margin-top:12px">
+          <div class="testimonial" role="article">
+            <p class="testi-text">"Pesan dalam hitungan detik—langsung siap saat saya sampai. Hemat waktu pagi saya!"</p>
+            <div class="testi-author">— Aisyah, Software Engineer (simulated)</div>
+          </div>
+          <div class="testimonial" role="article">
+            <p class="testi-text">"Gak perlu install app & gampang pesan ulang. Favoritku: Es Kopi Susu."</p>
+            <div class="testi-author">— Budi, Mahasiswa (simulated)</div>
+          </div>
+          <div class="testimonial" role="article">
+            <p class="testi-text">"Cocok buat yang buru-buru. Konfirmasi outlet cepat dan minuman selalu sesuai pesanan."</p>
+            <div class="testi-author">— Santi, Marketing (simulated)</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CTA ulang -->
+      <section class="card" aria-labelledby="cta2-title">
+        <h2 id="cta2-title">Siap coba?</h2>
+        <p class="small" style="margin-top:6px;color:var(--muted)">Klik tombol di bawah untuk buka chat WhatsApp. Nomor placeholder dan pesan pra-terisi bisa diubah di file ini.</p>
+        <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap">
+          <a id="whatsappBottom" class="btn-whatsapp" href="#" aria-label="Chat WhatsApp - Pesan">📲 Pesan lewat WhatsApp</a>
+          <a class="btn-outline" href="#keunggulan">Lihat keunggulan</a>
+        </div>
+      </section>
+
+      <footer>
+        <div class="small">Dibuat oleh Kopi Kilat • Mengutip riset: research/kopi-competitors.md</div>
+        <div class="small">&copy; 2026</div>
+      </footer>
+
+    </main>
+  </div>
+
+  <script>
+    // Configuration: change these values to update phone number or prefilled message
+    (function(){
+      var phoneNumber = '62XXXXXXXXX'; // placeholder. Format: country code + number, no + or 0 (wa.me/62...)
+      var prefilledMessage = 'Halo Kopi Kilat, saya mau pesan: [menu]';
+      // Build wa.me link
+      function waLink(num, msg){
+        return 'https://wa.me/' + encodeURIComponent(num) + '?text=' + encodeURIComponent(msg);
+      }
+      var top = document.getElementById('whatsappTop');
+      var bottom = document.getElementById('whatsappBottom');
+      var link = waLink(phoneNumber, prefilledMessage);
+      top.setAttribute('href', link);
+      bottom.setAttribute('href', link);
+
+      // Improve keyboard accessibility: open in new tab so mobile/desktop behaviour is consistent
+      top.setAttribute('target','_blank');
+      top.setAttribute('rel','noopener noreferrer');
+      bottom.setAttribute('target','_blank');
+      bottom.setAttribute('rel','noopener noreferrer');
+
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+QA Report: Kas Warung static app
+
+Date: 2026-10-06 13:40 UTC
+
+Summary:
+- Tests implemented: tests/check_kas_warung.py
+- Test runner: pytest
+- Results: 4 tests run, 4 passed, 0 failed
+
+Test details:
+1) test_index_html_exists
+   - PASS: apps/kas-warung/index.html found
+2) test_html_contains_required_ids_and_controls
+   - PASS: Required ids present: transaction-form, date, description, category, amount, type, add-transaction, transactions-list, balance-today, balance-month
+   - PASS: transaction-form is a <form>
+   - PASS: Inputs date/description/category/amount are input-like elements
+   - PASS: #type is a <select> and contains option values 'in' and 'out'
+   - PASS: #add-transaction present and is a button
+   - PASS: #transactions-list is a container element
+3) test_app_js_references_same_ids
+   - PASS: apps/kas-warung/app.js found and references required ids
+4) test_smoke_js_add_transaction_presence
+   - PASS: app.js defines function addTransaction and exposes it via window.KasWarung
+
+Bugs found:
+- None detected by these static tests. The app appears to include the required DOM ids and JS references as specified.
+
+Notes / Observations:
+- The tests perform static analysis only (file existence, HTML id checks, JS text checks). They do not execute JS in a real DOM environment. The codebase, however, exposes window.KasWarung functions and defines addTransaction which makes it test-friendly for future JS-level tests.
+- If you want runtime verification of behavior (e.g., calling addTransaction and ensuring DOM updates), consider adding a headless JS environment (node + jsdom) or running browser-based tests (Playwright). That was intentionally avoided to keep the test runnable in a standard Python environment.
+
+Artifacts produced:
+- tests/check_kas_warung.py
+- tests/qa_report.txt
+
+Paths:
+- tests/check_kas_warung.py
+- tests/qa_report.txt
+
+Next steps:
+- If the team wants more thorough testing, I can add a small Node-based test runner using jsdom to execute app.js and simulate DOM interactions, or implement Playwright E2E tests.
+
+QA Engineer: Quinn

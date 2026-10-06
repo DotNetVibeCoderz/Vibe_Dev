@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Marbots.Abstractions/Marbots.Abstractions.csproj" />
+    <Project Path="src/Marbots.Cli/Marbots.Cli.csproj" />
+    <Project Path="src/Marbots.Kernel/Marbots.Kernel.csproj" />
+    <Project Path="src/Marbots.Providers/Marbots.Providers.csproj" />
+    <Project Path="src/Marbots.Runtime/Marbots.Runtime.csproj" />
+    <Project Path="src/Marbots.Sdk/Marbots.Sdk.csproj" />
+    <Project Path="src/Marbots.Server/Marbots.Server.csproj" />
+    <Project Path="src/Marbots.Storage/Marbots.Storage.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Marbots.Tests/Marbots.Tests.csproj" />
+  </Folder>
+</Solution>

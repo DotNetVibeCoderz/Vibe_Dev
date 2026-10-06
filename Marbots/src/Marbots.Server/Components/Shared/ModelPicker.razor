@@ -1,0 +1,76 @@
+@* Picks a bot's model: the workspace default, a named profile, a provider/model pair, or a custom pair. *@
+@inject ModelRouter Router
+@inject UiText T
+
+<div class="field">
+    <span>@T["model.label"]</span>
+    <select class="select" value="@SelectValue" @onchange="OnSelect" aria-label="@T["model.label"]">
+        <option value="@ModelRouter.DefaultProfile">@string.Format(T["model.default"], ModelRouter.Describe(Router.Default))</option>
+        @{ var profiles = Router.Profiles.Where(p => p.Name != ModelRouter.DefaultProfile).ToList(); }
+        @if (profiles.Count > 0)
+        {
+            <optgroup label="@T["model.profiles"]">
+                @foreach (var p in profiles) { <option value="@p.Name">@p.Name → @ModelRouter.Describe(p)</option> }
+            </optgroup>
+        }
+        @if (Router.Choices.Count > 0)
+        {
+            <optgroup label="@T["model.models"]">
+                @foreach (var c in Router.Choices) { <option value="@c">@c</option> }
+            </optgroup>
+        }
+        <option value="@Custom">@T["model.custom"]</option>
+    </select>
+    @if (_custom)
+    {
+        <input class="input" placeholder="provider/model, e.g. azure/gpt-5.6-luna" value="@Value" @onchange="OnCustom" aria-label="Custom model" />
+    }
+    @{ var r = Router.Resolve(Value); }
+    @if (r.Warning is not null && !ModelRouter.IsDefaultSetting(Value))
+    {
+        <small style="color:var(--marigold)">@r.Warning</small>
+    }
+    else
+    {
+        <small>@string.Format(T["model.uses"], r.Label)@(ModelRouter.IsDefaultSetting(Value) ? T["model.followsDefault"] : "")</small>
+    }
+</div>
+
+@code {
+    private const string Custom = "__custom";
+
+    [Parameter] public string Value { get; set; } = ModelRouter.DefaultProfile;
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    private bool _custom;
+
+    private bool IsKnown(string v) =>
+        ModelRouter.IsDefaultSetting(v)
+        || Router.Profiles.Any(p => p.Name.Equals(v, StringComparison.OrdinalIgnoreCase))
+        || Router.Choices.Contains(v, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        if (!IsKnown(Value)) _custom = true;
+    }
+
+    private string SelectValue => _custom ? Custom
+        : ModelRouter.IsDefaultSetting(Value) ? ModelRouter.DefaultProfile
+        : Router.Profiles.FirstOrDefault(p => p.Name.Equals(Value, StringComparison.OrdinalIgnoreCase))?.Name
+          ?? Router.Choices.FirstOrDefault(c => c.Equals(Value, StringComparison.OrdinalIgnoreCase)) ?? Custom;
+
+    private async Task OnSelect(ChangeEventArgs e)
+    {
+        var v = e.Value?.ToString() ?? ModelRouter.DefaultProfile;
+        if (v == Custom)
+        {
+            _custom = true;
+            return;
+        }
+        _custom = false;
+        await ValueChanged.InvokeAsync(v);
+    }
+
+    private Task OnCustom(ChangeEventArgs e) =>
+        ValueChanged.InvokeAsync(string.IsNullOrWhiteSpace(e.Value?.ToString()) ? ModelRouter.DefaultProfile : e.Value!.ToString()!.Trim());
+}

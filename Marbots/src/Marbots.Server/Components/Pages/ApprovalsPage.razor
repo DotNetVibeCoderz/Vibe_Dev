@@ -1,0 +1,88 @@
+@page "/approvals"
+@inherits LiveComponent
+@inject ApprovalService Approvals
+@inject BotRegistry Registry
+
+<PageTitle>@T["approvals.title"] · Marbots</PageTitle>
+<div class="page">
+    <div class="page-head">
+        <div>
+            <h1>@T["approvals.title"]</h1>
+            <p>@T["approvals.subtitle"] Decisions are enforced by the policy engine, outside the language model.</p>
+        </div>
+    </div>
+
+    @if (Approvals.SkipApprovals)
+    {
+        <div class="error-box">@T["skip.banner"] <a href="/settings">@T["nav.settings"]</a></div>
+    }
+    @if (_pending.Count == 0)
+    {
+        <div class="panel panel-pad"><p class="muted" style="margin:0">@T["approvals.none"]</p></div>
+    }
+    @foreach (var a in _pending)
+    {
+        var b = Bot(a.BotId);
+        <div class="approval-card" style="max-width:none">
+            <div class="row">
+                <Marble Color="@(b?.Color ?? "#C98A0C")" Name="@b?.Name" Size="30" State="Waiting" />
+                <b>@(b?.Name ?? a.BotId) wants to run <code>@a.ToolName</code></b>
+                <span class="chip">@a.Category</span><span class="chip">@a.Risk risk</span>
+                <span class="muted small-text" style="margin-left:auto">@a.CreatedAt.ToLocalTime().ToString("dd MMM HH:mm:ss")</span>
+            </div>
+            <p class="small-text muted" style="margin:6px 0">@a.Reason · <a href="/chat/@a.ThreadId">open thread</a> · <a href="/tasks/@a.TaskId">task</a></p>
+            <pre>@a.Arguments</pre>
+            <div class="row" style="margin-top:8px">
+                <button class="btn small primary" @onclick="() => Resolve(a, true, ApprovalScope.Once)">@T["approve.once"]</button>
+                <button class="btn small" @onclick="() => Resolve(a, true, ApprovalScope.Session)">@T["approve.session"]</button>
+                <button class="btn small danger" @onclick="() => Resolve(a, false, ApprovalScope.Once)">@T["reject"]</button>
+            </div>
+        </div>
+    }
+
+    <h2 style="margin:28px 0 12px">History</h2>
+    <div class="panel">
+        <table class="table">
+            <thead><tr><th>When</th><th>Bot</th><th>Action</th><th>Decision</th><th>By</th></tr></thead>
+            <tbody>
+                @foreach (var a in _history.Take(100))
+                {
+                    <tr>
+                        <td class="small-text">@a.CreatedAt.ToLocalTime().ToString("dd MMM HH:mm")</td>
+                        <td>@(Bot(a.BotId)?.Name ?? a.BotId)</td>
+                        <td><code>@a.ToolName</code> <span class="muted small-text">@AgentRuntime.Preview(a.Arguments, 80)</span></td>
+                        <td><span class="state @(a.State == ApprovalState.Approved ? "completed" : a.State == ApprovalState.Rejected ? "failed" : "paused")">@a.State@(a.State == ApprovalState.Approved && a.Scope == ApprovalScope.Session ? " (thread)" : "")</span></td>
+                        <td class="small-text">@a.ResolvedBy</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<ApprovalRequest> _pending = [];
+    private IReadOnlyList<ApprovalRequest> _history = [];
+    private Dictionary<string, BotDefinition> _bots = [];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _bots = (await Registry.ListAsync()).ToDictionary(b => b.Id);
+        _pending = await Approvals.PendingAsync();
+        _history = (await Approvals.AllAsync()).Where(a => a.State != ApprovalState.Pending).ToList();
+    }
+
+    protected override bool Accept(AgentEvent e) => e.Type is EventTypes.ApprovalRequested or EventTypes.ApprovalResolved or EventTypes.SettingsChanged;
+
+    protected override Task RefreshAsync(IReadOnlyList<AgentEvent> events) => LoadAsync();
+
+    private BotDefinition? Bot(string id) => _bots.GetValueOrDefault(id);
+
+    private async Task Resolve(ApprovalRequest a, bool approve, ApprovalScope scope)
+    {
+        await Approvals.ResolveAsync(a.Id, approve, scope, "web");
+        await LoadAsync();
+    }
+}

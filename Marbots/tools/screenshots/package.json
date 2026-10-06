@@ -1,0 +1,8 @@
+{
+  "name": "marbots-screenshots",
+  "private": true,
+  "type": "module",
+  "description": "Captures README/docs screenshots of a running Marbots instance.",
+  "scripts": { "shots": "node shoot.mjs" },
+  "dependencies": { "playwright": "1.62.1" }
+}

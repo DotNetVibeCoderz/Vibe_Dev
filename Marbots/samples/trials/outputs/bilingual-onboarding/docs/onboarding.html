@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nusantara Kopi Tech — New Hire Onboarding (EN / ID)</title>
+<style>
+:root { --ink:#1b2236; --muted:#5b6478; --line:#d9deea; --accent:#2f45c9; --max:72ch; }
+body { font: 16px/1.6 "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif; color: var(--ink); margin: 2rem auto; padding: 0 1rem; max-width: var(--max); }
+h1 { font-size: 1.6rem; margin-bottom: .25rem; }
+h2 { font-size: 1.1rem; margin-top: 1.25rem; color: var(--accent); }
+h3 { font-size: 1rem; margin-top: .75rem; }
+.meta { color: var(--muted); margin-bottom: 1rem; }
+.summary { border-left: 4px solid var(--accent); padding: .5rem 1rem; background: #f4f6fb; margin-bottom: 1rem; }
+.toc { background: #fff; border: 1px solid var(--line); padding: .75rem; margin-bottom: 1rem; }
+.toc a { color: var(--accent); text-decoration: none; }
+.section { margin-bottom: 1.5rem; }
+.lang-heading { display:block; margin-top: 0.5rem; }
+.checklist { margin: .5rem 0; }
+pre.code { background:#f7f8fb; padding:.75rem; overflow:auto; border:1px solid var(--line); }
+.footer-note { color:var(--muted); font-size:.9rem; margin-top:1rem; }
+/* Print rules */
+@media print {
+  body { margin: 0.5in; max-width: 100%; }
+  .toc { page-break-after: avoid; }
+  .language-section { page-break-after: always; }
+  .language-section:last-of-type { page-break-after: auto; }
+  h1, h2, h3 { color: #000; }
+}
+/* Ensure page breaks between major sections when printing */
+.language-section { page-break-inside: avoid; }
+</style>
+</head>
+<body>
+<h1>Nusantara Kopi Tech — New Hire Onboarding (English & Bahasa Indonesia)</h1>
+<p class="meta">Date: 2026-10-06 · Author: Wren</p>
+<section class="summary">
+  <strong>Executive summary</strong>
+  <ul>
+    <li>This guide helps new hires (engineers and non-engineers) get productive in Week 1 at Nusantara Kopi Tech.</li>
+    <li>Includes an actionable first-week checklist, tools & account steps, ways of working, contact roles, and a glossary in both English and Bahasa Indonesia.</li>
+    <li>Placeholders (internal links and contacts) are marked — HR/IT will provide real links and roster after provisioning.</li>
+  </ul>
+</section>
+
+<nav class="toc" aria-label="Table of contents">
+  <strong>Table of contents</strong>
+  <ol>
+    <li><a href="#en">English version</a>
+      <ol>
+        <li><a href="#en-1">1) First week checklist</a></li>
+        <li><a href="#en-2">2) Tools & accounts</a></li>
+        <li><a href="#en-3">3) Ways of working</a></li>
+        <li><a href="#en-4">4) Who to ask</a></li>
+        <li><a href="#en-5">5) Glossary</a></li>
+      </ol>
+    </li>
+    <li><a href="#id">Bahasa Indonesia version</a>
+      <ol>
+        <li><a href="#id-1">1) First week checklist</a></li>
+        <li><a href="#id-2">2) Tools & accounts</a></li>
+        <li><a href="#id-3">3) Ways of working</a></li>
+        <li><a href="#id-4">4) Who to ask</a></li>
+        <li><a href="#id-5">5) Glossary</a></li>
+      </ol>
+    </li>
+    <li><a href="#term-map">Bilingual term map (file)</a></li>
+  </ol>
+</nav>
+
+<!-- English section -->
+<section id="en" class="language-section">
+  <h2 class="lang-heading">English</h2>
+  <div class="section">
+    <h3 id="en-intro">Introduction</h3>
+    <p>Welcome to Nusantara Kopi Tech. Our mission is to build delightful, reliable software that connects Indonesian coffee growers, local roasters, and consumers using smart, humane technology. We’re a small, cross-functional team of 20 people: engineers, product, design, operations and customer success. We move fast, ship often, and care about respect, learning, and practical solutions.</p>
+    <p>Our culture is friendly, pragmatic, and inclusive. We expect everyone to treat colleagues with respect, ask questions early, and document decisions so knowledge stays with the team. We value clarity over cleverness and working code over perfection.</p>
+  </div>
+
+  <div class="section">
+    <h3 id="en-1">1) First week checklist</h3>
+    <p><strong>Goal:</strong> get productive and comfortable. Expected completion: end of Week 1. If anything is blocked, notify HR and your manager immediately.</p>
+    <h4>Day 0 / Pre-arrival</h4>
+    <ul>
+      <li>Confirm start date with HR (contact: HR: Sari — slack: @sari · email: sari@nusantarakopi.tech).</li>
+      <li>Fill pre-onboarding paperwork: <a href="https://confluence.nusantarakopi.internal/onboarding-forms">https://confluence.nusantarakopi.internal/onboarding-forms</a> (placeholder).</li>
+    </ul>
+    <h4>Day 1 — Accounts & equipment</h4>
+    <ul>
+      <li>Receive equipment (laptop + power adapter). If remote, confirm shipping (IT: Dedi — @dedi · it@nusantarakopi.tech).</li>
+      <li>Sign into Google Workspace and set up company email.</li>
+      <li>Join Slack (invite sent by HR). Confirm your Slack display name and timezone.</li>
+    </ul>
+    <h4>Day 2 — Access & docs</h4>
+    <ul>
+      <li>Request GitHub access to core repositories (see Tools & accounts). Typical permission: read + triage; request write from your Team Lead.</li>
+      <li>Request Jira access and assignment to your project board.</li>
+      <li>Verify access to internal docs: Confluence / Notion: <a href="https://confluence.nusantarakopi.internal/handbook">https://confluence.nusantarakopi.internal/handbook</a></li>
+      <li>Read: Company handbook, Engineering README, Deployment guide, On-call/Incident runbook.</li>
+    </ul>
+    <h4>Day 3 — Meet the team</h4>
+    <ul>
+      <li>Intro meeting with your Team Lead (30–60 min) — agenda: role expectations, first tasks.</li>
+      <li>Quick intro with CTO/Engineering Manager (20 min).</li>
+      <li>1:1 with HR to confirm benefits and policies.</li>
+      <li>Team intro: attend daily standup and a team sync meeting.</li>
+    </ul>
+    <h4>Day 4 — First tasks</h4>
+    <ul>
+      <li>Pick a small onboarding task (bugfix, doc cleanup, or a small feature) from the onboarding label on GitHub.</li>
+      <li>Open a PR/MR (see code review practice) and request reviewers.</li>
+      <li>Pair with a teammate for walkthrough of the codebase.</li>
+    </ul>
+    <h4>Day 5 — Review & plan</h4>
+    <ul>
+      <li>Celebrate first PR merge and get feedback.</li>
+      <li>Plan next two-week sprint with your Team Lead.</li>
+      <li>Confirm recurring meetings and calendar invites.</li>
+    </ul>
+
+    <p>Checklist items (priority):</p>
+    <ul class="checklist">
+      <li>Company email active</li>
+      <li>Slack joined</li>
+      <li>GitHub access</li>
+      <li>Jira access</li>
+      <li>Laptop configured</li>
+      <li>First PR opened</li>
+      <li>Read handbook + deployment docs</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h3 id="en-2">2) Tools & accounts</h3>
+    <p>We use a small, reliable stack common to 20-person startups. If you need a different tool (e.g., personal preference), discuss with your manager.</p>
+    <ul>
+      <li><strong>Slack</strong> — Purpose: day-to-day communication, channels for teams and projects. Default permission: workspace member. How to get access: HR will invite; contact IT or HR for re-invite. Contact: IT: @dedi · it@nusantarakopi.tech.</li>
+      <li><strong>Google Workspace</strong> (Gmail, Drive, Calendar) — Purpose: email, docs, calendar. Default permission: standard user. How to get access: provisioned by IT/HR on first day.</li>
+      <li><strong>GitHub</strong> (repositories + GitHub Actions for CI/CD) — Purpose: source code, PRs, CI. Default permission for new hires: read + triage. To get write: request from Team Lead. How to request: open a ticket to IT or ask your Team Lead to add you. Contact: Eng Manager: @angga · angga@nusantarakopi.tech.</li>
+      <li><strong>Jira</strong> — Purpose: task tracking, sprints, backlog. Default permission: browse + comment. How to request: HR will send invite; if not, ask your Team Lead.</li>
+      <li><strong>CI/CD (GitHub Actions)</strong> — Purpose: automated build & deployment pipelines. Typical permission: pipelines run automatically; only senior engineers have deploy permissions by default. To request deployment permission, speak to the Engineering Manager and read the deployment checklist.</li>
+      <li><strong>Dev / Staging environment access</strong> — Purpose: test changes before production. How to request: raise an access ticket to IT with your GitHub handle and justify needs.</li>
+      <li><strong>VPN / Remote access</strong> — Purpose: secure access to internal services. How to request: IT provides credentials (two-factor recommended). If you need VPN, contact IT.</li>
+      <li><strong>Password manager</strong> (1Password or LastPass) — Purpose: shared credentials. Default permission: invitation to company vault. How to request: IT will invite; for additional secrets, follow the credential request process.</li>
+      <li><strong>Internal docs</strong> (Confluence / Notion) — Purpose: company handbook, runbooks, onboarding tasks. Link: <a href="https://confluence.nusantarakopi.internal/handbook">https://confluence.nusantarakopi.internal/handbook</a> (placeholder). Ask your Team Lead or HR for missing pages.</li>
+    </ul>
+    <p>For all account requests: include your full name, GitHub handle, Slack handle, and start date. Expect 1–3 business days for most requests.</p>
+  </div>
+
+  <div class="section">
+    <h3 id="en-3">3) Ways of working</h3>
+    <h4>Meeting cadence</h4>
+    <ul>
+      <li>Daily standup — 15 minutes, team channel, every weekday. Purpose: unblock coordination.</li>
+      <li>Weekly planning — 60–90 minutes, team + product, set sprint goals.</li>
+      <li>Weekly demo / show-and-tell — 30 minutes, optional but encouraged.</li>
+      <li>Retrospective — every two weeks at the end of the sprint.</li>
+    </ul>
+    <h4>Communication</h4>
+    <ul>
+      <li>Slack for immediate chat; use threads to keep context. Expected response times: same-day for important messages, 24 hours for non-urgent. Use email for formal or long-form topics.</li>
+      <li>Use status indicators (away / focus) and update your Slack status for meetings or deep work.</li>
+    </ul>
+    <h4>Code review practice</h4>
+    <ul>
+      <li>Open PRs via GitHub. Use small, focused PRs (ideally &lt; 400 lines). Add a clear description, testing steps, and link to Jira ticket.</li>
+      <li>Review SLA: request at least one reviewer; aim for a review response within 24 business hours. Merge only after approvals and green CI.</li>
+      <li>Merge strategy: use feature branches and merge via Squash-and-merge to keep history tidy. For hotfixes use the hotfix branch pattern.</li>
+    </ul>
+    <h4>Branching & release process</h4>
+    <ul>
+      <li>Branch naming: feature/&lt;short-desc&gt;, fix/&lt;ticket-number&gt;, chore/&lt;desc&gt;.</li>
+      <li>Release: tagged via GitHub Actions; deployments pass through staging then production after QA sign-off.</li>
+      <li>Production deploys: scheduled or on-demand with rollout notes; only authorized engineers can trigger production deploys.</li>
+    </ul>
+    <h4>Incident reporting</h4>
+    <ul>
+      <li>Use the incident channel (#incidents) on Slack and follow the incident runbook in Confluence.</li>
+      <li>Triage: on-call engineer or Engineering Manager leads initial response; notify CEO for high-severity incidents.</li>
+    </ul>
+    <h4>Working hours & leave</h4>
+    <ul>
+      <li>Core hours: 10:00–16:00 local time — overlap window for synchronous work.</li>
+      <li>Flexible start/end outside core hours. Remote/hybrid: office available — aim for at least one in-person week per quarter if possible.</li>
+      <li>Leave policy summary: request via HR (link to HR portal placeholder). Emergency leave: inform your manager and HR as soon as possible.</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h3 id="en-4">4) Who to ask</h3>
+    <ul>
+      <li>CEO / Founder — Rini — Role: strategic decisions, company vision. Contact: @rini · rini@nusantarakopi.tech</li>
+      <li>CTO / Engineering Manager — Budi / Angga — Role: technical direction and engineering operations. Contact: @budi · budi@nusantarakopi.tech; @angga · angga@nusantarakopi.tech</li>
+      <li>HR — Sari — Role: onboarding, payroll, benefits, policies. Contact: @sari · sari@nusantarakopi.tech</li>
+      <li>Team Lead — Putri — Role: day-to-day task assignments, code reviews, mentoring. Contact: @putri · putri@nusantarakopi.tech</li>
+      <li>IT Support — Dedi — Role: equipment, access, VPN, password manager. Contact: @dedi · it@nusantarakopi.tech</li>
+      <li>Office Admin — Maya — Role: office supplies, booking meeting rooms. Contact: @maya · office@nusantarakopi.tech</li>
+    </ul>
+    <p>(These are placeholders — if you have existing contacts, HR will provide your team roster.)</p>
+  </div>
+
+  <div class="section">
+    <h3 id="en-5">5) Glossary</h3>
+    <ul>
+      <li><strong>PR / MR</strong> — Pull Request / Merge Request: request to merge code into a branch.</li>
+      <li><strong>Code review</strong> — review of changes before merge.</li>
+      <li><strong>Repo / Repository</strong> — source code repository.</li>
+      <li><strong>CI / CD</strong> — Continuous Integration / Continuous Deployment: automated build and deploy.</li>
+      <li><strong>Staging</strong> — Pre-production environment for verification.</li>
+      <li><strong>Production</strong> — Live environment serving customers.</li>
+      <li><strong>Sprint</strong> — Timeboxed development cycle (usually 2 weeks).</li>
+      <li><strong>Standup</strong> — Short daily sync meeting.</li>
+      <li><strong>Retro</strong> — Retrospective meeting to improve team process.</li>
+      <li><strong>Issue / Ticket</strong> — Work item tracked in Jira or GitHub Issues.</li>
+      <li><strong>Branch</strong> — Git branch used for feature or fix.</li>
+      <li><strong>Merge</strong> — Combine branch changes into mainline.</li>
+      <li><strong>Runbook</strong> — Step-by-step instructions for incidents or operations.</li>
+      <li><strong>VPN</strong> — Virtual Private Network for secure internal access.</li>
+      <li><strong>Vault / Password manager</strong> — Shared credential storage (company vault).</li>
+    </ul>
+  </div>
+
+  <div class="section footer-note">
+    <p><strong>Appendix:</strong> key bilingual term map is available as <a href="./onboarding-term-map.yml">docs/onboarding-term-map.yml</a>. Choice: GitHub + GitHub Actions for CI/CD and Jira for issue tracking — typical for a 20-person startup. Internal links are placeholders and will be updated by HR/IT.</p>
+  </div>
+</section>
+
+<!-- Bahasa Indonesia section -->
+<section id="id" class="language-section">
+  <h2 class="lang-heading">Bahasa Indonesia</h2>
+  <div class="section">
+    <h3 id="id-intro">Introduction</h3>
+    <p>Selamat datang di Nusantara Kopi Tech. Misi kami adalah membangun perangkat lunak yang menyenangkan dan dapat diandalkan untuk menghubungkan petani kopi Indonesia, pemanggang lokal, dan konsumen menggunakan teknologi yang cerdas dan manusiawi. Kami adalah tim kecil lintas-fungsi berjumlah 20 orang: engineer, produk, desain, operasi, dan customer success. Kami bergerak cepat, sering merilis, dan menghargai rasa hormat, pembelajaran, serta solusi yang praktis.</p>
+    <p>Budaya kami ramah, pragmatis, dan inklusif. Kami berharap semua orang saling menghormati, bertanya lebih awal ketika ragu, dan mendokumentasikan keputusan agar pengetahuan tetap bersama tim. Kami menghargai kejelasan di atas kecanggihan dan kode yang bekerja daripada kesempurnaan.</p>
+  </div>
+
+  <div class="section">
+    <h3 id="id-1">1) First week checklist</h3>
+    <p><strong>Tujuan:</strong> menjadi produktif dan nyaman. Target penyelesaian: akhir Minggu 1. Jika ada yang terblokir, beri tahu HR dan manajer Anda segera.</p>
+    <h4>Hari 0 / Pra-tiba</h4>
+    <ul>
+      <li>Konfirmasi tanggal mulai dengan HR (kontak: HR: Sari — slack: @sari · email: sari@nusantarakopi.tech).</li>
+      <li>Isi dokumen pra-onboarding: <a href="https://confluence.nusantarakopi.internal/onboarding-forms">https://confluence.nusantarakopi.internal/onboarding-forms</a> (placeholder).</li>
+    </ul>
+    <h4>Hari 1 — Akun & perangkat</h4>
+    <ul>
+      <li>Terima perangkat (laptop + adaptor). Jika remote, konfirmasi pengiriman (IT: Dedi — @dedi · it@nusantarakopi.tech).</li>
+      <li>Masuk ke Google Workspace dan atur email perusahaan.</li>
+      <li>Bergabung ke Slack (undangan dikirim oleh HR). Konfirmasi nama tampilan Slack dan zona waktu Anda.</li>
+    </ul>
+    <h4>Hari 2 — Akses & dokumen</h4>
+    <ul>
+      <li>Minta akses GitHub ke repositori inti (lihat Tools & accounts). Izin standar: read + triage; minta write dari Team Lead Anda.</li>
+      <li>Minta akses Jira dan tambahkan ke papan proyek Anda.</li>
+      <li>Verifikasi akses ke dokumen internal: Confluence / Notion: <a href="https://confluence.nusantarakopi.internal/handbook">https://confluence.nusantarakopi.internal/handbook</a></li>
+      <li>Baca: Company handbook, Engineering README, Deployment guide, On-call/Incident runbook.</li>
+    </ul>
+    <h4>Hari 3 — Kenalan dengan tim</h4>
+    <ul>
+      <li>Pertemuan pengantar dengan Team Lead Anda (30–60 menit) — agenda: ekspektasi peran, tugas awal.</li>
+      <li>Pengantar singkat dengan CTO/Engineering Manager (20 menit).</li>
+      <li>1:1 dengan HR untuk konfirmasi benefit dan kebijakan.</li>
+      <li>Perkenalan tim: hadiri daily standup dan sinkron tim.</li>
+    </ul>
+    <h4>Hari 4 — Tugas pertama</h4>
+    <ul>
+      <li>Pilih tugas onboarding kecil (perbaikan bug, pembersihan dokumen, atau fitur kecil) dari label onboarding di GitHub.</li>
+      <li>Buka PR/MR (lihat praktik tinjauan kode) dan minta reviewer.</li>
+      <li>Pair dengan rekan untuk walkthrough kode.</li>
+    </ul>
+    <h4>Hari 5 — Tinjau & rencanakan</h4>
+    <ul>
+      <li>Rayakan PR pertama yang ter-merge dan terima masukan.</li>
+      <li>Rencanakan sprint dua minggu berikutnya dengan Team Lead.</li>
+      <li>Konfirmasi rapat berulang dan undangan kalender.</li>
+    </ul>
+
+    <p>Checklist prioritas:</p>
+    <ul class="checklist">
+      <li>Email perusahaan aktif</li>
+      <li>Bergabung Slack</li>
+      <li>Akses GitHub</li>
+      <li>Akses Jira</li>
+      <li>Laptop terkonfigurasi</li>
+      <li>PR pertama dibuka</li>
+      <li>Membaca handbook + dokumen deployment</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h3 id="id-2">2) Tools & accounts</h3>
+    <p>Kami menggunakan tumpukan kecil dan andal yang umum di startup berukuran 20 orang. Jika Anda memerlukan alat lain, diskusikan dengan manajer Anda.</p>
+    <ul>
+      <li><strong>Slack</strong> — Tujuan: komunikasi sehari-hari, channel untuk tim dan proyek. Izin default: member workspace. Cara mendapatkan akses: HR akan mengundang; hubungi IT atau HR untuk undangan ulang. Kontak: IT: @dedi · it@nusantarakopi.tech.</li>
+      <li><strong>Google Workspace</strong> (Gmail, Drive, Calendar) — Tujuan: email, dokumen, kalender. Izin default: pengguna standar. Cara mendapatkan akses: disediakan oleh IT/HR pada hari pertama.</li>
+      <li><strong>GitHub</strong> (repositori + GitHub Actions untuk CI/CD) — Tujuan: kode sumber, PR, CI. Izin default untuk karyawan baru: read + triage. Untuk mendapatkan write: minta dari Team Lead. Cara meminta: buka tiket ke IT atau minta Team Lead menambahkan Anda. Kontak: Eng Manager: @angga · angga@nusantarakopi.tech.</li>
+      <li><strong>Jira</strong> — Tujuan: pelacakan tugas, sprint, backlog. Izin default: browse + comment. Cara meminta: HR akan mengirim undangan; jika tidak, minta Team Lead Anda.</li>
+      <li><strong>CI/CD (GitHub Actions)</strong> — Tujuan: pipeline build & deploy otomatis. Izin tipikal: pipeline berjalan otomatis; hanya engineer senior yang memiliki izin deploy secara default. Untuk meminta izin deploy, bicarakan dengan Engineering Manager dan baca checklist deployment.</li>
+      <li><strong>Akses lingkungan Dev / Staging</strong> — Tujuan: menguji perubahan sebelum produksi. Cara meminta: buat tiket akses ke IT dengan GitHub handle Anda dan alasan akses.</li>
+      <li><strong>VPN / Akses remote</strong> — Tujuan: akses aman ke layanan internal. Cara meminta: IT menyediakan kredensial (dianjurkan 2FA). Jika butuh VPN, hubungi IT.</li>
+      <li><strong>Manajer kata sandi</strong> (1Password atau LastPass) — Tujuan: penyimpanan kredensial bersama. Izin default: undangan ke vault perusahaan. Cara meminta: IT akan mengundang; untuk rahasia tambahan, ikuti proses permintaan kredensial.</li>
+      <li><strong>Dokumen internal</strong> (Confluence / Notion) — Tujuan: handbook perusahaan, runbook, tugas onboarding. Link: <a href="https://confluence.nusantarakopi.internal/handbook">https://confluence.nusantarakopi.internal/handbook</a> (placeholder). Minta Team Lead atau HR untuk halaman yang hilang.</li>
+    </ul>
+    <p>Untuk semua permintaan akun: sertakan nama lengkap, GitHub handle, Slack handle, dan tanggal mulai. Perkirakan 1–3 hari kerja untuk sebagian besar permintaan.</p>
+  </div>
+
+  <div class="section">
+    <h3 id="id-3">3) Ways of working</h3>
+    <h4>Ritme rapat</h4>
+    <ul>
+      <li>Daily standup — 15 menit, channel tim, setiap hari kerja. Tujuan: hilangkan hambatan.</li>
+      <li>Weekly planning — 60–90 menit, tim + produk, tentukan tujuan sprint.</li>
+      <li>Weekly demo / show-and-tell — 30 menit, opsional namun dianjurkan.</li>
+      <li>Retrospective — setiap dua minggu di akhir sprint.</li>
+    </ul>
+    <h4>Komunikasi</h4>
+    <ul>
+      <li>Slack untuk chat cepat; gunakan thread agar konteks terjaga. Perkiraan waktu tanggapan: dalam hari yang sama untuk pesan penting, 24 jam untuk non-urgent. Gunakan email untuk topik formal atau panjang.</li>
+      <li>Gunakan indikator status (away / focus) dan perbarui status Slack saat rapat atau deep work.</li>
+    </ul>
+    <h4>Praktik tinjauan kode</h4>
+    <ul>
+      <li>Buka PR lewat GitHub. Gunakan PR kecil dan terfokus (ideal < 400 baris). Tambahkan deskripsi jelas, langkah testing, dan link ke tiket Jira.</li>
+      <li>SLA review: minta setidaknya satu reviewer; target tanggapan review dalam 24 jam kerja. Merge hanya setelah persetujuan dan CI hijau.</li>
+      <li>Strategi merge: gunakan feature branches dan gunakan Squash-and-merge untuk riwayat yang rapi. Untuk hotfix gunakan pola branch hotfix.</li>
+    </ul>
+    <h4>Branching & proses rilis</h4>
+    <ul>
+      <li>Penamaan branch: feature/&lt;deskripsi-singkat&gt;, fix/&lt;nomor-tiket&gt;, chore/&lt;deskripsi&gt;.</li>
+      <li>Rilis: ditandai via GitHub Actions; deployment melewati staging lalu produksi setelah QA sign-off.</li>
+      <li>Deploy produksi: terjadwal atau sesuai kebutuhan dengan catatan rollout; hanya engineer berizin yang dapat memicu deploy produksi.</li>
+    </ul>
+    <h4>Pelaporan insiden</h4>
+    <ul>
+      <li>Gunakan channel insiden (#incidents) di Slack dan ikuti runbook insiden di Confluence.</li>
+      <li>Triage: engineer on-call atau Engineering Manager memimpin respons awal; beri tahu CEO untuk insiden berisiko tinggi.</li>
+    </ul>
+    <h4>Jam kerja & cuti</h4>
+    <ul>
+      <li>Jam inti: 10:00–16:00 waktu setempat — overlap untuk kerja sinkron.</li>
+      <li>Mulai/selesai fleksibel di luar jam inti. Remote/hybrid: kantor tersedia — usahakan hadir minimal satu minggu tatap muka per kuartal jika memungkinkan.</li>
+      <li>Ringkasan kebijakan cuti: ajukan lewat HR (tautan portal HR placeholder). Cuti darurat: beri tahu manajer dan HR segera.</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h3 id="id-4">4) Who to ask</h3>
+    <ul>
+      <li>CEO / Founder — Rini — Peran: keputusan strategis, visi perusahaan. Kontak: @rini · rini@nusantarakopi.tech</li>
+      <li>CTO / Engineering Manager — Budi / Angga — Peran: arahan teknis dan operasi engineering. Kontak: @budi · budi@nusantarakopi.tech; @angga · angga@nusantarakopi.tech</li>
+      <li>HR — Sari — Peran: onboarding, payroll, benefit, kebijakan. Kontak: @sari · sari@nusantarakopi.tech</li>
+      <li>Team Lead — Putri — Peran: penugasan sehari-hari, tinjauan kode, mentoring. Kontak: @putri · putri@nusantarakopi.tech</li>
+      <li>IT Support — Dedi — Peran: perangkat, akses, VPN, manajer kata sandi. Kontak: @dedi · it@nusantarakopi.tech</li>
+      <li>Office Admin — Maya — Peran: perlengkapan kantor, pemesanan ruang rapat. Kontak: @maya · office@nusantarakopi.tech</li>
+    </ul>
+    <p>(Daftar ini adalah placeholder — jika ada kontak nyata, HR akan menyediakan roster tim Anda.)</p>
+  </div>
+
+  <div class="section">
+    <h3 id="id-5">5) Glossary</h3>
+    <ul>
+      <li><strong>PR / MR</strong> — Pull Request / Merge Request: permintaan untuk menggabungkan kode ke branch.</li>
+      <li><strong>Tinjauan kode</strong> — Code review: pemeriksaan perubahan sebelum merge.</li>
+      <li><strong>Repo / Repositori</strong> — Repositori kode sumber.</li>
+      <li><strong>CI / CD</strong> — Continuous Integration / Continuous Deployment: build dan deploy otomatis.</li>
+      <li><strong>Staging</strong> — Lingkungan pra-produksi untuk verifikasi.</li>
+      <li><strong>Produksi</strong> — Lingkungan live yang melayani pelanggan.</li>
+      <li><strong>Sprint</strong> — Siklus pengembangan bertimebox (biasanya 2 minggu).</li>
+      <li><strong>Standup</strong> — Pertemuan sinkron harian yang singkat.</li>
+      <li><strong>Retro</strong> — Pertemuan retrospektif untuk perbaikan proses tim.</li>
+      <li><strong>Isu / Tiket</strong> — Item kerja yang dilacak di Jira atau GitHub Issues.</li>
+      <li><strong>Branch</strong> — Cabang Git untuk fitur atau perbaikan.</li>
+      <li><strong>Merge</strong> — Menggabungkan perubahan branch ke mainline.</li>
+      <li><strong>Runbook</strong> — Instruksi langkah demi langkah untuk insiden atau operasi.</li>
+      <li><strong>VPN</strong> — Virtual Private Network untuk akses internal yang aman.</li>
+      <li><strong>Manajer kata sandi</strong> — Penyimpanan kredensial bersama (vault perusahaan).</li>
+    </ul>
+  </div>
+
+  <div class="section footer-note">
+    <p><strong>Lampiran:</strong> peta istilah bilingual tersedia sebagai <a href="./onboarding-term-map.yml">docs/onboarding-term-map.yml</a>. Pilihan: GitHub + GitHub Actions untuk CI/CD dan Jira untuk pelacakan isu — umum untuk startup ~20 orang. Tautan internal adalah placeholder dan akan diperbarui oleh HR/IT.</p>
+  </div>
+</section>
+
+</body>
+</html>

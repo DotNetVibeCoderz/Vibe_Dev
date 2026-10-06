@@ -1,0 +1,119 @@
+@page "/dashboard"
+@inherits LiveComponent
+@inject UsageService Usage
+@inject HostService Hosts
+@inject BotRegistry Registry
+@inject ApprovalService Approvals
+@inject McpManager Mcp
+@inject IEventStore EventStore
+
+<PageTitle>@T["nav.dashboard"] · Marbots</PageTitle>
+<div class="page">
+    <div class="page-head">
+        <div>
+            <h1>Fleet dashboard</h1>
+            <p>Hosts, bots, tasks, tokens and cost at a glance. Updates live.</p>
+        </div>
+    </div>
+
+    @if (_usage is not null)
+    {
+        <div class="stat-row">
+            <div class="panel stat"><b>@_bots.Count</b><span>bots (@_bots.Count(b => b.Status == BotStatus.Running) working)</span></div>
+            <div class="panel stat"><b>@_usage.Running</b><span>active tasks</span></div>
+            <div class="panel stat"><b>@_usage.Completed / @_usage.Tasks</b><span>tasks completed</span></div>
+            <div class="panel stat"><b>@_approvals</b><span>approvals waiting</span></div>
+            <div class="panel stat"><b>@((_usage.InputTokens + _usage.OutputTokens).ToString("N0"))</b><span>tokens used</span></div>
+            <div class="panel stat"><b>$@_usage.CostUsd.ToString("0.000")</b><span>estimated model cost</span></div>
+            <div class="panel stat"><b>@_toolsPerMin</b><span>tool calls in the last minute</span></div>
+            <div class="panel stat"><b>@_usage.Failed</b><span>failed tasks</span></div>
+        </div>
+
+        <div class="split">
+            <div class="panel panel-pad">
+                <h2 style="margin-bottom:12px">Tasks per day (14 days)</h2>
+                @{ var max = Math.Max(1, _usage.Daily.Max(d => d.Tasks)); }
+                <div class="spark" role="img" aria-label="Tasks per day">
+                    @foreach (var d in _usage.Daily)
+                    {
+                        <i style="height:@(Math.Max(2, d.Tasks * 100 / max))%" title="@d.Day: @d.Tasks tasks, $@d.Cost.ToString("0.000")"></i>
+                    }
+                </div>
+                <div class="row small-text muted" style="justify-content:space-between;margin-top:6px"><span>@_usage.Daily[0].Day.ToString("dd MMM")</span><span>today</span></div>
+            </div>
+            <div class="panel panel-pad">
+                <h2 style="margin-bottom:12px">Cost by bot</h2>
+                @{ var maxCost = Math.Max(0.000001m, _usage.ByBot.Count == 0 ? 0 : _usage.ByBot.Max(b => b.CostUsd)); }
+                @foreach (var b in _usage.ByBot.Take(8))
+                {
+                    var bot = _bots.FirstOrDefault(x => x.Id == b.BotId);
+                    <div style="margin-bottom:10px">
+                        <div class="row small-text" style="justify-content:space-between"><span>@(bot?.Name ?? b.BotId) · @b.Tasks tasks</span><span>$@b.CostUsd.ToString("0.0000")</span></div>
+                        <div class="bar"><i style="width:@((int)(b.CostUsd / maxCost * 100))%;background:@(bot?.Color ?? "var(--indigo)")"></i></div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <h2 style="margin:26px 0 12px">Hosts</h2>
+    <div class="card-grid">
+        @foreach (var h in _hosts)
+        {
+            <article class="panel bot-card">
+                <header><div><h3>@h.Name</h3><div class="muted small-text">@h.Kind · @h.Id</div></div><span class="state running" style="margin-left:auto">@h.Status</span></header>
+                <dl class="kv small-text">
+                    <dt>OS</dt><dd>@h.Os (@h.Architecture)</dd>
+                    <dt>CPU</dt><dd>@h.ProcessorCount logical cores</dd>
+                    <dt>Memory</dt><dd>@h.ProcessWorkingSetMb MB used by Marbots / @h.TotalMemoryMb MB available</dd>
+                    <dt>Agent</dt><dd>v@h.AgentVersion · up since @h.StartedAt.ToLocalTime().ToString("dd MMM HH:mm")</dd>
+                    <dt>Bots</dt><dd>@_bots.Count(b => b.HostRef == h.Id)</dd>
+                </dl>
+            </article>
+        }
+        <article class="panel bot-card" style="border-style:dashed">
+            <h3>Remote hosts</h3>
+            <p class="desc">VM, Docker and remote PC hosts with secure enrollment (one-time token + mTLS) arrive with the AgentHost service — see PLAN.md phase 2.</p>
+        </article>
+    </div>
+
+    <h2 style="margin:26px 0 12px">MCP connections</h2>
+    <div class="panel">
+        <table class="table">
+            <thead><tr><th>Server</th><th>Scope</th><th>Status</th><th>Tools</th></tr></thead>
+            <tbody>
+                @foreach (var s in _mcp)
+                {
+                    <tr><td>@s.ServerId</td><td class="small-text muted">@(s.Workspace == "*" ? "shared" : Path.GetFileName(s.Workspace))</td>
+                        <td><span class="state @(s.Connected ? "running" : "failed")">@(s.Connected ? "connected" : "error")</span> <span class="small-text muted">@s.Error</span></td><td>@s.ToolCount</td></tr>
+                }
+            </tbody>
+        </table>
+        @if (_mcp.Count == 0) { <p class="muted panel-pad">No MCP servers have been started yet. They start on first use.</p> }
+    </div>
+</div>
+
+@code {
+    private UsageSummary? _usage;
+    private IReadOnlyList<HostInfo> _hosts = [];
+    private IReadOnlyList<BotDefinition> _bots = [];
+    private IReadOnlyList<McpServerStatus> _mcp = [];
+    private int _approvals, _toolsPerMin;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    protected override int ThrottleMs => 1000;
+
+    protected override Task RefreshAsync(IReadOnlyList<AgentEvent> events) => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _usage = await Usage.SummaryAsync();
+        _hosts = Hosts.List();
+        _bots = await Registry.ActiveAsync();
+        _approvals = (await Approvals.PendingAsync()).Count;
+        _mcp = Mcp.Status();
+        var cutoff = DateTimeOffset.UtcNow.AddMinutes(-1);
+        _toolsPerMin = (await EventStore.RecentAsync(500)).Count(e => e.Type == EventTypes.ToolCallStarted && e.Timestamp > cutoff);
+    }
+}

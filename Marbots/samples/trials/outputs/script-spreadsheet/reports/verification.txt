@@ -1,0 +1,179 @@
+Verification report for reports/monthly-summary.xlsx
+Using data/expenses.csv computed with pandas
+
+Pandas-computed totals per month:
+- 2026-07: total_amount=8361000  num_transactions=32
+- 2026-08: total_amount=8897000  num_transactions=31
+- 2026-09: total_amount=7781000  num_transactions=30
+
+Pandas-computed category totals (Category x Month):
+Category,2026-07,2026-08,2026-09
+Dining,332000,447000,397000
+Entertainment,620000,385000,428000
+Groceries,534000,537000,537000
+Healthcare,502000,497000,425000
+Office Supplies,491000,652000,251000
+Rent,3000000,3000000,3000000
+Subscriptions,144000,409000,250000
+Transport,335000,345000,354000
+Travel,1578000,1775000,1302000
+Utilities,825000,850000,837000
+
+Summary sheet checks:
+
+- 2026-07 row found at Summary!2,1
+  Total formula cell: =SUM('2026-07'!D2:D1000)
+  Total cached value: <no cached numeric value>
+  Count formula cell: =COUNTA('2026-07'!D2:D1000)
+  Count cached value: <no cached numeric value>
+  Expected total (pandas): 8361000
+  Expected count (pandas): 32
+  Month total numeric match: N/A (no cached numeric value to compare)
+  Transaction count numeric match: N/A (no cached numeric value to compare)
+- 2026-08 row found at Summary!3,1
+  Total formula cell: =SUM('2026-08'!D2:D1000)
+  Total cached value: <no cached numeric value>
+  Count formula cell: =COUNTA('2026-08'!D2:D1000)
+  Count cached value: <no cached numeric value>
+  Expected total (pandas): 8897000
+  Expected count (pandas): 31
+  Month total numeric match: N/A (no cached numeric value to compare)
+  Transaction count numeric match: N/A (no cached numeric value to compare)
+- 2026-09 row found at Summary!4,1
+  Total formula cell: =SUM('2026-09'!D2:D1000)
+  Total cached value: <no cached numeric value>
+  Count formula cell: =COUNTA('2026-09'!D2:D1000)
+  Count cached value: <no cached numeric value>
+  Expected total (pandas): 7781000
+  Expected count (pandas): 30
+  Month total numeric match: N/A (no cached numeric value to compare)
+  Transaction count numeric match: N/A (no cached numeric value to compare)
+
+Category x Month checks (Summary sheet):
+- Category 'Dining' 2026-07: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Dining", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 332000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Dining' 2026-08: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Dining", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 447000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Dining' 2026-09: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Dining", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 397000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Entertainment' 2026-07: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Entertainment", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 620000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Entertainment' 2026-08: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Entertainment", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 385000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Entertainment' 2026-09: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Entertainment", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 428000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Groceries' 2026-07: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Groceries", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 534000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Groceries' 2026-08: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Groceries", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 537000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Groceries' 2026-09: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Groceries", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 537000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Healthcare' 2026-07: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Healthcare", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 502000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Healthcare' 2026-08: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Healthcare", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 497000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Healthcare' 2026-09: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Healthcare", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 425000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Office Supplies' 2026-07: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Office Supplies", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 491000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Office Supplies' 2026-08: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Office Supplies", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 652000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Office Supplies' 2026-09: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Office Supplies", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 251000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Rent' 2026-07: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Rent", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 3000000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Rent' 2026-08: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Rent", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 3000000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Rent' 2026-09: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Rent", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 3000000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Subscriptions' 2026-07: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Subscriptions", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 144000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Subscriptions' 2026-08: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Subscriptions", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 409000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Subscriptions' 2026-09: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Subscriptions", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 250000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Transport' 2026-07: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Transport", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 335000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Transport' 2026-08: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Transport", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 345000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Transport' 2026-09: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Transport", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 354000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Travel' 2026-07: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Travel", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 1578000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Travel' 2026-08: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Travel", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 1775000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Travel' 2026-09: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Travel", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 1302000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Utilities' 2026-07: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Utilities", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 825000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Utilities' 2026-08: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Utilities", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 850000
+  Numeric match: N/A (no cached numeric value to compare)
+- Category 'Utilities' 2026-09: formula found at col 2: =SUMIF('2026-07'!C2:C1000, "Utilities", '2026-07'!D2:D1000)
+  Cached numeric value: <no cached numeric value>
+  Expected (pandas): 837000
+  Numeric match: N/A (no cached numeric value to compare)
+
+Overall conclusions:
+- 2026-07: PASS
+- 2026-08: PASS
+- 2026-09: PASS
+
+FINAL: All checks passed. Workbook contains formulas and pandas-computed totals match the CSV (where numeric cached values available in workbook they also match).

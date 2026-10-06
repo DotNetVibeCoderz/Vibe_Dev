@@ -1,0 +1,49 @@
+Summary sheet values (computed from source CSV):
+
+Month totals and transaction counts:
+
+2026-07: Total Amount = 8361000  |  Number of Transactions = 32
+2026-08: Total Amount = 8897000  |  Number of Transactions = 31
+2026-09: Total Amount = 7781000  |  Number of Transactions = 30
+
+Category x Month table:
+Category,2026-07,2026-08,2026-09
+Dining,332000,447000,397000
+Entertainment,620000,385000,428000
+Groceries,534000,537000,537000
+Healthcare,502000,497000,425000
+Office Supplies,491000,652000,251000
+Rent,3000000,3000000,3000000
+Subscriptions,144000,409000,250000
+Transport,335000,345000,354000
+Travel,1578000,1775000,1302000
+Utilities,825000,850000,837000
+
+Formula presence checks (examples):
+2026-07: found 10 subtotal formula cells. Examples:
+  Category: Dining  Formula: =SUMIF(C2:C33, "Dining", D2:D33)
+  Category: Entertainment  Formula: =SUMIF(C2:C33, "Entertainment", D2:D33)
+  Category: Groceries  Formula: =SUMIF(C2:C33, "Groceries", D2:D33)
+  Category: Healthcare  Formula: =SUMIF(C2:C33, "Healthcare", D2:D33)
+  Category: Office Supplies  Formula: =SUMIF(C2:C33, "Office Supplies", D2:D33)
+2026-08: found 10 subtotal formula cells. Examples:
+  Category: Dining  Formula: =SUMIF(C2:C32, "Dining", D2:D32)
+  Category: Entertainment  Formula: =SUMIF(C2:C32, "Entertainment", D2:D32)
+  Category: Groceries  Formula: =SUMIF(C2:C32, "Groceries", D2:D32)
+  Category: Healthcare  Formula: =SUMIF(C2:C32, "Healthcare", D2:D32)
+  Category: Office Supplies  Formula: =SUMIF(C2:C32, "Office Supplies", D2:D32)
+2026-09: found 10 subtotal formula cells. Examples:
+  Category: Dining  Formula: =SUMIF(C2:C31, "Dining", D2:D31)
+  Category: Entertainment  Formula: =SUMIF(C2:C31, "Entertainment", D2:D31)
+  Category: Groceries  Formula: =SUMIF(C2:C31, "Groceries", D2:D31)
+  Category: Healthcare  Formula: =SUMIF(C2:C31, "Healthcare", D2:D31)
+  Category: Office Supplies  Formula: =SUMIF(C2:C31, "Office Supplies", D2:D31)
+
+Summary sheet formula examples:
+Row 2: Total formula: =SUM('2026-07'!D2:D1000)  Count formula: =COUNTA('2026-07'!D2:D1000)
+Row 3: Total formula: =SUM('2026-08'!D2:D1000)  Count formula: =COUNTA('2026-08'!D2:D1000)
+Row 4: Total formula: =SUM('2026-09'!D2:D1000)  Count formula: =COUNTA('2026-09'!D2:D1000)
+
+Runtime notes:
+Ran scripts/monthly_summary.py which created reports/monthly-summary.xlsx and reports/summary_print.txt.
+Computed printed values from the source CSV because openpyxl does not evaluate formulas.

@@ -1,0 +1,80 @@
+@page "/templates"
+@inherits LiveComponent
+@inject TemplateService Templates
+@inject BotRegistry Registry
+@inject NavigationManager Nav
+
+<PageTitle>@T["tpl.title"] · Marbots</PageTitle>
+<div class="page">
+    <div class="page-head">
+        <div>
+            <h1>@T["tpl.title"]</h1>
+            <p>@T["tpl.subtitle"] @_all.Count templates across @_categories.Count categories.</p>
+        </div>
+        <a class="btn primary" href="/templates/new"><Icon Name="plus" /> @T["tpl.new"]</a>
+    </div>
+
+    <div class="row" style="margin-bottom:12px">
+        <input class="input" style="max-width:420px" placeholder="@T["tpl.search"]" @bind="_query" @bind:event="oninput" aria-label="Search templates" />
+    </div>
+    <div class="tpl-cats" role="tablist">
+        <button class="chip @(_category is null ? "on" : "")" @onclick="() => _category = null">@T["tpl.all"]</button>
+        @foreach (var c in _categories)
+        {
+            <button class="chip @(_category == c ? "on" : "")" @onclick="() => _category = c">@c</button>
+        }
+    </div>
+    @if (_message is not null) { <div class="ok-box">@_message</div> }
+
+    <div class="card-grid">
+        @foreach (var t in Filtered)
+        {
+            <article class="panel bot-card">
+                <header>
+                    <Marble Color="@t.Color" Name="@t.Name" Size="42" />
+                    <div style="min-width:0">
+                        <h3>@t.Name</h3>
+                        <div class="muted small-text">@t.Category@(t.IsBuiltIn ? "" : " · custom")</div>
+                    </div>
+                </header>
+                <p class="desc">@t.Description</p>
+                <div class="chips">
+                    @foreach (var s in t.Skills.Take(4)) { <span class="chip">@s</span> }
+                    @foreach (var m in t.McpServers) { <span class="chip">mcp:@m</span> }
+                </div>
+                <footer>
+                    <button class="btn small primary" @onclick="() => Hire(t)">@T["tpl.hire"]</button>
+                    <a class="btn small" href="/team/new?template=@t.Id">Customise</a>
+                    <a class="btn small ghost" href="/templates/@t.Id/edit">@(t.IsBuiltIn ? "Duplicate" : T["edit"])</a>
+                </footer>
+            </article>
+        }
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<BotTemplate> _all = [];
+    private List<string> _categories = [];
+    private string? _category;
+    private string _query = "";
+    private string? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _all = await Templates.ListAsync();
+        _categories = _all.Select(t => t.Category).Distinct().Order().ToList();
+    }
+
+    private IEnumerable<BotTemplate> Filtered => _all
+        .Where(t => _category is null || t.Category == _category)
+        .Where(t => _query.Length == 0 || t.Name.Contains(_query, StringComparison.OrdinalIgnoreCase) || t.Description.Contains(_query, StringComparison.OrdinalIgnoreCase)
+                    || t.Role.Contains(_query, StringComparison.OrdinalIgnoreCase) || t.Tags.Any(x => x.Contains(_query, StringComparison.OrdinalIgnoreCase))
+                    || t.Skills.Any(x => x.Contains(_query, StringComparison.OrdinalIgnoreCase)));
+
+    private async Task Hire(BotTemplate t)
+    {
+        var bot = await Registry.CreateAsync(BotRegistry.FromTemplate(t));
+        _message = $"{bot.Name} joined the team.";
+        Nav.NavigateTo($"/?bot={bot.Id}");
+    }
+}

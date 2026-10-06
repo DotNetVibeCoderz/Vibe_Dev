@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Marbots agent runtime: Boss Man orchestration, agent loop, memory, compaction, skills, MCP, policy, scheduler.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Marbots.Abstractions\Marbots.Abstractions.csproj" />
+    <ProjectReference Include="..\Marbots.Kernel\Marbots.Kernel.csproj" />
+    <ProjectReference Include="..\Marbots.Providers\Marbots.Providers.csproj" />
+    <ProjectReference Include="..\Marbots.Storage\Marbots.Storage.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="builtin-templates.json" LogicalName="Marbots.Runtime.builtin-templates.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+</Project>

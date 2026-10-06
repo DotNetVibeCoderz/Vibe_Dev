@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>Marbots.Abstractions</PackageId>
+    <Description>Core contracts, models and events for the Marbots multi-agent platform.</Description>
+  </PropertyGroup>
+</Project>

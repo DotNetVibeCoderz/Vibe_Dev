@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Kas Warung</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1>Kas Warung</h1>
+      <p class="subtitle">Catat pemasukan dan pengeluaran harian warung</p>
+    </header>
+
+    <section class="summary">
+      <div class="summary-card">
+        <h3>Saldo Hari Ini</h3>
+        <div id="balance-today" class="balance">Rp 0</div>
+      </div>
+      <div class="summary-card">
+        <h3>Saldo Bulan Ini</h3>
+        <div id="balance-month" class="balance">Rp 0</div>
+      </div>
+    </section>
+
+    <section class="form-section">
+      <form id="transaction-form">
+        <div class="row">
+          <label for="date">Tanggal</label>
+          <input type="date" id="date" required>
+        </div>
+        <div class="row">
+          <label for="description">Keterangan</label>
+          <input type="text" id="description" placeholder="Contoh: Penjualan nasi" required>
+        </div>
+        <div class="row">
+          <label for="category">Kategori</label>
+          <input type="text" id="category" placeholder="Contoh: Makanan" required>
+        </div>
+        <div class="row">
+          <label for="amount">Nominal (Rp)</label>
+          <input type="number" id="amount" placeholder="10000" required min="0">
+        </div>
+        <div class="row">
+          <label for="type">Tipe</label>
+          <select id="type" required>
+            <option value="in">Masuk</option>
+            <option value="out">Keluar</option>
+          </select>
+        </div>
+        <div class="row actions">
+          <button id="add-transaction" type="submit" class="btn">Tambah Transaksi</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="list-section">
+      <h2>Daftar Transaksi</h2>
+      <div id="transactions-list" class="transactions-list">
+        <!-- Transactions will be rendered here -->
+      </div>
+    </section>
+
+    <footer class="footer">
+      <small>Kas Warung • Simpel &amp; Offline • Disimpan di browser</small>
+    </footer>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

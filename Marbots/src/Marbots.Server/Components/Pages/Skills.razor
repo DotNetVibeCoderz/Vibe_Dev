@@ -1,0 +1,123 @@
+@page "/skills"
+@inherits LiveComponent
+@inject SkillRegistry Registry
+
+<PageTitle>@T["nav.skills"] · Marbots</PageTitle>
+<div class="page">
+    <div class="page-head">
+        <div>
+            <h1>Skills gallery</h1>
+            <p>Skills are <code>SKILL.md</code> packages (compatible with Claude/Agent Skills and OpenClaw). Bots see only the name and description until they load a skill, which keeps context small.</p>
+        </div>
+        <button class="btn primary" @onclick="() => _showCreate = !_showCreate"><Icon Name="plus" /> New skill</button>
+    </div>
+    @if (_message is not null) { <div class="@(_isError ? "error-box" : "ok-box")">@_message</div> }
+
+    <div class="panel panel-pad" style="margin-bottom:16px">
+        <h3 style="margin-bottom:8px">Install from a folder or git repository</h3>
+        <div class="row">
+            <input class="input grow" placeholder="https://github.com/org/skills-repo.git or C:\path\to\skills" @bind="_source" />
+            <button class="btn" @onclick="Install" disabled="@_busy">@(_busy ? "Installing…" : "Install")</button>
+        </div>
+        <p class="small-text muted" style="margin:8px 0 0">Every SKILL.md found is copied into <code>data/skills</code>. Review scripts before giving a skill to bots with shell access.</p>
+    </div>
+
+    @if (_showCreate)
+    {
+        <div class="panel panel-pad" style="margin-bottom:16px">
+            <div class="split">
+                <label class="field"><span>Name</span><input class="input" @bind="_newName" placeholder="weekly-report" /></label>
+                <label class="field"><span>Description</span><input class="input" @bind="_newDesc" placeholder="When to use this skill" /></label>
+            </div>
+            <label class="field"><span>Instructions (Markdown)</span><textarea class="textarea" rows="10" @bind="_newBody"></textarea></label>
+            <button class="btn primary" @onclick="Create">Create skill</button>
+        </div>
+    }
+
+    @if (_pending.Count > 0)
+    {
+        <h2 style="margin:8px 0 12px">Waiting for review (auto-learn)</h2>
+        @foreach (var s in _pending)
+        {
+            <div class="approval-card" style="max-width:none">
+                <b>@s.Name</b> — @s.Description
+                <details style="margin-top:6px"><summary class="small-text">Show draft</summary><pre>@File.ReadAllText(Path.Combine(s.Path, "SKILL.md"))</pre></details>
+                <div class="row" style="margin-top:8px">
+                    <button class="btn small primary" @onclick="() => Approve(s)">Publish skill</button>
+                    <button class="btn small danger" @onclick="() => Reject(s)">Discard</button>
+                </div>
+            </div>
+        }
+    }
+
+    <div class="panel">
+        <table class="table">
+            <thead><tr><th>Skill</th><th>Trust</th><th>Needs</th><th>Version</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var s in _installed)
+                {
+                    <tr>
+                        <td><b>@s.Name</b><div class="muted small-text">@s.Description</div></td>
+                        <td><span class="chip">@s.Trust</span></td>
+                        <td class="small-text">@(s.NeedsShell ? "shell " : "")@(s.NeedsNetwork ? "network " : "")@(s.HasScripts ? "scripts" : "")@(!s.NeedsShell && !s.NeedsNetwork && !s.HasScripts ? "—" : "")</td>
+                        <td class="small-text">@s.Version</td>
+                        <td>@if (s.Source == "installed") { <button class="btn small danger" @onclick="() => Uninstall(s)">Remove</button> }</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private List<SkillInfo> _installed = [];
+    private List<SkillInfo> _pending = [];
+    private string _source = "", _newName = "", _newDesc = "", _newBody = "";
+    private string? _message;
+    private bool _isError, _busy, _showCreate;
+
+    protected override void OnParametersSet() => Load();
+
+    private void Load()
+    {
+        _installed = Registry.All.Where(s => !s.Pending).ToList();
+        _pending = Registry.All.Where(s => s.Pending).ToList();
+    }
+
+    protected override bool Accept(AgentEvent e) => e.Type == EventTypes.AutoLearnCandidateCreated;
+
+    protected override Task RefreshAsync(IReadOnlyList<AgentEvent> events) { Load(); return Task.CompletedTask; }
+
+    private async Task Install()
+    {
+        if (string.IsNullOrWhiteSpace(_source)) return;
+        _busy = true;
+        try
+        {
+            var list = await Registry.InstallAsync(_source.Trim(), default);
+            _message = list.Count == 0 ? "No SKILL.md files were found." : $"Installed {list.Count}: {string.Join(", ", list.Select(s => s.Name))}";
+            _isError = list.Count == 0;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            _message = ex.Message; _isError = true;
+        }
+        _busy = false;
+        Load();
+    }
+
+    private async Task Create()
+    {
+        try
+        {
+            var s = await Registry.CreateAsync(_newName, _newDesc, _newBody, false, default);
+            _message = $"Created skill '{s.Name}'."; _isError = false; _showCreate = false;
+        }
+        catch (ArgumentException ex) { _message = ex.Message; _isError = true; }
+        Load();
+    }
+
+    private void Approve(SkillInfo s) { Registry.ApprovePending(s.Name); _message = $"Published '{s.Name}'."; _isError = false; Load(); }
+    private void Reject(SkillInfo s) { Registry.RejectPending(s.Name); Load(); }
+    private void Uninstall(SkillInfo s) { Registry.Uninstall(s.Name); Load(); }
+}

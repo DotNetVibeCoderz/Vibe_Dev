@@ -1,0 +1,25 @@
+Name: Marbots
+
+Deskripsi: Multi-Agent Collaboration Platform
+
+Features
+---
+Desain dan Fitur bisa lihat di file @solution-design.md
+
+---
+Notes:
+- Dibangun dengan .NET 10
+- Optimasi kode dengan best practice, best performance dan efisiensi memory
+- Kalau membutuhkan Rust untuk membuat low level library agar performa tinggi silakan (optional)
+- Dokumentasi yang lengkap, jelas, mudah dengan dua Bahasa (English dan Bahasa Indonesia)
+- Tambahkan screenshot-nya ke readme dan docs
+- Buat UI UX yang bagus dibantu dengan skill 'frontend-design'
+- Pada UI juga terdapat Gallery Bot Template, dimana user bisa create template bot dengan mengisi: nama, instruksi/persona, pilih MCP, pilih Skills, dan opsi-opsi lain yang diperlukan. Default-nya masukan beberapa template bot yang banyak khususnya untuk role-role dalam perusahaan, dalam pengembangan software, desain, role profesi yang berbeda-beda.
+- Tambahkan info pada dokumentasi dan aplikasi: Dibuat oleh Gravicode Studios dipimpin oleh Kang Fadhil
+- PLAN.md untuk roadmap pengembangan, dan Progress.md untuk tracking development
+- ujicoba dengan membuat berbagai jenis aplikasi, dokumen/file, script, menggunakan MCP, Skills, plugins lalu tambahkan screenshot-screenshot-nya pada readme dan docs
+- uji coba dengan real LLM dengan api key dari 'C:\Users\mifma\Documents\CodeSandbox\testkey.txt'
+- untuk publish nuget, pypi, npm, api key ada di 'C:\Users\mifma\Documents\CodeSandbox\PackageCredentials.txt'
+- referensi source code:
+> openclaw: https://github.com/openclaw/openclaw
+> Hermes: https://github.com/nousresearch/hermes-agent 

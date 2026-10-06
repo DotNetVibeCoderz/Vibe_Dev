@@ -1,0 +1,177 @@
+@page "/tasks"
+@page "/tasks/{Id}"
+@inherits LiveComponent
+@inject MarbotsEngine Engine
+@inject BotRegistry Registry
+@inject IMessageStore Messages
+@inject IEventStore EventStore
+@inject MarkdownRenderer Md
+
+<PageTitle>@T["nav.tasks"] · Marbots</PageTitle>
+<div class="page">
+    @if (_selected is null)
+    {
+        <div class="page-head">
+            <div>
+                <h1>@T["nav.tasks"]</h1>
+                <p>Every request becomes a durable task. Delegated sub-tasks are nested under the task that created them.</p>
+            </div>
+            <div class="tpl-cats">
+                @foreach (var f in Filters)
+                {
+                    <button class="chip @(_filter == f ? "on" : "")" @onclick="() => _filter = f">@f</button>
+                }
+            </div>
+        </div>
+        <div class="panel">
+            <table class="table">
+                <thead><tr><th>Task</th><th>Bot</th><th>Model</th><th>State</th><th>Steps</th><th>Tokens</th><th>Cost</th><th>Started</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var t in Visible)
+                    {
+                        var b = Bot(t.BotId);
+                        <tr>
+                            <td style="max-width:420px">
+                                <span style="padding-left:@(t.Depth * 18)px">@(t.Depth > 0 ? "↳ " : "")<a href="/tasks/@t.Id">@AgentRuntime.Preview(t.Objective, 90)</a></span>
+                                @if (t.CurrentActivity is not null && !t.State.IsTerminal()) { <div class="muted small-text" style="padding-left:@(t.Depth * 18)px">@t.CurrentActivity</div> }
+                            </td>
+                            <td><div class="row"><Marble Color="@(b?.Color ?? "#5B6482")" Name="@(b?.Name ?? t.BotId)" Size="22" />@(b?.Name ?? t.BotId)</div></td>
+                            <td class="small-text">@(t.Model ?? "—")</td>
+                            <td><span class="state @StateClass(t.State)">@t.State</span></td>
+                            <td>@t.Steps</td>
+                            <td>@((t.InputTokens + t.OutputTokens).ToString("N0"))</td>
+                            <td>$@t.CostUsd.ToString("0.0000")</td>
+                            <td class="small-text muted">@(t.StartedAt?.ToLocalTime().ToString("dd MMM HH:mm:ss") ?? "—")</td>
+                            <td>
+                                @if (!t.State.IsTerminal()) { <button class="btn small" @onclick="() => Engine.CancelAsync(t.Id)">Cancel</button> }
+                                else if (t.Depth == 0 && t.State != TaskState.Completed) { <button class="btn small" @onclick="() => Engine.RetryAsync(t.Id)">Retry</button> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (!Visible.Any()) { <p class="muted panel-pad">No tasks yet. Start one from the chat.</p> }
+        </div>
+    }
+    else
+    {
+        var b = Bot(_selected.BotId);
+        <div class="page-head">
+            <div class="row">
+                <Marble Color="@(b?.Color ?? "#5B6482")" Name="@(b?.Name ?? _selected.BotId)" Size="48" State="@(_selected.State.IsTerminal() ? null : "Running")" />
+                <div>
+                    <h1>Task by @(b?.Name ?? _selected.BotId)</h1>
+                    <p><span class="state @StateClass(_selected.State)">@_selected.State</span> · @(_selected.Model ?? "model n/a") · @_selected.Steps steps · @((_selected.InputTokens + _selected.OutputTokens).ToString("N0")) tokens · $@_selected.CostUsd.ToString("0.0000")</p>
+                </div>
+            </div>
+            <div class="row">
+                <a class="btn" href="/tasks">All tasks</a>
+                <a class="btn" href="/chat/@_selected.ThreadId">Open thread</a>
+                @if (_selected.ParentTaskId is not null) { <a class="btn" href="/tasks/@_selected.ParentTaskId">Parent task</a> }
+            </div>
+        </div>
+        <div class="split">
+            <div class="panel panel-pad">
+                <h2 style="margin-bottom:10px">Objective</h2>
+                <div class="md">@((MarkupString)Md.ToHtml(_selected.Objective))</div>
+                <h2 style="margin:18px 0 10px">Result</h2>
+                <div class="md">@((MarkupString)Md.ToHtml(_selected.Result ?? _selected.Error ?? "_No result yet._"))</div>
+                @if (_children.Count > 0)
+                {
+                    <h2 style="margin:18px 0 10px">Delegated sub-tasks</h2>
+                    @foreach (var c in _children)
+                    {
+                        <div class="row" style="margin-bottom:6px"><span class="state @StateClass(c.State)">@c.State</span><a href="/tasks/@c.Id">@(Bot(c.BotId)?.Name): @AgentRuntime.Preview(c.Objective, 80)</a></div>
+                    }
+                }
+            </div>
+            <div class="panel panel-pad">
+                <h2 style="margin-bottom:10px">Timeline</h2>
+                <div class="activity-list" style="padding:0;max-height:70vh">
+                    @foreach (var e in _events)
+                    {
+                        <div class="ev"><Marble Color="@(Bot(e.BotId)?.Color ?? "#5B6482")" Size="20" /><div class="txt"><time>@e.Timestamp.ToLocalTime().ToString("HH:mm:ss")</time> · @e.Type — @e.Message</div></div>
+                    }
+                </div>
+                <h2 style="margin:18px 0 10px">Transcript</h2>
+                @foreach (var m in _transcript)
+                {
+                    <div class="step"><b>@m.Role</b>@(m.ToolName is not null ? $" · {m.ToolName}" : "")@(m.ToolCalls is { Count: > 0 } ? " → " + string.Join(", ", m.ToolCalls.Select(c => c.Name)) : "")
+                        @if (m.Content.Length > 0) { <pre>@AgentRuntime.Preview(m.Content, 2000)</pre> }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Id { get; set; }
+    private static readonly string[] Filters = ["All", "Active", "Completed", "Failed"];
+    private string _filter = "All";
+    private IReadOnlyList<TaskRecord> _tasks = [];
+    private Dictionary<string, BotDefinition> _bots = [];
+    private TaskRecord? _selected;
+    private List<TaskRecord> _children = [];
+    private IReadOnlyList<AgentEvent> _events = [];
+    private IReadOnlyList<ChatMessage> _transcript = [];
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _bots = (await Registry.ListAsync()).ToDictionary(b => b.Id);
+        _tasks = await Engine.ListTasksAsync();
+        _selected = Id is null ? null : _tasks.FirstOrDefault(t => t.Id == Id);
+        if (_selected is not null)
+        {
+            _children = _tasks.Where(t => t.ParentTaskId == _selected.Id).OrderBy(t => t.CreatedAt).ToList();
+            _events = await EventStore.ListAsync(null, _selected.Id, 0, 2000);
+            _transcript = (await Messages.ListAsync(_selected.TranscriptId, 0, 5000)).Where(m => _selected.Depth > 0 || m.TaskId == _selected.Id).ToList();
+        }
+    }
+
+    protected override bool Accept(AgentEvent e) => e.Type is EventTypes.TaskCreated or EventTypes.TaskStateChanged or EventTypes.TaskDelegated or EventTypes.ToolCallCompleted;
+
+    protected override Task RefreshAsync(IReadOnlyList<AgentEvent> events) => LoadAsync();
+
+    private IEnumerable<TaskRecord> Visible
+    {
+        get
+        {
+            IEnumerable<TaskRecord> roots = _tasks.Where(t => t.Depth == 0);
+            roots = _filter switch
+            {
+                "Active" => roots.Where(t => !t.State.IsTerminal()),
+                "Completed" => roots.Where(t => t.State == TaskState.Completed),
+                "Failed" => roots.Where(t => t.State is TaskState.Failed or TaskState.Cancelled or TaskState.TimedOut),
+                _ => roots,
+            };
+            foreach (var r in roots.Take(150))
+            {
+                yield return r;
+                foreach (var c in Descendants(r.Id)) yield return c;
+            }
+        }
+    }
+
+    private IEnumerable<TaskRecord> Descendants(string id)
+    {
+        foreach (var c in _tasks.Where(t => t.ParentTaskId == id).OrderBy(t => t.CreatedAt))
+        {
+            yield return c;
+            foreach (var d in Descendants(c.Id)) yield return d;
+        }
+    }
+
+    private BotDefinition? Bot(string? id) => id is not null && _bots.TryGetValue(id, out var b) ? b : null;
+
+    private static string StateClass(TaskState s) => s switch
+    {
+        TaskState.Completed => "completed",
+        TaskState.Failed or TaskState.TimedOut => "failed",
+        TaskState.Cancelled => "paused",
+        TaskState.WaitingForHuman => "paused",
+        _ => "running",
+    };
+}

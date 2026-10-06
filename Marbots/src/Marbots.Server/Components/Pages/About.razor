@@ -1,0 +1,36 @@
+@page "/about"
+@inherits LiveComponent
+@inject MarbotsOptions Options
+
+<PageTitle>@T["nav.about"] · Marbots</PageTitle>
+<div class="page" style="max-width:860px">
+    <div class="row" style="gap:18px;margin-bottom:22px">
+        <Marble Color="#2C3BA3" Size="72" />
+        <div>
+            <h1 style="font-size:2.6rem">Marbots</h1>
+            <p class="muted" style="margin:4px 0 0">Marvelous Bots — your team of AI coworkers you can shape, teach and orchestrate.</p>
+        </div>
+    </div>
+
+    <div class="panel panel-pad" style="margin-bottom:16px">
+        <h2 style="margin-bottom:8px">@WellKnown.Credits</h2>
+        <p class="muted" style="margin:0">@WellKnown.CreditsEn</p>
+    </div>
+
+    <div class="panel panel-pad" style="margin-bottom:16px">
+        <h2 style="margin-bottom:10px">What's inside</h2>
+        <ul>
+            <li><b>Boss Man</b> — a protected manager bot that plans, delegates in parallel and synthesises results.</li>
+            <li><b>Durable bots</b> with persona, short- and long-term memory, context compaction and optional auto-learn.</li>
+            <li><b>Skills</b> (SKILL.md, progressive disclosure), <b>MCP</b> servers and built-in kernel functions (files, search, shell, web, memory, todo).</li>
+            <li><b>Policy engine</b> and human approvals for risky actions, outside the language model.</li>
+            <li><b>Scheduler</b>, <b>.marbot</b> export/import without secrets, live <b>Office</b> view, REST + SSE API, A2A agent cards and SDKs for .NET, Python, TypeScript and Go.</li>
+        </ul>
+        <p class="small-text muted">Version @(typeof(About).Assembly.GetName().Version?.ToString(3)) · .NET @Environment.Version · data in <code>@Options.DataDirectory</code></p>
+    </div>
+
+    <div class="panel panel-pad">
+        <h2 style="margin-bottom:10px">Inspired by</h2>
+        <p class="small-text">OpenClaw (multi-channel gateway, skills), Hermes Agent (learning loop, progressive skills), the A2A and Model Context Protocol specifications. Marbots borrows patterns, not code.</p>
+    </div>
+</div>

@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Default kernel functions for Marbots bots (files, search, shell, web, memory, todo).</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Marbots.Abstractions\Marbots.Abstractions.csproj" />
+  </ItemGroup>
+</Project>

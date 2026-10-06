@@ -1,0 +1,18 @@
+<div class="row" role="radiogroup" aria-label="Marble color">
+    @foreach (var c in Colors)
+    {
+        <button type="button" class="btn ghost small" style="padding:2px" role="radio" aria-checked="@(c == Value)" title="@c" @onclick="() => Pick(c)">
+            <Marble Color="@c" Size="@(c == Value ? 30 : 24)" />
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter] public string Value { get; set; } = "#2C3BA3";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    public static readonly string[] Colors =
+        ["#2C3BA3", "#6D3FC0", "#0E7C86", "#0F766E", "#15803D", "#C2410C", "#B4235A", "#991B1B", "#CA8A04", "#0369A1", "#475569", "#A21CAF"];
+
+    private Task Pick(string c) => ValueChanged.InvokeAsync(c);
+}

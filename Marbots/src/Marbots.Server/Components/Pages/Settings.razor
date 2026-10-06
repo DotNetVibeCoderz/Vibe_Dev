@@ -1,0 +1,206 @@
+@page "/settings"
+@inherits LiveComponent
+@inject ModelRouter Router
+@inject IDocumentStore<ProviderConfig> Providers
+@inject IDocumentStore<ModelProfile> Profiles
+@inject LocalSecretProvider Secrets
+@inject MarbotsOptions Options
+
+<PageTitle>@T["nav.settings"] · Marbots</PageTitle>
+<div class="page">
+    <div class="page-head">
+        <div>
+            <h1>@T["nav.settings"]</h1>
+            <p>Connect model providers and store secrets. Secrets are encrypted on this computer and are never shown again or exported with bots.</p>
+        </div>
+    </div>
+    @if (_message is not null) { <div class="@(_isError ? "error-box" : "ok-box")">@_message</div> }
+    @if (!Router.IsConfigured)
+    {
+        <div class="approval-card" style="max-width:none">No model provider is configured, so bots run in offline mock mode. Add one below.</div>
+    }
+
+    <div class="panel panel-pad" style="margin-bottom:16px;@(Approvals.SkipApprovals ? "border-color:var(--danger)" : "")">
+        <div class="row" style="justify-content:space-between">
+            <div style="max-width:78ch">
+                <h2 style="margin-bottom:6px">@T["skip.title"]</h2>
+                <p class="small-text muted" style="margin:0">@T["skip.body"]</p>
+            </div>
+            <div class="row">
+                <span class="state @(Approvals.SkipApprovals ? "failed" : "completed")">@(Approvals.SkipApprovals ? T["skip.on"] : T["skip.off"])</span>
+                @if (Approvals.SkipApprovals)
+                {
+                    <button class="btn primary" @onclick="() => SetSkip(false)">@T["skip.disable"]</button>
+                }
+                else
+                {
+                    <button class="btn danger" @onclick="() => SetSkip(true)">@T["skip.enable"]</button>
+                }
+            </div>
+        </div>
+        <p class="small-text muted" style="margin:8px 0 0">CLI: <code>marbots approvals skip on|off</code> · server flag: <code>--dangerously-skip-approvals</code></p>
+    </div>
+
+    <div class="panel panel-pad" style="margin-bottom:16px">
+        <h2 style="margin-bottom:6px">Default model</h2>
+        <p class="small-text muted">Every bot whose model is set to <b>Default</b> uses this model. Bots with their own model keep it, and fall back to this one if their model is unavailable.</p>
+        <div class="row">
+            <select class="select" style="max-width:420px" @bind="_defaultChoice" aria-label="Default model">
+                @foreach (var c in Router.Choices) { <option value="@c">@c</option> }
+                @if (!Router.Choices.Contains(ModelRouter.Describe(Router.Default))) { <option value="@ModelRouter.Describe(Router.Default)">@ModelRouter.Describe(Router.Default)</option> }
+            </select>
+            <button class="btn primary" @onclick="SaveDefault">Set as default</button>
+            <span class="small-text muted">Current: <b>@ModelRouter.Describe(Router.Default)</b> · used by @_defaultUsers bot(s)</span>
+        </div>
+    </div>
+
+    <div class="split">
+        <div class="panel panel-pad">
+            <h2 style="margin-bottom:12px">Model provider</h2>
+            <label class="field"><span>Name</span><input class="input" @bind="_p.Name" placeholder="azure" /></label>
+            <label class="field"><span>Kind</span>
+                <select class="select" @bind="_p.Kind">
+                    <option value="azure-openai">Azure OpenAI</option>
+                    <option value="openai">OpenAI-compatible (OpenAI, DeepSeek, Ollama, LM Studio, vLLM…)</option>
+                </select>
+            </label>
+            <label class="field"><span>Endpoint</span><input class="input" @bind="_p.Endpoint" placeholder="@(_p.Kind == "azure-openai" ? "https://<resource>.openai.azure.com/" : "https://api.deepseek.com")" /></label>
+            <label class="field"><span>API key</span><input class="input" type="password" @bind="_key" autocomplete="off" placeholder="stored encrypted" /></label>
+            <label class="field"><span>Models / deployments</span><input class="input" @bind="_models" placeholder="gpt-5-mini, gpt-5.6-luna" />
+                <small>Comma separated. These appear in every bot's model picker as provider/model.</small></label>
+            <label class="row small-text" style="margin-bottom:12px"><input type="checkbox" @bind="_makeDefault" /> Use the first model as the workspace default</label>
+            <button class="btn primary" @onclick="SaveProvider">Save provider</button>
+        </div>
+
+        <div class="panel panel-pad">
+            <h2 style="margin-bottom:12px">Model profiles</h2>
+            <table class="table">
+                <thead><tr><th>Profile</th><th>Provider</th><th>Model</th><th>Fallbacks</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var p in Router.Profiles)
+                    {
+                        <tr><td>@p.Name</td><td>@p.Provider</td><td>@p.Model</td><td class="small-text">@string.Join(", ", p.Fallbacks)</td>
+                            <td>@if (p.Name != ModelRouter.DefaultProfile) { <button class="btn small danger" @onclick="() => DeleteProfile(p.Name)">@T["delete"]</button> }</td></tr>
+                    }
+                </tbody>
+            </table>
+            <h3 style="margin:16px 0 8px">Add profile</h3>
+            <p class="small-text muted">Optional: a named profile (e.g. "coding") bundles a model with fallbacks so many bots can share it.</p>
+            <div class="split">
+                <input class="input" placeholder="name, e.g. coding" @bind="_prof.Name" />
+                <input class="input" placeholder="provider name" @bind="_prof.Provider" />
+                <input class="input" placeholder="model" @bind="_prof.Model" />
+                <input class="input" placeholder="fallback profiles (comma)" @bind="_fallbacks" />
+            </div>
+            <button class="btn" style="margin-top:10px" @onclick="SaveProfile">Save profile</button>
+        </div>
+    </div>
+
+    <div class="split" style="margin-top:16px">
+        <div class="panel panel-pad">
+            <h2 style="margin-bottom:12px">Secrets</h2>
+            <p class="small-text muted">Used by tools and MCP servers via <code>secret:NAME</code>, e.g. <code>TAVILY_API_KEY</code> for web search or <code>GITHUB_TOKEN</code>.</p>
+            <div class="row">
+                <input class="input grow" placeholder="NAME" @bind="_secretName" />
+                <input class="input grow" type="password" placeholder="value" @bind="_secretValue" autocomplete="off" />
+                <button class="btn" @onclick="SaveSecret">Save</button>
+            </div>
+            <div class="chips" style="margin-top:12px">
+                @foreach (var n in Secrets.Names().Where(n => !n.StartsWith("provider:", StringComparison.Ordinal)))
+                {
+                    <span class="chip">@n <button class="btn ghost small" style="padding:0 4px" @onclick="() => DeleteSecret(n)" aria-label="Delete @n">×</button></span>
+                }
+            </div>
+        </div>
+        <div class="panel panel-pad">
+            <h2 style="margin-bottom:12px">Storage</h2>
+            <dl class="kv small-text">
+                <dt>Data folder</dt><dd>@Options.DataDirectory</dd>
+                <dt>Database</dt><dd>marbots.db (SQLite, WAL)</dd>
+                <dt>Workspaces</dt><dd>@Options.DataPath("workspaces")</dd>
+                <dt>Installed skills</dt><dd>@Options.DataPath("skills")</dd>
+                <dt>API</dt><dd><a href="/openapi/v1.json" target="_blank">/openapi/v1.json</a> · A2A card <a href="/.well-known/agent-card.json" target="_blank">/.well-known/agent-card.json</a></dd>
+            </dl>
+        </div>
+    </div>
+</div>
+
+@code {
+    private ProviderConfig _p = new() { Kind = "azure-openai" };
+    private ModelProfile _prof = new() { Name = "", Provider = "", Model = "" };
+    [Inject] private BotRegistry Registry { get; set; } = default!;
+    [Inject] private ApprovalService Approvals { get; set; } = default!;
+
+    private async Task SetSkip(bool skip)
+    {
+        await Approvals.SetSkipApprovalsAsync(skip, "web");
+        _message = skip ? T["skip.on"] : T["skip.off"];
+        _isError = skip;
+    }
+    private string _key = "", _models = "", _fallbacks = "", _secretName = "", _secretValue = "", _defaultChoice = "";
+    private bool _makeDefault = true;
+    private int _defaultUsers;
+
+    protected override async Task OnInitializedAsync() => await RefreshDefaultAsync();
+
+    private async Task RefreshDefaultAsync()
+    {
+        _defaultChoice = ModelRouter.Describe(Router.Default);
+        _defaultUsers = (await Registry.ListAsync()).Count(b => ModelRouter.IsDefaultSetting(b.ModelProfile));
+    }
+
+    private async Task SaveDefault()
+    {
+        try
+        {
+            await Router.SetDefaultAsync(_defaultChoice);
+            _message = $"Default model is now {ModelRouter.Describe(Router.Default)}."; _isError = false;
+        }
+        catch (ArgumentException ex) { _message = ex.Message; _isError = true; }
+        await RefreshDefaultAsync();
+    }
+
+    private async Task DeleteProfile(string name)
+    {
+        await Profiles.DeleteAsync(name);
+        await Router.ReloadAsync();
+        _message = $"Profile '{name}' deleted. Bots that used it now use the default model."; _isError = false;
+    }
+    private string? _message;
+    private bool _isError;
+
+    private async Task SaveProvider()
+    {
+        if (string.IsNullOrWhiteSpace(_p.Name) || string.IsNullOrWhiteSpace(_p.Endpoint)) { _message = "Name and endpoint are required."; _isError = true; return; }
+        var models = _models.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        await Providers.UpsertAsync(new ProviderConfig { Name = _p.Name.Trim(), Kind = _p.Kind, Endpoint = _p.Endpoint.Trim(), Models = models });
+        if (_key.Length > 0) Secrets.Set($"provider:{_p.Name.Trim()}:apikey", _key);
+        await Router.ReloadAsync();
+        if (_makeDefault && models.Count > 0 && Router.IsConfigured) await Router.SetDefaultAsync($"{_p.Name.Trim()}/{models[0]}");
+        await RefreshDefaultAsync();
+        _key = "";
+        _message = Router.IsConfigured ? "Provider saved. Bots now use it." : "Saved, but the provider is not usable yet (missing API key?).";
+        _isError = !Router.IsConfigured;
+    }
+
+    private async Task SaveProfile()
+    {
+        if (string.IsNullOrWhiteSpace(_prof.Name)) return;
+        _prof.Fallbacks = _fallbacks.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        await Profiles.UpsertAsync(_prof);
+        await Router.ReloadAsync();
+        _prof = new() { Name = "", Provider = "", Model = "" };
+        _fallbacks = "";
+        _message = "Profile saved."; _isError = false;
+    }
+
+    private void SaveSecret()
+    {
+        if (string.IsNullOrWhiteSpace(_secretName)) return;
+        Secrets.Set(_secretName.Trim(), _secretValue);
+        _secretName = _secretValue = "";
+        _message = "Secret saved."; _isError = false;
+    }
+
+    private void DeleteSecret(string name) => Secrets.Set(name, null);
+}

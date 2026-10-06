@@ -1,0 +1,219 @@
+@page "/office"
+@inherits LiveComponent
+@inject BotRegistry Registry
+@inject MarbotsEngine Engine
+@inject IEventStore EventStore
+@inject NavigationManager Nav
+
+<PageTitle>@T["nav.office"] · Marbots</PageTitle>
+<div class="page" style="max-width:1400px">
+    <div class="page-head">
+        <div>
+            <h1>@T["nav.office"]</h1>
+            <p>A live floor plan of your team. Bots walk to the station that matches what they are doing — research, files, shell, MCP tools, meetings (delegation) or the approval desk.</p>
+        </div>
+        <div class="chips"><span class="chip">@_bots.Count(b => _state.GetValueOrDefault(b.Id)?.Zone is not null and not "desk") busy</span><span class="chip">@_bots.Count bots</span></div>
+    </div>
+
+    <div class="office-layout">
+        <div class="office" role="img" aria-label="Office floor plan">
+            @foreach (var z in Zones)
+            {
+                <div class="zone @(z.Key == "approval" ? "approval" : "")" style="left:@(z.Value.X)%;top:@(z.Value.Y)%;width:@(z.Value.W)%;height:@(z.Value.H)%">@z.Value.Label</div>
+            }
+            @for (var i = 0; i < _workers.Count; i++)
+            {
+                var d = DeskPos(i);
+                <div class="desk" style="left:@(d.X - 4.5)%;top:@(d.Y - 3)%"></div>
+            }
+            <svg class="office-links" viewBox="0 0 100 100" preserveAspectRatio="none">
+                @foreach (var l in ActiveLinks())
+                {
+                    <line x1="@l.X1" y1="@l.Y1" x2="@l.X2" y2="@l.Y2" vector-effect="non-scaling-stroke" />
+                }
+            </svg>
+            @foreach (var b in _bots)
+            {
+                var p = Position(b);
+                var st = _state.GetValueOrDefault(b.Id);
+                <button class="office-bot" style="left:calc(@(p.X.ToString(System.Globalization.CultureInfo.InvariantCulture))% - 18px);top:calc(@(p.Y.ToString(System.Globalization.CultureInfo.InvariantCulture))% - 18px);transition:left .9s cubic-bezier(.5,.1,.2,1), top .9s cubic-bezier(.5,.1,.2,1)"
+                        @onclick="() => _selected = b.Id" aria-label="@b.Name">
+                    <Marble Color="@b.Color" Name="@b.Name" Size="36" State="@(st?.Zone == "approval" ? "Waiting" : b.Status.ToString())" />
+                    <span class="tag">@b.Name@(st?.Label is { } lbl ? " · " + lbl : "")</span>
+                </button>
+            }
+        </div>
+
+        <aside class="panel panel-pad">
+            @if (Selected is { } s)
+            {
+                var st = _state.GetValueOrDefault(s.Id);
+                var task = _tasks.FirstOrDefault(t => t.BotId == s.Id && !t.State.IsTerminal());
+                <div class="row" style="margin-bottom:10px">
+                    <Marble Color="@s.Color" Name="@s.Name" Size="44" State="@s.Status.ToString()" />
+                    <div><h2>@s.Name</h2><div class="muted small-text">@s.Role</div></div>
+                </div>
+                <dl class="kv">
+                    <dt>Status</dt><dd>@s.Status</dd>
+                    <dt>Doing</dt><dd>@(st?.Label ?? "idle at desk")</dd>
+                    <dt>Task</dt><dd>@(task is null ? "—" : AgentRuntime.Preview(task.Objective, 140))</dd>
+                    @if (task is not null)
+                    {
+                        <dt>Elapsed</dt><dd>@((DateTimeOffset.UtcNow - (task.StartedAt ?? task.CreatedAt)).ToString(@"mm\:ss"))</dd>
+                        <dt>Tokens</dt><dd>@((task.InputTokens + task.OutputTokens).ToString("N0")) · $@task.CostUsd.ToString("0.0000")</dd>
+                    }
+                    <dt>Host</dt><dd>@s.HostRef</dd>
+                    <dt>Tools</dt><dd>@string.Join(", ", s.KernelFunctions)</dd>
+                </dl>
+                <h3 style="margin:16px 0 6px">Recent</h3>
+                <div class="activity-list" style="padding:0;max-height:300px">
+                    @foreach (var e in _recent.Where(e => e.BotId == s.Id).Reverse().Take(14))
+                    {
+                        <div class="small-text" style="padding:3px 0;border-bottom:1px dashed var(--line)"><span class="muted">@e.Timestamp.ToLocalTime().ToString("HH:mm:ss")</span> @e.Type @AgentRuntime.Preview(e.Message, 90)</div>
+                    }
+                </div>
+                <div class="row" style="margin-top:12px">
+                    <a class="btn small primary" href="/?bot=@s.Id">@T["chat"]</a>
+                    @if (task is not null) { <button class="btn small" @onclick="() => Engine.CancelAsync(task.Id)">Cancel task</button> }
+                    <a class="btn small" href="/team/@s.Id">@T["edit"]</a>
+                </div>
+            }
+            else
+            {
+                <h2>Pick a bot</h2>
+                <p class="muted">Select a marble to see what it is working on, its cost so far and its latest steps.</p>
+                <h3 style="margin:16px 0 6px">Legend</h3>
+                <p class="small-text legend-row"><Marble Color="#0E7C86" Size="18" State="Running" /> Spinning ring: working</p>
+                <p class="small-text legend-row"><Marble Color="#0E7C86" Size="18" State="Waiting" /> Marigold ring: waiting for your approval</p>
+                <p class="small-text legend-row"><Marble Color="#0E7C86" Size="18" State="Paused" /> Faded: paused</p>
+                <p class="small-text">Dashed lines show work being handed from one bot to another.</p>
+            }
+        </aside>
+    </div>
+</div>
+
+@code {
+    private sealed record Zone(string Label, double X, double Y, double W, double H);
+    private sealed record BotState(string Zone, string Label, DateTimeOffset At);
+    private sealed record Link(double X1, double Y1, double X2, double Y2);
+    private sealed record Pt(double X, double Y);
+
+    private static readonly Dictionary<string, Zone> Zones = new()
+    {
+        ["web"] = new("Research desk · web", 3, 5, 22, 25),
+        ["library"] = new("Library · files & skills", 28, 5, 22, 25),
+        ["workshop"] = new("Workshop · shell", 53, 5, 20, 25),
+        ["mcp"] = new("Tool room · MCP", 76, 5, 21, 25),
+        ["meeting"] = new("Meeting room · delegation", 3, 69, 30, 26),
+        ["manager"] = new("Manager's office", 36, 69, 37, 26),
+        ["approval"] = new("Approval desk", 76, 69, 21, 26),
+    };
+
+    private IReadOnlyList<BotDefinition> _bots = [];
+    private List<BotDefinition> _workers = [];
+    private readonly Dictionary<string, BotState> _state = [];
+    private readonly List<(string From, string To, DateTimeOffset At)> _links = [];
+    private List<AgentEvent> _recent = [];
+    private IReadOnlyList<TaskRecord> _tasks = [];
+    private string? _selected;
+    private Timer? _timer;
+
+    private BotDefinition? Selected => _bots.FirstOrDefault(b => b.Id == _selected);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBotsAsync();
+        _recent = (await EventStore.RecentAsync(1500)).ToList();
+        foreach (var e in _recent) Apply(e, replay: true);
+        _tasks = await Engine.ListTasksAsync();
+        _timer = new Timer(_ => InvokeAsync(StateHasChanged), null, 1000, 1000);
+    }
+
+    private async Task LoadBotsAsync()
+    {
+        _bots = await Registry.ActiveAsync();
+        _workers = _bots.Where(b => b.Id != WellKnown.BossManId).ToList();
+    }
+
+    protected override async Task RefreshAsync(IReadOnlyList<AgentEvent> events)
+    {
+        if (events.Any(e => e.Type is EventTypes.BotCreated or EventTypes.BotDeleted or EventTypes.BotStateChanged)) await LoadBotsAsync();
+        foreach (var e in events) { _recent.Add(e); Apply(e, replay: false); }
+        if (_recent.Count > 600) _recent.RemoveRange(0, _recent.Count - 600);
+        _tasks = await Engine.ListTasksAsync();
+    }
+
+    private void Apply(AgentEvent e, bool replay)
+    {
+        if (e.BotId is null) return;
+        switch (e.Type)
+        {
+            case EventTypes.ToolCallStarted:
+                var tool = e.Message?.Split(' ', 2)[0] ?? "";
+                _state[e.BotId] = new BotState(ZoneFor(tool), tool, e.Timestamp);
+                break;
+            case EventTypes.ApprovalRequested:
+                _state[e.BotId] = new BotState("approval", "waiting for approval", e.Timestamp);
+                break;
+            case EventTypes.AgentThinkingStarted:
+                _state[e.BotId] = new BotState("desk", "thinking", e.Timestamp);
+                break;
+            case EventTypes.TaskDelegated when e.Data is not null:
+                if (!replay) _links.Add((e.Data, e.BotId, DateTimeOffset.UtcNow));
+                break;
+            case EventTypes.TaskStateChanged when e.Data is "Completed" or "Failed" or "Cancelled":
+            case EventTypes.BotStateChanged when e.Message is "Ready":
+                _state.Remove(e.BotId);
+                break;
+        }
+    }
+
+    private static string ZoneFor(string tool) => tool switch
+    {
+        "web_search" or "web_fetch" => "web",
+        "run_shell" => "workshop",
+        "delegate_tasks" or "list_bots" or "create_bot" or "list_templates" or "schedule_task" => "meeting",
+        "remember" or "recall" or "todo_write" or "get_task" => "desk",
+        _ when tool.StartsWith("mcp__", StringComparison.Ordinal) => "mcp",
+        _ => "library",
+    };
+
+    private Pt DeskPos(int i)
+    {
+        var n = Math.Max(_workers.Count, 1);
+        var gap = Math.Min(16.0, 88.0 / n);
+        return new Pt(6 + gap / 2 + i * gap, 48);
+    }
+
+    private Pt Position(BotDefinition b)
+    {
+        var st = _state.GetValueOrDefault(b.Id);
+        Pt home = b.Id == WellKnown.BossManId ? new Pt(54, 82) : DeskPos(Math.Max(0, _workers.FindIndex(w => w.Id == b.Id)));
+        if (st is null || st.Zone == "desk" || !Zones.TryGetValue(st.Zone, out var z)) return home;
+        // Spread bots that share a station.
+        var peers = _bots.Where(o => _state.GetValueOrDefault(o.Id)?.Zone == st.Zone).Select(o => o.Id).ToList();
+        var idx = Math.Max(0, peers.IndexOf(b.Id));
+        var cols = Math.Max(1, (int)(z.W / 7));
+        return new Pt(z.X + 4 + (idx % cols) * 7, z.Y + 9 + (idx / cols) * 9);
+    }
+
+    private IEnumerable<Link> ActiveLinks()
+    {
+        _links.RemoveAll(l => DateTimeOffset.UtcNow - l.At > TimeSpan.FromSeconds(6));
+        foreach (var (from, to, _) in _links)
+        {
+            var a = _bots.FirstOrDefault(b => b.Id == from);
+            var c = _bots.FirstOrDefault(b => b.Id == to);
+            if (a is null || c is null) continue;
+            var p1 = Position(a);
+            var p2 = Position(c);
+            yield return new Link(p1.X, p1.Y, p2.X, p2.Y);
+        }
+    }
+
+    public override void Dispose()
+    {
+        _timer?.Dispose();
+        base.Dispose();
+    }
+}

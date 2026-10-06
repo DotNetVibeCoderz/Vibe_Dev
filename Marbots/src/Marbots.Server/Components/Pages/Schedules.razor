@@ -1,0 +1,128 @@
+@page "/schedules"
+@inherits LiveComponent
+@inject SchedulerService Scheduler
+@inject BotRegistry Registry
+@inject NavigationManager Nav
+
+<PageTitle>@T["nav.schedules"] · Marbots</PageTitle>
+<div class="page">
+    <div class="page-head">
+        <div>
+            <h1>@T["nav.schedules"]</h1>
+            <p>Recurring and one-off jobs. Each run sends the prompt to a bot in its own thread. You can also ask Boss Man, e.g. "every weekday at 07:30 summarise my inbox notes".</p>
+        </div>
+    </div>
+    @if (_message is not null) { <div class="@(_isError ? "error-box" : "ok-box")">@_message</div> }
+
+    <div class="panel panel-pad" style="margin-bottom:18px">
+        <h2 style="margin-bottom:12px">New schedule</h2>
+        <div class="split">
+            <label class="field"><span>Name</span><input class="input" @bind="_job.Name" placeholder="Weekly KPI summary" /></label>
+            <label class="field"><span>Bot</span>
+                <select class="select" @bind="_job.BotId">@foreach (var b in _bots) { <option value="@b.Id">@b.Name</option> }</select>
+            </label>
+            <label class="field"><span>Cron <small>(minute hour day month weekday)</small></span><input class="input" @bind="_job.Cron" placeholder="0 8 * * 1" />
+                <small>@CronHint</small></label>
+            <label class="field"><span>…or run once at</span><input class="input" type="datetime-local" @bind="_runAt" /></label>
+            <label class="field"><span>Time zone</span><input class="input" @bind="_job.TimeZone" placeholder="SE Asia Standard Time / Asia/Jakarta / UTC" /></label>
+        </div>
+        <label class="field"><span>Prompt</span><textarea class="textarea" rows="3" @bind="_job.Prompt"></textarea></label>
+        <button class="btn primary" @onclick="Save">Save schedule</button>
+    </div>
+
+    <div class="panel">
+        <table class="table">
+            <thead><tr><th>Name</th><th>Bot</th><th>When</th><th>Next run</th><th>Last run</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var j in _jobs)
+                {
+                    <tr>
+                        <td><b>@j.Name</b><div class="muted small-text">@AgentRuntime.Preview(j.Prompt, 90)</div></td>
+                        <td>@(_bots.FirstOrDefault(b => b.Id == j.BotId)?.Name ?? j.BotId)</td>
+                        <td><code>@(string.IsNullOrEmpty(j.Cron) ? "once" : j.Cron)</code> <span class="muted small-text">@j.TimeZone</span></td>
+                        <td class="small-text">@(j.Enabled ? j.NextRunAt?.ToLocalTime().ToString("ddd dd MMM HH:mm") ?? "—" : "disabled")</td>
+                        <td class="small-text">@(j.LastRunAt?.ToLocalTime().ToString("dd MMM HH:mm") ?? "never") @if (j.ThreadId is not null) { <a href="/chat/@j.ThreadId">thread</a> }</td>
+                        <td class="row">
+                            <button class="btn small" @onclick="() => RunNow(j)">Run now</button>
+                            <button class="btn small" @onclick="() => Toggle(j)">@(j.Enabled ? T["pause"] : T["resume"])</button>
+                            <button class="btn small danger" @onclick="() => Delete(j)">@T["delete"]</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (_jobs.Count == 0) { <p class="muted panel-pad">No schedules yet.</p> }
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<ScheduleJob> _jobs = [];
+    private IReadOnlyList<BotDefinition> _bots = [];
+    private ScheduleJob _job = new() { TimeZone = "UTC" };
+    private DateTime? _runAt;
+    private string? _message;
+    private bool _isError;
+
+    private string CronHint
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_job.Cron)) return "Examples: 0 8 * * 1 (Mondays 08:00), */30 9-17 * * 1-5 (every 30 min on workdays)";
+            if (!CronExpression.TryParse(_job.Cron, out var c)) return "Invalid cron expression.";
+            try
+            {
+                var next = c!.Next(DateTimeOffset.UtcNow, SchedulerService.Zone(_job.TimeZone));
+                return next is null ? "Never fires." : $"Next: {next:ddd dd MMM yyyy HH:mm} ({_job.TimeZone})";
+            }
+            catch (ArgumentException ex) { return ex.Message; }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _bots = await Registry.ActiveAsync();
+        _job.BotId = WellKnown.BossManId;
+        _jobs = await Scheduler.ListAsync();
+    }
+
+    protected override bool Accept(AgentEvent e) => e.Type == EventTypes.ScheduleTriggered;
+
+    protected override async Task RefreshAsync(IReadOnlyList<AgentEvent> events) => _jobs = await Scheduler.ListAsync();
+
+    private async Task Save()
+    {
+        try
+        {
+            if (_runAt is { } at) _job.RunAt = new DateTimeOffset(at, TimeZoneInfo.Local.GetUtcOffset(at));
+            await Scheduler.SaveAsync(_job, default);
+            _message = $"Saved '{_job.Name}'."; _isError = false;
+            _job = new() { TimeZone = "UTC", BotId = WellKnown.BossManId };
+            _runAt = null;
+        }
+        catch (ArgumentException ex) { _message = ex.Message; _isError = true; }
+        _jobs = await Scheduler.ListAsync();
+    }
+
+    private async Task RunNow(ScheduleJob j)
+    {
+        try
+        {
+            var task = await Scheduler.RunNowAsync(j.Id, default);
+            Nav.NavigateTo($"/chat/{task.ThreadId}");
+        }
+        catch (Exception ex) when (ex is ArgumentException or BotValidationException) { _message = ex.Message; _isError = true; }
+    }
+
+    private async Task Toggle(ScheduleJob j)
+    {
+        j.Enabled = !j.Enabled;
+        await Scheduler.SaveAsync(j, default);
+        _jobs = await Scheduler.ListAsync();
+    }
+
+    private async Task Delete(ScheduleJob j)
+    {
+        await Scheduler.DeleteAsync(j.Id);
+        _jobs = await Scheduler.ListAsync();
+    }
+}

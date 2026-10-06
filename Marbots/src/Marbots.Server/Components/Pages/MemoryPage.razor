@@ -1,0 +1,103 @@
+@page "/memory"
+@inherits LiveComponent
+@inject IMemoryStore Memory
+@inject BotRegistry Registry
+
+<PageTitle>@T["nav.memory"] · Marbots</PageTitle>
+<div class="page">
+    <div class="page-head">
+        <div>
+            <h1>Long-term memory</h1>
+            <p>What each bot remembers across conversations, with provenance. Memory is private per bot; the "shared" space is visible to every bot.</p>
+        </div>
+    </div>
+    <div class="tpl-cats">
+        @foreach (var o in Owners)
+        {
+            <button class="chip @(_owner == o.Id ? "on" : "")" @onclick="() => Select(o.Id)">@o.Name</button>
+        }
+    </div>
+    <div class="panel panel-pad" style="margin-bottom:16px">
+        <div class="row">
+            <input class="input grow" placeholder="Add a fact this bot should remember…" @bind="_newFact" />
+            <button class="btn primary" @onclick="Add">Remember</button>
+        </div>
+        <div class="row" style="margin-top:10px">
+            <input class="input grow" placeholder="Search memory (BM25 full-text)" @bind="_query" />
+            <button class="btn" @onclick="Search">Search</button>
+            @if (_matches is not null) { <button class="btn ghost" @onclick="() => _matches = null">Clear</button> }
+        </div>
+    </div>
+    <div class="panel">
+        <table class="table">
+            <thead><tr><th>Memory</th><th>Kind</th><th>Source</th><th>Confidence</th><th>Saved</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var m in Shown)
+                {
+                    <tr>
+                        <td>@m.Content</td>
+                        <td><span class="chip">@m.Kind</span></td>
+                        <td class="small-text muted">@m.Source</td>
+                        <td>@m.Confidence.ToString("0.0")</td>
+                        <td class="small-text">@m.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
+                        <td><button class="btn small danger" @onclick="() => Delete(m)">Forget</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (!Shown.Any()) { <p class="muted panel-pad">Nothing remembered yet.</p> }
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<BotDefinition> _bots = [];
+    private string _owner = WellKnown.BossManId;
+    private IReadOnlyList<MemoryRecord> _items = [];
+    private IReadOnlyList<MemoryRecord>? _matches;
+    private string _newFact = "", _query = "";
+
+    private IEnumerable<(string Id, string Name)> Owners =>
+        _bots.Select(b => (b.Id, b.Name)).Append((WellKnown.SharedMemoryOwner, "Shared"));
+
+    private IEnumerable<MemoryRecord> Shown => _matches ?? _items;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _bots = await Registry.ActiveAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() => _items = await Memory.ListAsync(_owner);
+
+    protected override bool Accept(AgentEvent e) => e.Type == EventTypes.MemoryWritten && e.BotId == _owner;
+
+    protected override Task RefreshAsync(IReadOnlyList<AgentEvent> events) => LoadAsync();
+
+    private async Task Select(string owner)
+    {
+        _owner = owner;
+        _matches = null;
+        await LoadAsync();
+    }
+
+    private async Task Add()
+    {
+        if (string.IsNullOrWhiteSpace(_newFact)) return;
+        await Memory.WriteAsync(new MemoryRecord { Owner = _owner, Content = _newFact.Trim(), Source = "user", Confidence = 1 });
+        _newFact = "";
+        await LoadAsync();
+    }
+
+    private async Task Search()
+    {
+        if (string.IsNullOrWhiteSpace(_query)) { _matches = null; return; }
+        _matches = (await Memory.SearchAsync(new MemoryQuery(_query, [_owner], 20))).Select(m => m.Record).ToList();
+    }
+
+    private async Task Delete(MemoryRecord m)
+    {
+        await Memory.DeleteAsync(m.Id);
+        await LoadAsync();
+        if (_matches is not null) await Search();
+    }
+}

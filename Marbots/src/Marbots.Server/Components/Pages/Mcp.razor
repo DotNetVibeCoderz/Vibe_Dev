@@ -1,0 +1,166 @@
+@page "/mcp"
+@inherits LiveComponent
+@inject IDocumentStore<McpServerConfig> Store
+@inject McpManager Manager
+@inject MarbotsOptions Options
+
+<PageTitle>@T["nav.mcp"] · Marbots</PageTitle>
+<div class="page">
+    <div class="page-head">
+        <div>
+            <h1>MCP gallery</h1>
+            <p>Model Context Protocol servers give bots extra tools. Install a server, then enable it per bot. Servers that use <code>{workspace}</code> run once per project folder.</p>
+        </div>
+        <button class="btn primary" @onclick="() => _showCustom = !_showCustom"><Icon Name="plus" /> Add custom server</button>
+    </div>
+    @if (_message is not null) { <div class="@(_isError ? "error-box" : "ok-box")">@_message</div> }
+
+    @if (_showCustom)
+    {
+        <div class="panel panel-pad" style="margin-bottom:16px">
+            <div class="split">
+                <label class="field"><span>Name</span><input class="input" @bind="_custom.Name" /></label>
+                <label class="field"><span>Transport</span>
+                    <select class="select" @bind="_custom.Transport"><option value="stdio">stdio (local process)</option><option value="http">Streamable HTTP</option></select>
+                </label>
+            </div>
+            @if (_custom.Transport == "http")
+            {
+                <label class="field"><span>URL</span><input class="input" @bind="_custom.Url" placeholder="https://example.com/mcp" /></label>
+            }
+            else
+            {
+                <div class="split">
+                    <label class="field"><span>Command</span><input class="input" @bind="_custom.Command" placeholder="npx" /></label>
+                    <label class="field"><span>Arguments <small>(one per line)</small></span><textarea class="textarea" rows="3" @bind="_args" placeholder="-y&#10;@@scope/server&#10;{workspace}"></textarea></label>
+                </div>
+            }
+            <label class="field"><span>Environment <small>(KEY=value per line; use secret:NAME to reference a stored secret)</small></span><textarea class="textarea" rows="2" @bind="_env"></textarea></label>
+            <label class="field"><span>Permission category</span>
+                <select class="select" @bind="_custom.PermissionProfile">
+                    <option value="readonly">read-only</option><option value="developer">workspace write</option><option value="network">network</option>
+                    <option value="process">process execution (asks)</option><option value="external">external communication (asks)</option>
+                </select>
+            </label>
+            <label class="field"><span>Description</span><input class="input" @bind="_custom.Description" /></label>
+            <button class="btn primary" @onclick="SaveCustom">Save server</button>
+        </div>
+    }
+
+    <div class="card-grid">
+        @foreach (var s in _servers)
+        {
+            var status = _status.FirstOrDefault(x => x.ServerId == s.Id);
+            <article class="panel bot-card">
+                <header>
+                    <div style="min-width:0">
+                        <h3>@s.Name</h3>
+                        <div class="muted small-text">@s.Transport · @s.Trust · @s.PermissionProfile</div>
+                    </div>
+                    @if (!s.IsCatalogEntry) { <span class="state @(status?.Connected == true ? "running" : status?.Error is not null ? "failed" : "ready")" style="margin-left:auto">@(status?.Connected == true ? $"{status.ToolCount} tools" : status?.Error is not null ? "error" : "installed")</span> }
+                </header>
+                <p class="desc">@s.Description</p>
+                <code class="small-text" style="overflow-wrap:anywhere">@(s.Transport == "http" ? s.Url : $"{s.Command} {string.Join(' ', s.Args)}")</code>
+                @if (status?.Error is not null) { <p class="small-text" style="color:var(--danger)">@status.Error</p> }
+                @if (_tools.TryGetValue(s.Id, out var tools))
+                {
+                    <div class="chips">@foreach (var t in tools) { <span class="chip" title="@t.Description">@t.Name</span> }</div>
+                }
+                <footer>
+                    @if (s.IsCatalogEntry)
+                    {
+                        <button class="btn small primary" @onclick="() => Install(s)">Install</button>
+                    }
+                    else
+                    {
+                        <button class="btn small" @onclick="() => Test(s)" disabled="@(_testing == s.Id)">@(_testing == s.Id ? "Starting…" : "Test & list tools")</button>
+                        <button class="btn small" @onclick="() => Restart(s)">Restart</button>
+                        <button class="btn small danger" @onclick="() => Uninstall(s)">Uninstall</button>
+                    }
+                </footer>
+            </article>
+        }
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<McpServerConfig> _servers = [];
+    private IReadOnlyList<McpServerStatus> _status = [];
+    private readonly Dictionary<string, IReadOnlyList<McpToolInfo>> _tools = [];
+    private McpServerConfig _custom = new() { Transport = "stdio", PermissionProfile = "developer" };
+    private string _args = "", _env = "";
+    private string? _message, _testing;
+    private bool _isError, _showCustom;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _servers = (await Store.ListAsync()).OrderBy(s => s.IsCatalogEntry).ThenBy(s => s.Name).ToList();
+        _status = Manager.Status();
+    }
+
+    protected override bool Accept(AgentEvent e) => e.Type is EventTypes.ToolCallCompleted && e.Message?.StartsWith("mcp__", StringComparison.Ordinal) == true;
+
+    protected override Task RefreshAsync(IReadOnlyList<AgentEvent> events) { _status = Manager.Status(); return Task.CompletedTask; }
+
+    private async Task Install(McpServerConfig s)
+    {
+        s.IsCatalogEntry = false;
+        s.Enabled = true;
+        await Store.UpsertAsync(s);
+        _message = $"{s.Name} installed. Enable it on a bot in Team → Edit.";
+        _isError = false;
+        await LoadAsync();
+    }
+
+    private async Task Uninstall(McpServerConfig s)
+    {
+        s.IsCatalogEntry = true;
+        await Store.UpsertAsync(s);
+        await Manager.RestartAsync(s.Id);
+        _tools.Remove(s.Id);
+        await LoadAsync();
+    }
+
+    private async Task Restart(McpServerConfig s)
+    {
+        await Manager.RestartAsync(s.Id);
+        _tools.Remove(s.Id);
+        await LoadAsync();
+    }
+
+    private async Task Test(McpServerConfig s)
+    {
+        _testing = s.Id;
+        _message = null;
+        StateHasChanged();
+        try
+        {
+            _tools[s.Id] = await Manager.GetToolsAsync(s, Options.DataPath("workspaces", "_mcp-test"), default);
+            _message = $"{s.Name} is running with {_tools[s.Id].Count} tools.";
+            _isError = false;
+        }
+        catch (InvalidOperationException ex) { _message = ex.Message; _isError = true; }
+        _testing = null;
+        await LoadAsync();
+    }
+
+    private async Task SaveCustom()
+    {
+        if (string.IsNullOrWhiteSpace(_custom.Name)) { _message = "Name is required."; _isError = true; return; }
+        _custom.Id = Ids.Slug(_custom.Name);
+        _custom.Args = _args.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        _custom.Env = _env.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(l => l.Split('=', 2)).Where(p => p.Length == 2).ToDictionary(p => p[0].Trim(), p => p[1].Trim());
+        _custom.Trust = "Local";
+        _custom.IsCatalogEntry = false;
+        await Store.UpsertAsync(_custom);
+        _message = $"Saved {_custom.Name}.";
+        _isError = false;
+        _custom = new() { Transport = "stdio", PermissionProfile = "developer" };
+        _args = _env = "";
+        _showCustom = false;
+        await LoadAsync();
+    }
+}

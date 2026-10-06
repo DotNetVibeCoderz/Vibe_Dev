@@ -1,0 +1,177 @@
+@page "/team/new"
+@page "/team/{Id}"
+@inherits LiveComponent
+@inject BotRegistry Registry
+@inject TemplateService Templates
+@inject ModelRouter Router
+@inject IPolicyEngine Policy
+@inject IMemoryStore Memory
+@inject NavigationManager Nav
+
+<PageTitle>@(_isNew ? "Create bot" : _bot.Name) · Marbots</PageTitle>
+<div class="page">
+    <div class="page-head">
+        <div class="row">
+            <Marble Color="@_bot.Color" Name="@(_bot.Name.Length > 0 ? _bot.Name : "?")" Size="52" />
+            <div>
+                <h1>@(_isNew ? "Create a bot" : _bot.Name)</h1>
+                <p>@(_isNew ? "Give your new teammate an identity, instructions, tools and boundaries." : _bot.Role)</p>
+            </div>
+        </div>
+        <div class="row">
+            <a class="btn" href="/team">@T["cancel"]</a>
+            <button class="btn primary" @onclick="Save">@T["save"]</button>
+        </div>
+    </div>
+    @if (_error is not null) { <div class="error-box">@_error</div> }
+
+    <div class="form-grid">
+        <div class="panel panel-pad">
+            <h2 style="margin-bottom:14px">Identity</h2>
+            <label class="field"><span>Name</span><input class="input" @bind="_bot.Name" @bind:event="oninput" maxlength="60" /></label>
+            <div class="field"><span>Marble color</span><Swatches @bind-Value="_bot.Color" /></div>
+            <label class="field"><span>Role</span><input class="input" @bind="_bot.Role" placeholder="e.g. Senior data analyst" /></label>
+            <label class="field"><span>Description</span><input class="input" @bind="_bot.Description" /></label>
+            <label class="field"><span>Persona and instructions</span>
+                <textarea class="textarea" rows="10" @bind="_bot.Persona" placeholder="Who is this bot, how does it work, what does good output look like?"></textarea>
+            </label>
+
+            <h2 style="margin:22px 0 14px">Brain</h2>
+            <ModelPicker @bind-Value="_bot.ModelProfile" />
+            <div class="split">
+                <label class="field"><span>Max steps per task</span><input class="input" type="number" min="1" max="100" @bind="_bot.MaxSteps" /></label>
+                <label class="field"><span>Auto-learn</span>
+                    <select class="select" @bind="_bot.AutoLearn">
+                        <option value="@AutoLearnMode.Off">Off</option>
+                        <option value="@AutoLearnMode.MemoryOnly">Memory only</option>
+                        <option value="@AutoLearnMode.SuggestSkills">Suggest skills (needs review)</option>
+                    </select>
+                </label>
+                <label class="field"><span>Compact context after (tokens)</span><input class="input" type="number" min="2000" step="1000" @bind="_bot.CompactionThresholdTokens" /></label>
+            </div>
+            <div class="row" style="margin-bottom:14px">
+                <label class="row"><input type="checkbox" @bind="_bot.ShortTermMemory" /> Short-term memory (conversation history)</label>
+                <label class="row"><input type="checkbox" @bind="_bot.LongTermMemory" /> Long-term memory</label>
+            </div>
+
+            <h2 style="margin:22px 0 14px">Capabilities</h2>
+            @if (_bot.IsSystem)
+            {
+                <p class="muted small-text">Boss Man's core manager tools are protected. You can add packs and change skills.</p>
+            }
+            <CapabilityPicker Kernel="_bot.KernelFunctions" Skills="_bot.Skills" Mcp="_bot.McpServers" Changed="StateHasChanged" />
+
+            <h2 style="margin:22px 0 14px">Boundaries</h2>
+            <div class="split">
+                <label class="field"><span>Permission profile</span>
+                    <select class="select" @bind="_bot.PermissionProfile" disabled="@_bot.IsSystem">
+                        @foreach (var p in Policy.Profiles) { <option value="@p">@p</option> }
+                    </select>
+                    <small>@ProfileHelp(_bot.PermissionProfile)</small>
+                </label>
+                <label class="field"><span>Host</span>
+                    <select class="select" @bind="_bot.HostRef"><option value="@WellKnown.LocalHostId">This computer (local-default)</option></select>
+                    <small>Remote VM and Docker hosts arrive with the AgentHost service (see roadmap).</small>
+                </label>
+            </div>
+            @if (!_isNew && !_bot.IsSystem)
+            {
+                <div class="row" style="margin-top:12px">
+                    <button class="btn danger small" @onclick="ForgetMemory">Forget long-term memory</button>
+                </div>
+            }
+        </div>
+
+        <aside class="panel panel-pad sticky">
+            <h2 style="margin-bottom:12px">Effective capabilities</h2>
+            <dl class="kv">
+                <dt>Model</dt><dd>@Router.Resolve(_bot.ModelProfile).Label@(ModelRouter.IsDefaultSetting(_bot.ModelProfile) ? " (default)" : "")</dd>
+                <dt>Tools</dt><dd>@string.Join(", ", _bot.KernelFunctions.DefaultIfEmpty("none"))</dd>
+                <dt>Skills</dt><dd>@(_bot.Skills.Contains("*") ? "all installed skills" : string.Join(", ", _bot.Skills.DefaultIfEmpty("none")))</dd>
+                <dt>MCP</dt><dd>@string.Join(", ", _bot.McpServers.DefaultIfEmpty("none"))</dd>
+                <dt>Memory</dt><dd>@(_bot.ShortTermMemory ? "short-term" : "stateless")@(_bot.LongTermMemory ? " + long-term" : "")</dd>
+                <dt>Permissions</dt><dd>@_bot.PermissionProfile</dd>
+            </dl>
+            <h3 style="margin:18px 0 8px">Security notes</h3>
+            @{ var warnings = Warnings().ToList(); }
+            @foreach (var w in warnings)
+            {
+                <p class="small-text" style="border-left:3px solid var(--marigold);padding-left:8px">@w</p>
+            }
+            @if (warnings.Count == 0) { <p class="small-text muted">No warnings. Risky actions still go through approvals.</p> }
+        </aside>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string? Id { get; set; }
+    [SupplyParameterFromQuery(Name = "template")] public string? TemplateId { get; set; }
+
+    private BotDefinition _bot = new() { KernelFunctions = ["files", "search", "web", "memory", "todo"] };
+    private bool _isNew;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _isNew = Id is null;
+        if (!_isNew)
+        {
+            var existing = await Registry.GetAsync(Id!);
+            if (existing is null) { Nav.NavigateTo("/team"); return; }
+            _bot = existing;
+        }
+        else if (TemplateId is not null && await Templates.GetAsync(TemplateId) is { } t)
+        {
+            _bot = BotRegistry.FromTemplate(t);
+        }
+    }
+
+    private IEnumerable<string> Warnings()
+    {
+        if (_bot.PermissionProfile == "autonomous" && _bot.KernelFunctions.Contains("shell"))
+            yield return "Autonomous + shell: this bot can run commands on this computer without asking.";
+        if (_bot.KernelFunctions.Contains("shell") && _bot.PermissionProfile == "developer-safe")
+            yield return "Shell commands ask for your approval (once, or once per thread).";
+        if (_bot.KernelFunctions.Contains("web"))
+            yield return "Web content is treated as untrusted data; prompt-injection rules apply.";
+        if (_bot.AutoLearn == AutoLearnMode.SuggestSkills)
+            yield return "Auto-learned skills land in a review queue and never grant new permissions.";
+        if (_bot.McpServers.Count > 0)
+            yield return $"MCP tools run inside the '{_bot.PermissionProfile}' boundaries plus each server's permission category.";
+    }
+
+    private static string ProfileHelp(string p) => p switch
+    {
+        "read-only" => "Read files and the web only. No writes.",
+        "workspace-write" => "Read and write the workspace. No shell.",
+        "developer-safe" => "Workspace + web; shell, deletes and external messages need approval.",
+        "autonomous" => "Runs shell without asking. External communication still asks.",
+        "manager" => "Boss Man's profile.",
+        _ => "",
+    };
+
+    private async Task Save()
+    {
+        _error = null;
+        try
+        {
+            if (_isNew)
+            {
+                var created = await Registry.CreateAsync(_bot);
+                Nav.NavigateTo($"/?bot={created.Id}");
+            }
+            else
+            {
+                await Registry.UpdateAsync(_bot);
+                Nav.NavigateTo("/team");
+            }
+        }
+        catch (BotValidationException ex) { _error = ex.Message; }
+    }
+
+    private async Task ForgetMemory()
+    {
+        var n = await Memory.DeleteOwnerAsync(_bot.Id);
+        _error = $"Forgot {n} memories.";
+    }
+}

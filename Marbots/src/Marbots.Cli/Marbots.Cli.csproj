@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>marbots</AssemblyName>
+    <RootNamespace>Marbots.Cli</RootNamespace>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>marbots</ToolCommandName>
+    <PackageId>Marbots.Cli</PackageId>
+    <Description>Command-line client for Marbots.</Description>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Marbots.Sdk\Marbots.Sdk.csproj" />
+  </ItemGroup>
+</Project>

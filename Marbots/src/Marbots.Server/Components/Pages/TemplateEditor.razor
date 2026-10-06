@@ -1,0 +1,110 @@
+@page "/templates/new"
+@page "/templates/{Id}/edit"
+@inherits LiveComponent
+@inject TemplateService Templates
+@inject IPolicyEngine Policy
+@inject NavigationManager Nav
+
+<PageTitle>Template editor · Marbots</PageTitle>
+<div class="page">
+    <div class="page-head">
+        <div class="row">
+            <Marble Color="@_t.Color" Name="@(_t.Name.Length > 0 ? _t.Name : "?")" Size="52" />
+            <div>
+                <h1>@(_editingBuiltIn ? "Duplicate template" : _isNew ? "Create a template" : "Edit template")</h1>
+                <p>Templates appear in the gallery so anyone can hire this role in one click.</p>
+            </div>
+        </div>
+        <div class="row">
+            @if (!_isNew && !_editingBuiltIn) { <button class="btn danger" @onclick="Delete">@T["delete"]</button> }
+            <a class="btn" href="/templates">@T["cancel"]</a>
+            <button class="btn primary" @onclick="Save">@T["save"]</button>
+        </div>
+    </div>
+    @if (_error is not null) { <div class="error-box">@_error</div> }
+
+    <div class="panel panel-pad">
+        <div class="split">
+            <label class="field"><span>Name</span><input class="input" @bind="_t.Name" @bind:event="oninput" /></label>
+            <label class="field"><span>Category</span><input class="input" @bind="_t.Category" list="cats" />
+                <datalist id="cats">@foreach (var c in _categories) { <option value="@c"></option> }</datalist>
+            </label>
+            <label class="field"><span>Role</span><input class="input" @bind="_t.Role" /></label>
+            <label class="field"><span>Tags <small>(comma separated)</small></span><input class="input" @bind="TagsText" /></label>
+        </div>
+        <div class="field"><span>Marble color</span><Swatches @bind-Value="_t.Color" /></div>
+        <label class="field"><span>Description</span><input class="input" @bind="_t.Description" /></label>
+        <label class="field"><span>Instructions / persona</span><textarea class="textarea" rows="10" @bind="_t.Persona"></textarea></label>
+        <ModelPicker @bind-Value="_t.ModelProfile" />
+        <div class="split">
+            <label class="field"><span>Permission profile</span>
+                <select class="select" @bind="_t.PermissionProfile">
+                    @foreach (var p in Policy.Profiles.Where(p => p != "manager")) { <option value="@p">@p</option> }
+                </select>
+            </label>
+            <label class="field"><span>Auto-learn</span>
+                <select class="select" @bind="_t.AutoLearn">
+                    <option value="@AutoLearnMode.Off">Off</option>
+                    <option value="@AutoLearnMode.MemoryOnly">Memory only</option>
+                    <option value="@AutoLearnMode.SuggestSkills">Suggest skills</option>
+                </select>
+            </label>
+        </div>
+        <CapabilityPicker Kernel="_t.KernelFunctions" Skills="_t.Skills" Mcp="_t.McpServers" Changed="StateHasChanged" />
+    </div>
+</div>
+
+@code {
+    [Parameter] public string? Id { get; set; }
+    private BotTemplate _t = new() { Category = "Custom", KernelFunctions = ["files", "search", "web", "memory", "todo"] };
+    private bool _isNew, _editingBuiltIn;
+    private string? _error;
+    private List<string> _categories = [];
+
+    private string TagsText
+    {
+        get => string.Join(", ", _t.Tags);
+        set => _t.Tags = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _categories = (await Templates.ListAsync()).Select(t => t.Category).Distinct().Order().ToList();
+        _isNew = Id is null;
+        if (Id is not null && await Templates.GetAsync(Id) is { } t)
+        {
+            _t = t;
+            if (t.IsBuiltIn)
+            {
+                // Built-ins are read-only: edit a copy.
+                _editingBuiltIn = true;
+                _t = new BotTemplate
+                {
+                    Name = t.Name + " (custom)", Category = t.Category, Role = t.Role, Description = t.Description, Persona = t.Persona, Color = t.Color,
+                    Skills = [.. t.Skills], McpServers = [.. t.McpServers], KernelFunctions = [.. t.KernelFunctions], Tags = [.. t.Tags],
+                    PermissionProfile = t.PermissionProfile, AutoLearn = t.AutoLearn, ModelProfile = t.ModelProfile,
+                };
+            }
+        }
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            await Templates.SaveAsync(_t);
+            Nav.NavigateTo("/templates");
+        }
+        catch (BotValidationException ex) { _error = ex.Message; }
+    }
+
+    private async Task Delete()
+    {
+        try
+        {
+            await Templates.DeleteAsync(_t.Id);
+            Nav.NavigateTo("/templates");
+        }
+        catch (BotValidationException ex) { _error = ex.Message; }
+    }
+}

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Model providers for Marbots (Azure OpenAI, OpenAI-compatible, mock).</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Marbots.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Marbots.Abstractions\Marbots.Abstractions.csproj" />
+  </ItemGroup>
+</Project>
