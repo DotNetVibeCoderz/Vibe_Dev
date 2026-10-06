@@ -65,7 +65,7 @@ notifications are on the roadmap.
 | Python | `sdk/python` | `pip install marbots-sdk` (zero dependencies, typed) |
 | TypeScript / Node | `sdk/typescript` | `npm install @gravicode/marbots` |
 | Go | `sdk/go` | `go get github.com/DotNetVibeCoderz/Vibe_Dev/Marbots/sdk/go` |
-| Java 17+ | `sdk/java` | Maven `com.gravicode:marbots-sdk` |
+| Java 17+ | `sdk/java` | JitPack `com.github.DotNetVibeCoderz:Vibe_Dev:marbots-java-v0.1.0` |
 | Rust | `sdk/rust` | `cargo add marbots-sdk` |
 
 ```csharp

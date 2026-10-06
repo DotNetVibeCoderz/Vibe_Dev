@@ -1,8 +1,10 @@
-# JitPack builds the DotCode Java SDK (DotCode/sdk/java) from any tag or commit of this repository.
-# Usage: repository https://jitpack.io, dependency com.github.DotNetVibeCoderz:Vibe_Dev:<tag>
-# JitPack's bundled Maven is too old for current plugins, so a pinned Maven is downloaded first.
+# JitPack builds the Java SDKs of this repository from tags.
+#   DotCode: tags dotcode-java-v*  → com.github.DotNetVibeCoderz:Vibe_Dev:dotcode-java-v0.2.0
+#   Marbots: tags marbots-java-v*  → com.github.DotNetVibeCoderz:Vibe_Dev:marbots-java-v0.1.0
+# (repository https://jitpack.io). JitPack's bundled Maven is too old for current plugins, so a pinned Maven is
+# downloaded first. $VERSION is the tag being built.
 jdk:
   - openjdk17
 install:
   - curl -sSL https://archive.apache.org/dist/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz | tar xz -C /tmp
-  - cd DotCode/sdk/java && /tmp/apache-maven-3.9.9/bin/mvn -B -DskipTests install
+  - case "$VERSION" in marbots*) cd Marbots/sdk/java ;; *) cd DotCode/sdk/java ;; esac && /tmp/apache-maven-3.9.9/bin/mvn -B -DskipTests install

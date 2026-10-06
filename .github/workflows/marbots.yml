@@ -4,7 +4,8 @@
 #    plus Java (javac -Werror + conformance) and Rust (fmt + clippy -D warnings + conformance)
 #  • Tag "marbots-v*" (e.g. marbots-v0.1.1) or manual run with publish=true: pack and push NuGet packages
 #    (uses the repository secret NUGET_API_KEY)
-#  • Manual run with publish_maven=true: publish the Java SDK to Maven Central (MAVEN_CENTRAL_*, GPG_* secrets)
+#  • Java SDK: JitPack builds tags marbots-java-v* (see /jitpack.yml). Manual run with publish_maven=true publishes to
+#    Maven Central once the com.gravicode namespace is verified for the MAVEN_CENTRAL_* account
 name: Marbots
 
 on:

@@ -5,13 +5,21 @@ collaboration platform. No runtime dependencies. Kernel packs, permission profil
 settings are enums/helpers (`KernelPack.FILES`, `PermissionProfile.DEVELOPER_SAFE`, `TaskState.COMPLETED`,
 `EventType.TOOL_CALL_STARTED`, `ModelRef.of(...)`), so typos are compile errors.
 
+Install from JitPack (like the DotCode Java SDK):
+
 ```xml
+<repositories>
+  <repository><id>jitpack.io</id><url>https://jitpack.io</url></repository>
+</repositories>
 <dependency>
-  <groupId>com.gravicode</groupId>
-  <artifactId>marbots-sdk</artifactId>
-  <version>0.1.0</version>
+  <groupId>com.github.DotNetVibeCoderz</groupId>
+  <artifactId>Vibe_Dev</artifactId>
+  <version>marbots-java-v0.1.0</version>
 </dependency>
 ```
+
+Gradle: `repositories { maven { url "https://jitpack.io" } }` and
+`implementation "com.github.DotNetVibeCoderz:Vibe_Dev:marbots-java-v0.1.0"`.
 
 ```java
 import com.gravicode.marbots.*;

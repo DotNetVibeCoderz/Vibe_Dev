@@ -108,7 +108,7 @@ var t = await mb.Threads.CreateAsync("atlas");
 var r = await mb.Threads.SendAsync(t.Id, "Top 3 AI news today", wait: true);
 ```
 
-TypeScript (`@gravicode/marbots`), Go (`github.com/DotNetVibeCoderz/Vibe_Dev/Marbots/sdk/go`), Java (`com.gravicode:marbots-sdk`) and Rust (`marbots-sdk`) SDKs are also available, all typed so typos are compile errors. See
+TypeScript (`@gravicode/marbots`), Go (`github.com/DotNetVibeCoderz/Vibe_Dev/Marbots/sdk/go`), Java (JitPack `com.github.DotNetVibeCoderz:Vibe_Dev:marbots-java-v0.1.0`) and Rust (`marbots-sdk`) SDKs are also available, all typed so typos are compile errors. See
 [API, A2A, SDKs and CLI](docs/en/api-and-sdks.md).
 
 ## Repository layout
