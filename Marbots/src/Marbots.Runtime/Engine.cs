@@ -24,9 +24,12 @@ public sealed class MarbotsEngine(
     MarbotsOptions options,
     ILogger<MarbotsEngine> log) : IDisposable
 {
+    private int _disposed;
+
     public void Dispose()
     {
-        _shutdown.Cancel();
+        if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
+        Shutdown();
         _shutdown.Dispose();
         _rootSlots.Dispose();
     }
@@ -306,7 +309,12 @@ public sealed class MarbotsEngine(
             if (b.Status == BotStatus.Running) await registry.SetStatusAsync(b.Id, BotStatus.Ready, ct);
     }
 
-    public void Shutdown() => _shutdown.Cancel();
+    public void Shutdown()
+    {
+        if (Volatile.Read(ref _disposed) == 1 && _shutdown.IsCancellationRequested) return;
+        try { _shutdown.Cancel(); }
+        catch (ObjectDisposedException) { }
+    }
 
     // ---------------- delegation ----------------
 

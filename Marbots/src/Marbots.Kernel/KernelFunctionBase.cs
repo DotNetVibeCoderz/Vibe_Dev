@@ -62,6 +62,8 @@ public static class WorkspacePaths
     {
         var root = Path.GetFullPath(workspace);
         if (string.IsNullOrWhiteSpace(relative) || relative is "." or "/" or "./") return root;
+        // Models often emit Windows-style paths; treat a backslash as a separator on every OS so "..\" can't slip through.
+        relative = relative.Replace('\\', '/');
         var candidate = Path.GetFullPath(Path.IsPathRooted(relative) ? relative : Path.Combine(root, relative));
         var rootWithSep = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
         if (!candidate.Equals(root, StringComparison.OrdinalIgnoreCase) &&
