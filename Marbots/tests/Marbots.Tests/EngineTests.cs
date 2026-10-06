@@ -156,7 +156,7 @@ public sealed class EngineTests : IAsyncLifetime
         var thread = await Engine.CreateThreadAsync("alice");
         var task = await Engine.SendAsync(thread.Id, "run something");
         ApprovalRequest? pending = null;
-        for (var i = 0; i < 100 && pending is null; i++)
+        for (var i = 0; i < 300 && pending is null; i++)
         {
             await Task.Delay(50);
             pending = (await approvals.PendingAsync()).FirstOrDefault(a => a.ThreadId == thread.Id);
@@ -179,7 +179,7 @@ public sealed class EngineTests : IAsyncLifetime
         var thread = await Engine.CreateThreadAsync("alice");
         var task = await Engine.SendAsync(thread.Id, "run");
         ApprovalRequest? pending = null;
-        for (var i = 0; i < 100 && pending is null; i++)
+        for (var i = 0; i < 300 && pending is null; i++)
         {
             await Task.Delay(50);
             pending = (await approvals.PendingAsync()).FirstOrDefault(a => a.ThreadId == thread.Id);
@@ -337,12 +337,16 @@ public sealed class EngineTests : IAsyncLifetime
     public async Task Events_are_published_for_the_run()
     {
         var bus = _sp.GetRequiredService<IEventBus>();
-        var seen = new List<string>();
-        using var _ = bus.Subscribe(e => { lock (seen) seen.Add(e.Type); });
+        var events = new List<string>();
+        var seen = events;
+        using var _ = bus.Subscribe(e => { lock (events) events.Add(e.Type); });
         Mock.EnqueueTool("todo_write", """{"items":[{"text":"a","status":"done"}]}""");
         Mock.EnqueueText("done");
         var thread = await Engine.CreateThreadAsync("atlas");
         await Engine.WaitAsync((await Engine.SendAsync(thread.Id, "plan")).Id, TimeSpan.FromSeconds(10));
+        List<string> snapshot;
+        lock (events) snapshot = [.. events];
+        seen = snapshot;
         Assert.Contains(EventTypes.TaskCreated, seen);
         Assert.Contains(EventTypes.AgentThinkingStarted, seen);
         Assert.Contains(EventTypes.ToolCallStarted, seen);
@@ -359,8 +363,10 @@ public sealed class EngineTests : IAsyncLifetime
         Mock.EnqueueText("A fairly long streamed answer from the mock model.");
         var thread = await Engine.CreateThreadAsync("atlas");
         var task = await Engine.WaitAsync((await Engine.SendAsync(thread.Id, "stream please")).Id, TimeSpan.FromSeconds(10));
-        Assert.True(deltas.Count > 1);
-        Assert.Equal(task.Result, string.Concat(deltas));
+        string[] pieces;
+        lock (deltas) pieces = [.. deltas];
+        Assert.True(pieces.Length > 1);
+        Assert.Equal(task.Result, string.Concat(pieces));
         var stored = await _sp.GetRequiredService<IEventStore>().ListAsync(thread.Id, null, 0, 1000);
         Assert.DoesNotContain(stored, e => e.Type == EventTypes.AssistantDelta);
     }

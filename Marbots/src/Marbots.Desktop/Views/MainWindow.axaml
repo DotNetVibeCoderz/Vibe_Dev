@@ -1,0 +1,206 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:tn="clr-namespace:ThreeNet.Avalonia;assembly=ThreeNet.Avalonia"
+        x:Class="Marbots.Desktop.Views.MainWindow"
+        Title="Marbots"
+        Icon="avares://marbots-desktop/Assets/marbots.ico"
+        Width="1440" Height="900" MinWidth="980" MinHeight="620">
+
+  <Grid ColumnDefinitions="76,*">
+
+    <!-- Navigation rail -->
+    <Border Background="#0B0E1B" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0">
+      <DockPanel Margin="0,14">
+        <StackPanel DockPanel.Dock="Top" Spacing="6" HorizontalAlignment="Center">
+          <Image Source="avares://marbots-desktop/Assets/marbots.png" Width="42" Height="42" Margin="0,0,0,14" />
+          <Button x:Name="NavOffice" Classes="nav active" ToolTip.Tip="Office (3D)">
+            <StackPanel Spacing="3" HorizontalAlignment="Center">
+              <PathIcon Data="M3 21V9l9-6 9 6v12h-6v-7H9v7z" />
+              <TextBlock Text="Office" FontSize="10" HorizontalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button x:Name="NavChat" Classes="nav" ToolTip.Tip="Chat">
+            <StackPanel Spacing="3" HorizontalAlignment="Center">
+              <PathIcon Data="M4 4h16v12H8l-4 4z" />
+              <TextBlock Text="Chat" FontSize="10" HorizontalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button x:Name="NavApprovals" Classes="nav" ToolTip.Tip="Approvals">
+            <Grid>
+              <StackPanel Spacing="3" HorizontalAlignment="Center">
+                <PathIcon Data="M12 2l8 3v6c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V5zm-1.2 13.2l5.6-5.6-1.4-1.4-4.2 4.2-2-2-1.4 1.4z" />
+                <TextBlock Text="Approvals" FontSize="10" HorizontalAlignment="Center" />
+              </StackPanel>
+              <Border x:Name="ApprovalBadge" Background="{StaticResource Danger}" CornerRadius="99" MinWidth="18" Height="18"
+                      HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-4,-2,0" IsVisible="False">
+                <TextBlock x:Name="ApprovalBadgeText" Text="0" FontSize="10" FontWeight="Bold" Foreground="White"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" Margin="5,0" />
+              </Border>
+            </Grid>
+          </Button>
+          <Button x:Name="NavConnect" Classes="nav" ToolTip.Tip="Connection">
+            <StackPanel Spacing="3" HorizontalAlignment="Center">
+              <PathIcon Data="M7 7h4v2H7a3 3 0 0 0 0 6h4v2H7A5 5 0 0 1 7 7zm6 0h4a5 5 0 0 1 0 10h-4v-2h4a3 3 0 0 0 0-6h-4zm-5 4h8v2H8z" />
+              <TextBlock Text="Server" FontSize="10" HorizontalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+        <Ellipse x:Name="StatusDot" DockPanel.Dock="Bottom" Width="10" Height="10" Fill="{StaticResource Warn}"
+                 VerticalAlignment="Bottom" HorizontalAlignment="Center" ToolTip.Tip="Connection" />
+      </DockPanel>
+    </Border>
+
+    <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*">
+
+      <!-- Header -->
+      <Grid ColumnDefinitions="*,Auto" Margin="24,16,24,12">
+        <StackPanel>
+          <TextBlock x:Name="PageTitle" Classes="h1" Text="Office" />
+          <TextBlock x:Name="PageSubtitle" Classes="muted" FontSize="12" Text="Your team at work, live" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Border Classes="pill">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Ellipse x:Name="HeaderDot" Width="8" Height="8" Fill="{StaticResource Warn}" VerticalAlignment="Center" />
+              <TextBlock x:Name="ConnectionText" Text="Connecting…" FontSize="12" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </Grid>
+
+      <!-- Dangerous mode banner -->
+      <Border x:Name="DangerBanner" Grid.Row="1" Background="#33FF5C6C" BorderBrush="{StaticResource Danger}" BorderThickness="0,1"
+              Padding="24,8" IsVisible="False">
+        <TextBlock TextWrapping="Wrap" FontSize="12"
+                   Text="Approvals are skipped (dangerous mode): bots act without asking. Turn it off in Settings on the web app or with 'marbots approvals skip off'." />
+      </Border>
+
+      <Grid Grid.Row="2">
+
+        <!-- OFFICE -->
+        <Grid x:Name="OfficePage">
+          <Border Margin="16,0,16,16" CornerRadius="16" ClipToBounds="True" BorderBrush="{StaticResource Line}" BorderThickness="1">
+            <Grid>
+              <tn:ThreeNetView x:Name="Viewport" Focusable="True" />
+              <Canvas x:Name="TagLayer" IsHitTestVisible="False" />
+
+              <!-- Team roster -->
+              <Border Classes="glass" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14" Width="250">
+                <StackPanel Spacing="8">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="h2" Text="TEAM" />
+                    <TextBlock x:Name="BusyText" Grid.Column="1" Classes="muted" FontSize="11" Text="" />
+                  </Grid>
+                  <StackPanel x:Name="Roster" Spacing="2" />
+                </StackPanel>
+              </Border>
+
+              <!-- Live activity -->
+              <Border Classes="glass" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="14" Width="300">
+                <StackPanel Spacing="8">
+                  <TextBlock Classes="h2" Text="LIVE ACTIVITY" />
+                  <StackPanel x:Name="Feed" Spacing="6" />
+                </StackPanel>
+              </Border>
+
+              <!-- Camera and legend -->
+              <Border Classes="glass" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="14" Padding="8">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Button x:Name="CamOverview" Classes="chip" Content="Overview" />
+                  <Button x:Name="CamDesks" Classes="chip" Content="Desks" />
+                  <Button x:Name="CamStations" Classes="chip" Content="Stations" />
+                  <Button x:Name="CamFront" Classes="chip" Content="Front rooms" />
+                  <ToggleButton x:Name="AutoOrbit" Classes="chip" Content="Auto orbit" CornerRadius="10" FontSize="12" Padding="10,5" />
+                  <Border Width="1" Background="{StaticResource Line}" Margin="6,2" />
+                  <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center" Margin="4,0">
+                    <StackPanel Orientation="Horizontal" Spacing="4"><Ellipse Width="8" Height="8" Fill="#5980FF" /><TextBlock Text="typing" FontSize="11" Classes="muted" /></StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="4"><Ellipse Width="8" Height="8" Fill="#FFBF33" /><TextBlock Text="thinking" FontSize="11" Classes="muted" /></StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="4"><Ellipse Width="8" Height="8" Fill="#FF4D59" /><TextBlock Text="needs approval" FontSize="11" Classes="muted" /></StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="4"><Ellipse Width="8" Height="8" Fill="#59D98C" /><TextBlock Text="idle" FontSize="11" Classes="muted" /></StackPanel>
+                  </StackPanel>
+                  <TextBlock x:Name="FpsText" Classes="muted" FontSize="11" VerticalAlignment="Center" Margin="6,0" />
+                </StackPanel>
+              </Border>
+
+              <Border x:Name="RenderError" Classes="panel" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="False" MaxWidth="460">
+                <TextBlock x:Name="RenderErrorText" TextWrapping="Wrap" />
+              </Border>
+            </Grid>
+          </Border>
+        </Grid>
+
+        <!-- CHAT -->
+        <Grid x:Name="ChatPage" ColumnDefinitions="260,*" Margin="16,0,16,16" IsVisible="False">
+          <Border Classes="panel" Padding="10">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" Classes="h2" Text="BOTS" Margin="6,4,0,8" />
+              <ListBox x:Name="BotList" />
+            </DockPanel>
+          </Border>
+          <Border Grid.Column="1" Classes="panel" Margin="12,0,0,0" Padding="0">
+            <Grid RowDefinitions="Auto,*,Auto">
+              <Border BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="18,12">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                  <Border x:Name="ChatAvatar" Width="36" Height="36" CornerRadius="18" Background="{StaticResource Indigo}">
+                    <TextBlock x:Name="ChatAvatarText" Text="?" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" Foreground="White" />
+                  </Border>
+                  <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                    <TextBlock x:Name="ChatTitle" Text="Pick a bot" FontWeight="SemiBold" />
+                    <TextBlock x:Name="ChatSubtitle" Classes="muted" FontSize="12" Text="" />
+                  </StackPanel>
+                  <Button x:Name="NewThread" Grid.Column="2" Content="New thread" />
+                </Grid>
+              </Border>
+              <ScrollViewer x:Name="MessageScroll" Grid.Row="1" Padding="18,12">
+                <StackPanel x:Name="Messages" Spacing="12" />
+              </ScrollViewer>
+              <Border Grid.Row="2" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="14">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBox x:Name="Composer" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="160" MinHeight="44"
+                           PlaceholderText="Message… (Enter to send, Shift+Enter for a new line)" />
+                  <Button x:Name="SendButton" Grid.Column="1" Classes="primary" Content="Send" Margin="10,0,0,0" VerticalAlignment="Bottom" Height="44" />
+                </Grid>
+              </Border>
+            </Grid>
+          </Border>
+        </Grid>
+
+        <!-- APPROVALS -->
+        <ScrollViewer x:Name="ApprovalsPage" IsVisible="False" Padding="16,0,16,16">
+          <StackPanel MaxWidth="900" HorizontalAlignment="Stretch">
+            <StackPanel x:Name="ApprovalList" Spacing="12" />
+            <TextBlock x:Name="NoApprovals" Classes="muted" Text="Nothing is waiting for you. Bots ask here before risky actions." Margin="8" />
+          </StackPanel>
+        </ScrollViewer>
+
+        <!-- CONNECTION -->
+        <ScrollViewer x:Name="ConnectPage" IsVisible="False" Padding="16,0,16,16">
+          <StackPanel MaxWidth="640" HorizontalAlignment="Left" Spacing="14">
+            <Border Classes="panel">
+              <StackPanel Spacing="10">
+                <TextBlock Classes="h2" Text="SERVER" />
+                <TextBox x:Name="UrlBox" PlaceholderText="http://localhost:5170" />
+                <TextBox x:Name="KeyBox" PasswordChar="•" PlaceholderText="API key (optional)" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button x:Name="ConnectButton" Classes="primary" Content="Connect" />
+                  <Button x:Name="StartLocalButton" Content="Start local server" />
+                </StackPanel>
+                <TextBlock x:Name="ConnectStatus" Classes="muted" TextWrapping="Wrap" FontSize="12" />
+              </StackPanel>
+            </Border>
+            <Border Classes="panel">
+              <StackPanel Spacing="6">
+                <TextBlock Classes="h2" Text="ABOUT" />
+                <TextBlock x:Name="ServerInfo" TextWrapping="Wrap" FontSize="12" />
+                <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12"
+                           Text="3D office: models generated with Rodin (Hyper3D), robot rigged and animated in Blender, rendered with Three.Net." />
+                <TextBlock Text="Created by Gravicode Studios, led by Kang Fadhil · Dibuat oleh Gravicode Studios dipimpin oleh Kang Fadhil" TextWrapping="Wrap" FontSize="12" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+
+      </Grid>
+    </Grid>
+  </Grid>
+</Window>

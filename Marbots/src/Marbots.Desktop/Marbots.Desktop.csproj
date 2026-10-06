@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>marbots-desktop</AssemblyName>
+    <RootNamespace>Marbots.Desktop</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\marbots.ico</ApplicationIcon>
+    <IsPackable>false</IsPackable>
+    <Description>Marbots desktop: chat, approvals and the 3D office, connected to a Marbots server.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="ThreeNet.Avalonia" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Marbots.Sdk\Marbots.Sdk.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Office models (Rodin, rigged and animated in Blender) and wall art (Nano Banana 2). -->
+    <None Include="Assets\Office\**\*" CopyToOutputDirectory="PreserveNewest" LinkBase="Assets\Office" />
+    <AvaloniaResource Include="Assets\marbots.png" />
+    <AvaloniaResource Include="Assets\marbots.ico" />
+  </ItemGroup>
+
+</Project>

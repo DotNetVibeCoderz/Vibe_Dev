@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Marbots.Abstractions/Marbots.Abstractions.csproj" />
     <Project Path="src/Marbots.Cli/Marbots.Cli.csproj" />
+    <Project Path="src/Marbots.Desktop/Marbots.Desktop.csproj" />
     <Project Path="src/Marbots.Kernel/Marbots.Kernel.csproj" />
     <Project Path="src/Marbots.Providers/Marbots.Providers.csproj" />
     <Project Path="src/Marbots.Runtime/Marbots.Runtime.csproj" />

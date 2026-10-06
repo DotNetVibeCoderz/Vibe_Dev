@@ -262,8 +262,34 @@ public sealed class IntegrationHttpTests : IClassFixture<IntegrationHttpTests.Fi
     }
 
     private readonly HttpClient _http;
+    private readonly Fixture _fx;
 
-    public IntegrationHttpTests(Fixture fx) => _http = fx.CreateClient();
+    public IntegrationHttpTests(Fixture fx)
+    {
+        _fx = fx;
+        _http = fx.CreateClient();
+    }
+
+    [Fact]
+    public async Task Resumed_event_streams_still_receive_streaming_text()
+    {
+        // Clients that reconnect with ?after= must not lose transient events (they have no stored id).
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var req = new HttpRequestMessage(HttpMethod.Get, "/api/v1/events?after=1");
+        using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+        await using var stream = await resp.Content.ReadAsStreamAsync(cts.Token);
+        using var reader = new StreamReader(stream);
+        var bus = _fx.Services.GetRequiredService<IEventBus>();
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(300, cts.Token);
+            bus.PublishTransient(new AgentEvent { Type = EventTypes.AssistantDelta, BotId = "wren", Message = "live-piece" });
+        }, cts.Token);
+        string? line;
+        while ((line = await reader.ReadLineAsync(cts.Token)) is not null)
+            if (line.StartsWith("data: ", StringComparison.Ordinal) && line.Contains("live-piece", StringComparison.Ordinal)) break;
+        Assert.NotNull(line);
+    }
 
     private async Task<JsonElement> CreateChannel(object channel, object? secrets = null)
     {

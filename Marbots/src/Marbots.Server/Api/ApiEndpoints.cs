@@ -269,7 +269,8 @@ public static class Sse
         {
             while (await live.MoveNextAsync())
             {
-                if (after is not null && live.Current.Id <= last && last != long.MaxValue) continue;
+                // Skip stored events already replayed; transient events (Id 0, e.g. streaming text) always pass.
+                if (after is not null && live.Current.Id > 0 && live.Current.Id <= last && last != long.MaxValue) continue;
                 await WriteAsync(ctx, live.Current, ct);
             }
         }

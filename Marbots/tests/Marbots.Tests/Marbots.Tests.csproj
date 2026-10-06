@@ -15,6 +15,10 @@
     <ProjectReference Include="..\..\src\Marbots.Sdk\Marbots.Sdk.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The desktop office logic is plain C#; test it without loading Avalonia or the GPU renderer. -->
+    <Compile Include="..\..\src\Marbots.Desktop\Office\OfficeDirector.cs" Link="Desktop\OfficeDirector.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 </Project>
