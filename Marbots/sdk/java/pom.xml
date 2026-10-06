@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.gravicode</groupId>
+  <artifactId>marbots-sdk</artifactId>
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+  <name>Marbots SDK for Java</name>
+  <description>Typed Java client for Marbots, the multi-agent collaboration platform (Boss Man orchestration, per-bot models, skills, MCP, A2A). Built by Gravicode Studios, led by Kang Fadhil.</description>
+  <url>https://github.com/DotNetVibeCoderz/Vibe_Dev/tree/main/Marbots</url>
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <name>Kang Fadhil</name>
+      <email>gravicode.research@gmail.com</email>
+      <organization>Gravicode Studios</organization>
+    </developer>
+  </developers>
+  <scm>
+    <connection>scm:git:https://github.com/DotNetVibeCoderz/Vibe_Dev.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/DotNetVibeCoderz/Vibe_Dev.git</developerConnection>
+    <url>https://github.com/DotNetVibeCoderz/Vibe_Dev</url>
+  </scm>
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+  <!-- No runtime dependencies: JSON and HTTP are implemented with the JDK only. -->
+  <build>
+    <plugins>
+      <!-- Pinned explicitly: older default compiler plugins (e.g. on JitPack) ignore maven.compiler.release. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+        <configuration>
+          <release>17</release>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <version>3.3.1</version>
+        <executions>
+          <execution>
+            <id>attach-sources</id>
+            <goals><goal>jar-no-fork</goal></goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <version>3.11.2</version>
+        <configuration>
+          <doclint>none</doclint>
+          <quiet>true</quiet>
+        </configuration>
+        <executions>
+          <execution>
+            <id>attach-javadocs</id>
+            <goals><goal>jar</goal></goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+  <profiles>
+    <!-- mvn verify -Pconformance : runs the SDK conformance scenarios against a built Marbots server -->
+    <profile>
+      <id>conformance</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>3.5.0</version>
+            <executions>
+              <execution>
+                <id>conformance</id>
+                <phase>integration-test</phase>
+                <goals><goal>java</goal></goals>
+                <configuration>
+                  <mainClass>com.gravicode.marbots.ConformanceTest</mainClass>
+                  <classpathScope>test</classpathScope>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>

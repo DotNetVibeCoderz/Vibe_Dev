@@ -108,7 +108,7 @@ var t = await mb.Threads.CreateAsync("atlas");
 var r = await mb.Threads.SendAsync(t.Id, "Top 3 AI news today", wait: true);
 ```
 
-TypeScript (`@gravicode/marbots`) and Go (`github.com/DotNetVibeCoderz/Vibe_Dev/Marbots/sdk/go`) are also available. See
+TypeScript (`@gravicode/marbots`), Go (`github.com/DotNetVibeCoderz/Vibe_Dev/Marbots/sdk/go`), Java (`com.gravicode:marbots-sdk`) and Rust (`marbots-sdk`) SDKs are also available, all typed so typos are compile errors. See
 [API, A2A, SDKs and CLI](docs/en/api-and-sdks.md).
 
 ## Repository layout
@@ -123,7 +123,7 @@ src/
   Marbots.Server         ASP.NET Core: REST/SSE API, A2A, Blazor UI
   Marbots.Sdk            .NET SDK
   Marbots.Cli            marbots CLI
-sdk/python · sdk/typescript · sdk/go
+sdk/python · sdk/typescript · sdk/go · sdk/java · sdk/rust
 skills/                  20 built-in SKILL.md packages
 tests/Marbots.Tests      58 unit + end-to-end runtime tests (mock LLM)
 samples/trials           real-LLM trial harness, results and bot-made artifacts

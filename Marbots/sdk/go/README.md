@@ -1,15 +1,44 @@
 # Marbots Go SDK
 
+Typed Go client for [Marbots](https://github.com/DotNetVibeCoderz/Vibe_Dev/tree/main/Marbots), the multi-agent
+collaboration platform. Kernel packs, permission profiles, task states, event types and model settings are typed
+constants (`KernelPackFiles`, `PermissionDeveloperSafe`, `TaskCompleted`, `EventTaskStateChanged`, `ModelOf`).
+
 ```bash
 go get github.com/DotNetVibeCoderz/Vibe_Dev/Marbots/sdk/go
 ```
 
 ```go
-c := marbots.New("http://localhost:5170", "")
-reply, err := c.Chat(ctx, "boss-man", "Buat rencana peluncuran produk 3 langkah")
+import marbots "github.com/DotNetVibeCoderz/Vibe_Dev/Marbots/sdk/go"
 
-events, errs := c.Events(ctx, threadID)
-for e := range events { fmt.Println(e.Type, e.Message) }
+c := marbots.New("http://localhost:5170")        // marbots.WithAPIKey("...") if required
+
+// Every bot can run on its own model; ModelDefault follows the workspace default.
+sari, err := c.Bots.Create(ctx, marbots.BotSpec{
+    Name: "Sari", Role: "UX designer",
+    KernelFunctions:   []marbots.KernelPack{marbots.KernelPackFiles, marbots.KernelPackWeb},
+    PermissionProfile: marbots.PermissionWorkspaceWrite,
+    Model:             marbots.MustModel("azure", "gpt-5.6-luna"),
+})
+_, _ = c.Bots.SetModel(ctx, "atlas", marbots.ModelDefault)
+
+thread, _ := c.Threads.Create(ctx, sari.ID, "")
+events, _ := c.Events.Stream(ctx, thread.ID)
+_, _ = c.Threads.Send(ctx, thread.ID, "Sketch a wireframe", marbots.SendOptions{})
+for e := range events {
+    if e.Type == marbots.EventToolCallStarted { fmt.Println("tool:", e.Message) }
+    if e.TaskFinished() { break }
+}
 ```
 
-Created by Gravicode Studios, led by Kang Fadhil.
+| Area | API |
+|---|---|
+| Bots | `Bots.List/Get/Create(BotSpec)/Update/Delete/Hire/GetModel/SetModel/Pause/Resume/Export/Import` |
+| Models | `Models.List()` → `ModelCatalog`, `Models.SetDefault("provider/model")` |
+| Chat | `Threads.Create/Send/Messages/Files/Download/Delete`, `Chat(ctx, bot, text)` |
+| Work | `Tasks`, `Approvals` (incl. `SetSkipApprovals`), `Schedules.Create(ScheduleSpec)`, `Memory`, `Skills`, `MCP` |
+| Live | `Events.Stream(ctx, threadID)` → `<-chan Event` |
+
+`go test ./...` runs the conformance tests against a real Marbots server (`dotnet build Marbots.slnx` first).
+
+Built by Gravicode Studios, led by Kang Fadhil. MIT license.

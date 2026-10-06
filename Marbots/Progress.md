@@ -26,7 +26,7 @@ Development log and current status. The roadmap is in [PLAN.md](PLAN.md).
 | A2A | 🟡 | Agent cards, `message/send`, `tasks/get`, `tasks/cancel` (no streaming yet) |
 | Per-bot models | ✅ | `default` / `provider/model` / profile per bot; workspace default; fallback to default; model recorded per task; UI, API, CLI, SDKs, `create_bot` |
 | Skip approvals | ✅ | Dangerous mode like `--dangerously-skip-permissions`: Settings toggle, `marbots approvals skip on`, server flag `--dangerously-skip-approvals`, API/SDK; profile denies still apply; audited |
-| SDKs (typed, DotCode style) | 🟡 | .NET, Python (`marbots-sdk`, mypy --strict + typo test), TypeScript (`@gravicode/marbots`, `@ts-expect-error` typo test) with conformance tests; Go still the v0 client; Java and Rust planned |
+| SDKs (typed, DotCode style) | ✅ | .NET, Python (`marbots-sdk`, mypy --strict + typo test), TypeScript (`@gravicode/marbots`, `@ts-expect-error` typo test), Go, Java (`com.gravicode:marbots-sdk`, javac -Werror), Rust (`marbots-sdk`, clippy -D warnings) — each with a conformance test against a real server, all in CI |
 | CLI | ✅ | status, bots, bot *, templates, chat (streaming activity), tasks, approvals, skills, mcp, schedules, hosts, logs, themes |
 | Docs | ✅ | 11 pages × EN/ID, glossary, screenshots, README EN/ID |
 | Remote hosts / AgentHost | ⏳ | Phase 2 |

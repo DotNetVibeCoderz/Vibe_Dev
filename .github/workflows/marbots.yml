@@ -1,8 +1,10 @@
 # Marbots — CI and release (Gravicode Studios, led by Kang Fadhil)
 #  • Every push/PR touching Marbots/: build + .NET tests (incl. .NET SDK conformance) + SDK checks
 #    (Python: mypy --strict + typo test + conformance; TypeScript: typo test + conformance; Go: vet + build)
-#  • Tag "marbots-v*" (e.g. marbots-v0.1.0) or manual run with publish=true: pack and push NuGet packages
+#    plus Java (javac -Werror + conformance) and Rust (fmt + clippy -D warnings + conformance)
+#  • Tag "marbots-v*" (e.g. marbots-v0.1.1) or manual run with publish=true: pack and push NuGet packages
 #    (uses the repository secret NUGET_API_KEY)
+#  • Manual run with publish_maven=true: publish the Java SDK to Maven Central (MAVEN_CENTRAL_*, GPG_* secrets)
 name: Marbots
 
 on:
@@ -16,6 +18,10 @@ on:
     inputs:
       publish:
         description: "Publish NuGet packages (Marbots.Abstractions, Marbots.Sdk, Marbots.Cli)"
+        type: boolean
+        default: false
+      publish_maven:
+        description: "Publish the Java SDK (com.gravicode:marbots-sdk) to Maven Central"
         type: boolean
         default: false
 
@@ -40,6 +46,8 @@ jobs:
         with: { python-version: "3.12" }
       - uses: actions/setup-go@v5
         with: { go-version: "1.22" }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
 
       - name: Build
         run: dotnet build Marbots.slnx -c Debug
@@ -54,9 +62,19 @@ jobs:
       - name: TypeScript SDK (typo test + conformance)
         working-directory: Marbots/sdk/typescript
         run: npm ci && npm run build && npm test
-      - name: Go SDK
+      - name: Go SDK (vet + conformance)
         working-directory: Marbots/sdk/go
-        run: go vet ./... && go build ./...
+        run: go vet ./... && go test ./...
+      - name: Java SDK (javac -Werror + conformance)
+        working-directory: Marbots/sdk/java
+        run: |
+          mkdir -p target/classes target/test-classes
+          javac --release 17 -Xlint:all -Werror -d target/classes $(find src/main -name "*.java")
+          javac --release 17 -d target/test-classes -cp target/classes $(find src/test -name "*.java")
+          java -cp target/classes:target/test-classes com.gravicode.marbots.ConformanceTest
+      - name: Rust SDK (fmt + clippy + conformance)
+        working-directory: Marbots/sdk/rust
+        run: cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 
   nuget:
     needs: test
@@ -82,3 +100,25 @@ jobs:
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: dotnet nuget push "nupkgs/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+  maven:
+    needs: test
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_maven
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Marbots/sdk/java
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - name: Import signing key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+      - name: Publish to Maven Central
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: bash publish-central.sh

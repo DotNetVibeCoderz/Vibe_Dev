@@ -1,4 +1,5 @@
-// Prints the team and asks Boss Man a question. Usage: go run ./examples/status "your question"
+// Prints the team with each bot's model and asks Boss Man a question.
+// Usage: go run ./examples/status "your question"
 package main
 
 import (
@@ -11,28 +12,26 @@ import (
 
 func main() {
 	ctx := context.Background()
-	c := marbots.New(envOr("MARBOTS_URL", "http://localhost:5170"), os.Getenv("MARBOTS_API_KEY"))
-	bots, err := c.Bots(ctx)
+	url := os.Getenv("MARBOTS_URL")
+	if url == "" {
+		url = "http://localhost:5170"
+	}
+	c := marbots.New(url, marbots.WithAPIKey(os.Getenv("MARBOTS_API_KEY")))
+	bots, err := c.Bots.List(ctx)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	for _, b := range bots {
-		fmt.Printf("%-12s %-30s %s\n", b.ID, b.Role, b.Status)
+		m, _ := c.Bots.GetModel(ctx, b.ID)
+		fmt.Printf("%-12s %-32s %-8s %s\n", b.ID, b.Role, b.Status, m.Effective)
 	}
 	if len(os.Args) > 1 {
-		reply, err := c.Chat(ctx, "boss-man", os.Args[1])
+		reply, err := c.Chat(ctx, marbots.BossMan, os.Args[1])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 		fmt.Println(reply)
 	}
-}
-
-func envOr(k, d string) string {
-	if v := os.Getenv(k); v != "" {
-		return v
-	}
-	return d
 }

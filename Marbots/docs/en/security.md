@@ -47,8 +47,8 @@ Like Claude Code's `--dangerously-skip-permissions`, Marbots can run without ask
 | Where | How |
 |---|---|
 | Web UI | Settings → **Skip approvals (dangerous)** → *Skip approvals* |
-| CLI | `marbots approvals skip on` (`off`, `status`) |
-| Server start | `dotnet run --project src/Marbots.Server -- --dangerously-skip-approvals` or `"Marbots": { "DangerouslySkipApprovals": true }` |
+| CLI | `marbots approvals skip on` (`off`, `status`), or per command: `marbots chat alice "…" --dangerously-skip-permissions` (alias `--dangerously-skip-approvals`; the previous mode is restored when the command ends) |
+| Server start | `dotnet run --project src/Marbots.Server -- --dangerously-skip-permissions` (or `--dangerously-skip-approvals`) or `"Marbots": { "DangerouslySkipApprovals": true }` |
 | API / SDK | `PUT /api/v1/system/approvals {"dangerouslySkipApprovals": true}` · `client.Approvals.SetSkipApprovalsAsync(true)` |
 
 While it is on, every action that would **ask** runs immediately (shell, deletes, external messages, critical-risk

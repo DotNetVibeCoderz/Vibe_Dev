@@ -65,6 +65,8 @@ notifications are on the roadmap.
 | Python | `sdk/python` | `pip install marbots-sdk` (zero dependencies, typed) |
 | TypeScript / Node | `sdk/typescript` | `npm install @gravicode/marbots` |
 | Go | `sdk/go` | `go get github.com/DotNetVibeCoderz/Vibe_Dev/Marbots/sdk/go` |
+| Java 17+ | `sdk/java` | Maven `com.gravicode:marbots-sdk` |
+| Rust | `sdk/rust` | `cargo add marbots-sdk` |
 
 ```csharp
 using var mb = new MarbotsClient(new Uri("http://localhost:5170"));
@@ -84,7 +86,15 @@ console.log(await new MarbotsClient().chat("wren", "Write a haiku about marbles"
 ```
 
 ```go
-reply, _ := marbots.New("http://localhost:5170", "").Chat(ctx, "boss-man", "Hello")
+reply, _ := marbots.New("http://localhost:5170").Chat(ctx, marbots.BossMan, "Hello")
+```
+
+```java
+String reply = MarbotsClient.create("http://localhost:5170").chat("boss-man", "Hello");
+```
+
+```rust
+let reply = marbots_sdk::Client::new("http://localhost:5170").chat(marbots_sdk::BOSS_MAN, "Hello")?;
 ```
 
 ### Typed names

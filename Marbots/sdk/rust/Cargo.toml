@@ -1,0 +1,23 @@
+[package]
+name = "marbots-sdk"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Typed Rust SDK for Marbots, the multi-agent collaboration platform (Boss Man orchestration, per-bot models, skills, MCP, A2A). By Gravicode Studios."
+license = "MIT"
+repository = "https://github.com/DotNetVibeCoderz/Vibe_Dev"
+homepage = "https://github.com/DotNetVibeCoderz/Vibe_Dev/tree/main/Marbots"
+documentation = "https://docs.rs/marbots-sdk"
+readme = "README.md"
+keywords = ["ai", "agents", "multi-agent", "llm", "sdk"]
+categories = ["api-bindings", "development-tools"]
+authors = ["Gravicode Studios (led by Kang Fadhil)"]
+exclude = ["target/"]
+
+[lib]
+name = "marbots_sdk"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = { version = "3", features = ["json"] }

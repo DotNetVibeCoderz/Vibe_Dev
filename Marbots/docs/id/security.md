@@ -48,8 +48,8 @@ Seperti `--dangerously-skip-permissions` di Claude Code, Marbots dapat berjalan 
 | Di mana | Caranya |
 |---|---|
 | UI web | Pengaturan → **Lewati persetujuan (berbahaya)** → *Lewati persetujuan* |
-| CLI | `marbots approvals skip on` (`off`, `status`) |
-| Saat server dijalankan | `dotnet run --project src/Marbots.Server -- --dangerously-skip-approvals` atau `"Marbots": { "DangerouslySkipApprovals": true }` |
+| CLI | `marbots approvals skip on` (`off`, `status`), atau per perintah: `marbots chat alice "…" --dangerously-skip-permissions` (alias `--dangerously-skip-approvals`; mode sebelumnya dipulihkan saat perintah selesai) |
+| Saat server dijalankan | `dotnet run --project src/Marbots.Server -- --dangerously-skip-permissions` (or `--dangerously-skip-approvals`) atau `"Marbots": { "DangerouslySkipApprovals": true }` |
 | API / SDK | `PUT /api/v1/system/approvals {"dangerouslySkipApprovals": true}` · `client.Approvals.SetSkipApprovalsAsync(true)` |
 
 Selama aktif, setiap aksi yang biasanya **bertanya** langsung dijalankan (shell, hapus berkas, pesan eksternal, aksi

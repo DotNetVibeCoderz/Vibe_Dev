@@ -12,7 +12,7 @@ builder.WebHost.UseStaticWebAssets();
 var options = builder.Configuration.GetSection("Marbots").Get<MarbotsOptions>() ?? new MarbotsOptions();
 options.DataDirectory = Path.GetFullPath(options.DataDirectory, builder.Environment.ContentRootPath);
 // Like Claude Code's --dangerously-skip-permissions: start with approvals skipped (can be turned off in Settings).
-if (args.Contains("--dangerously-skip-approvals")) options.DangerouslySkipApprovals = true;
+if (args.Contains("--dangerously-skip-approvals") || args.Contains("--dangerously-skip-permissions")) options.DangerouslySkipApprovals = true;
 Directory.CreateDirectory(options.DataDirectory);
 
 var dp = builder.Services.AddDataProtection()
@@ -26,6 +26,7 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 {
     o.SerializerOptions.TypeInfoResolverChain.Insert(0, Marbots.Abstractions.MarbotsJsonContext.Default);
     o.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+    o.SerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
 });
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddScoped<UiText>();

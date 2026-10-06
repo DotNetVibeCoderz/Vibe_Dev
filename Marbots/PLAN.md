@@ -76,4 +76,4 @@ Legend: ✅ done · 🟡 partial / preview · ⏳ planned
 - ⏳ Signed skill packages and SBOM for releases
 - ⏳ Rust native library only if profiling shows a hot path (candidates: large-workspace grep, tokenizer)
 - 🟡 Publish packages: NuGet (`Marbots.Abstractions`, `Marbots.Sdk`, `Marbots.Cli` tool), PyPI (`marbots-sdk`), npm (`@gravicode/marbots`)
-- ⏳ Go SDK in the typed DotCode style + module tag; Java (`com.gravicode:marbots-sdk`, Maven Central) and Rust (`marbots-sdk`, crates.io) SDKs
+- ✅ Go SDK in the typed DotCode style + module tag; Java (`com.gravicode:marbots-sdk`, Maven Central) and Rust (`marbots-sdk`, crates.io) SDKs

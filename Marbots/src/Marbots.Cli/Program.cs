@@ -41,7 +41,30 @@ public static class Program
 
 internal sealed class Commands(MarbotsClient client, Ui ui)
 {
+    private static readonly string[] SkipFlags = ["--dangerously-skip-approvals", "--dangerously-skip-permissions"];
+
     public async Task<int> RunAsync(string[] args, CancellationToken ct)
+    {
+        // Like Claude Code: skip approvals only for the duration of this command, then restore the previous mode.
+        if (args.Any(x => SkipFlags.Contains(x)))
+        {
+            args = args.Where(x => !SkipFlags.Contains(x)).ToArray();
+            var previous = await client.Approvals.GetSkipApprovalsAsync(ct);
+            await client.Approvals.SetSkipApprovalsAsync(true, ct);
+            ui.Warn("Approvals are skipped for this command: bots act without asking.");
+            try
+            {
+                return await RunCoreAsync(args, ct);
+            }
+            finally
+            {
+                if (!previous) await client.Approvals.SetSkipApprovalsAsync(false, CancellationToken.None);
+            }
+        }
+        return await RunCoreAsync(args, ct);
+    }
+
+    private async Task<int> RunCoreAsync(string[] args, CancellationToken ct)
     {
         if (args.Length == 0) return await StatusAsync(ct);
         var a = args.ToList();
@@ -97,6 +120,8 @@ internal sealed class Commands(MarbotsClient client, Ui ui)
           tasks                          Recent tasks
           approvals | approve <id> [--session] | reject <id>
           approvals skip on|off|status   Dangerous: let bots act without asking (like --dangerously-skip-permissions)
+          <any command> --dangerously-skip-approvals   Skip approvals only while that command runs
+                                         (alias: --dangerously-skip-permissions)
           skills | skills install <git-url-or-folder>
           mcp | mcp install <id>
           schedules                      Scheduled jobs

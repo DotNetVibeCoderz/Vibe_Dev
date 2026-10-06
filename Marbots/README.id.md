@@ -104,7 +104,7 @@ var t = await mb.Threads.CreateAsync("atlas");
 var r = await mb.Threads.SendAsync(t.Id, "3 berita AI teratas hari ini", wait: true);
 ```
 
-TypeScript (`@gravicode/marbots`) dan Go (`github.com/DotNetVibeCoderz/Vibe_Dev/Marbots/sdk/go`) juga tersedia. Lihat
+SDK TypeScript (`@gravicode/marbots`), Go (`github.com/DotNetVibeCoderz/Vibe_Dev/Marbots/sdk/go`), Java (`com.gravicode:marbots-sdk`), dan Rust (`marbots-sdk`) juga tersedia, semuanya bertipe sehingga salah ketik menjadi error saat compile. Lihat
 [API, A2A, SDK, dan CLI](docs/id/api-and-sdks.md).
 
 ## Pengembangan
