@@ -33,8 +33,12 @@ public abstract class LiveComponent : ComponentBase, IDisposable
     private readonly List<AgentEvent> _buffer = [];
     private readonly Lock _lock = new();
 
+    /// <summary>Pages that render streaming text (AssistantDelta) opt in; others ignore these high-frequency events.</summary>
+    protected virtual bool WantsDeltas => false;
+
     private void OnEvent(AgentEvent e)
     {
+        if (e.Type == EventTypes.AssistantDelta && !WantsDeltas) return;
         if (!Accept(e)) return;
         lock (_lock) _buffer.Add(e);
         if (Interlocked.Exchange(ref _pending, 1) == 1) return;

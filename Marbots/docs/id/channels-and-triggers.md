@@ -68,5 +68,14 @@ Agent Card setiap bot kini menyatakan `"streaming": true`. `message/stream` meng
 event `status-update` saat bot berpikir, memanggil tool, atau mendelegasikan, lalu status akhir dan `artifact-update`
 berisi jawabannya.
 
+## Streaming token langsung
+
+Balasan muncul kata demi kata di web chat (dengan kursor berkedip) dan di `marbots chat`. Penyedia model melakukan
+streaming hanya saat ada yang melihat keluarannya; penggunaan token dan biaya tetap dicatat dari potongan terakhir.
+Potongan streaming dikirim sebagai event sementara `AssistantDelta`: diterima pelanggan SSE (`/api/v1/events`, `/api/v1/threads/{id}/events`)
+dan stream event SDK, tetapi tidak pernah ditulis ke log event sehingga riwayat tetap ringkas.
+
+![Streaming](../images/chat-streaming.png)
+
 ---
 *Marbots — Dibuat oleh Gravicode Studios dipimpin oleh Kang Fadhil.*

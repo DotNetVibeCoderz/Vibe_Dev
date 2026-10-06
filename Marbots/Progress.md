@@ -72,10 +72,14 @@ Seven concurrent jobs plus A2A: **16/16 tasks completed**, ~1.02 M tokens, ≈ $
 - **2026-10-07 (b)**: Phase 3 complete: channel gateway (web chat, webhook, Telegram, Slack, WhatsApp, Discord),
   webhook/event triggers, suggest-mode delegation, A2A streaming. 94 tests. Real-LLM web chat conversation in Indonesian.
 
+- **2026-10-07 (c)**: Token streaming: providers stream when the caller asks (SSE text deltas, tool calls assembled by
+  index, usage in the final chunk); the runtime publishes transient `AssistantDelta` events (never stored); the web chat
+  renders live Markdown with a caret and the CLI prints text as it arrives. 97 tests. Verified with Azure gpt-5-mini
+  (CLI) and DeepSeek (web UI). SDKs published: NuGet, PyPI, npm, crates.io, Go module, JitPack.
+
 ## Known limitations
 
 - One host (local). Bots on the same host are isolated per thread workspace and policy, not per OS process/container.
-- Model output is not streamed token by token; the UI streams step-level events instead.
 - Memory search is BM25 only; vector retrieval is planned.
 - Approvals granted "for this thread" are kept in memory and reset when the server restarts.
-- Package publishing (NuGet/PyPI/npm) is prepared but not yet performed.
+- Java SDK is distributed through JitPack (the `com.gravicode` Maven Central namespace is not verified yet).

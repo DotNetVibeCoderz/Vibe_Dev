@@ -297,3 +297,7 @@ h1:focus, h1:focus-visible { outline: none; }
 .bot-card .kv { grid-template-columns: 76px 1fr; }
 .danger-banner { position: sticky; top: 0; z-index: 20; background: var(--danger); color: #fff; padding: 6px 16px; font-size: .86rem; font-weight: 600; }
 .danger-banner a { color: #fff; text-decoration: underline; margin-left: 8px; }
+.msg.live .md { color: var(--ink); }
+.md.streaming > :last-child::after, .caret { content: ""; display: inline-block; width: .5em; height: 1em; margin-left: 2px; vertical-align: -2px; background: var(--indigo); animation: blink 1s steps(2, start) infinite; }
+@keyframes blink { to { visibility: hidden; } }
+.md.streaming > :is(ul, ol, pre, table, blockquote):last-child::after { display: none; }

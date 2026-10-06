@@ -127,7 +127,14 @@ public sealed class AgentRuntime(
             task.Steps = step;
             await SetActivityAsync(task, TaskState.Running, "Thinking", req.ThreadId, EventTypes.AgentThinkingStarted, ct);
 
-            var (response, profile) = await router.CompleteAsync(bot.ModelProfile, new ModelRequest { Messages = modelMessages, Tools = schemas }, ct);
+            var (response, profile) = await router.CompleteAsync(bot.ModelProfile, new ModelRequest
+            {
+                Messages = modelMessages, Tools = schemas,
+                OnTextDelta = piece => bus.PublishTransient(new AgentEvent
+                {
+                    Type = EventTypes.AssistantDelta, ThreadId = req.ThreadId, TaskId = task.Id, BotId = bot.Id, Message = piece, Data = step.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                }),
+            }, ct);
             Meter(task, response, profile);
 
             if (response.ToolCalls.Count == 0)

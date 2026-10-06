@@ -68,5 +68,14 @@ Every bot's Agent Card now advertises `"streaming": true`. `message/stream` retu
 `status-update` events while the bot thinks, calls tools or delegates, then a final status and an `artifact-update` with
 the answer.
 
+## Live token streaming
+
+Replies appear word by word in the web chat (with a blinking caret) and in `marbots chat`. Providers stream only when
+someone is watching the output; usage and cost are still recorded from the final chunk. Streaming fragments travel as
+transient `AssistantDelta` events: they reach SSE subscribers (`/api/v1/events`, `/api/v1/threads/{id}/events`) and SDK event streams but are
+never written to the event log, so history stays compact.
+
+![Streaming](../images/chat-streaming.png)
+
 ---
 *Marbots — Created by Gravicode Studios, led by Kang Fadhil.*

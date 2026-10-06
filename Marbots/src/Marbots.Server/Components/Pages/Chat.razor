@@ -152,6 +152,17 @@
                         </div>
                     </div>
                 }
+                @foreach (var (taskId, live) in _live)
+                {
+                    var lb = BotFor(live.BotId);
+                    <div class="msg live">
+                        <Marble Color="@(lb?.Color ?? "#5B6482")" Name="@(lb?.Name ?? live.BotId)" Size="32" State="Running" />
+                        <div class="body">
+                            <div class="who">@(lb?.Name ?? live.BotId) <time>typing…</time></div>
+                            <div class="md streaming">@((MarkupString)Md.ToHtml(live.Text.ToString()))</div>
+                        </div>
+                    </div>
+                }
                 @if (_running)
                 {
                     <div class="typing"><Marble Color="@(_bot?.Color ?? "#2C3BA3")" Size="22" State="Running" /> @_bot?.Name @T["chat.working"] — @(_activity ?? "…")</div>
@@ -305,7 +316,37 @@
         _files = Marbots.Server.Api.WorkspaceFiles.List(Engine.WorkspaceFor(_thread.Id));
     }
 
-    private static bool IsActivity(AgentEvent e) => e.Type is not (EventTypes.MessageAdded or EventTypes.AgentThinkingCompleted);
+    protected override bool WantsDeltas => true;
+
+    private static bool IsActivity(AgentEvent e) => e.Type is not (EventTypes.MessageAdded or EventTypes.AgentThinkingCompleted or EventTypes.AssistantDelta);
+
+    /// <summary>Text a bot is streaming right now, per task (cleared when the message is stored or the step changes).</summary>
+    private sealed class LiveText
+    {
+        public required string BotId { get; init; }
+        public string Step { get; set; } = "";
+        public System.Text.StringBuilder Text { get; } = new();
+    }
+
+    private readonly Dictionary<string, LiveText> _live = [];
+
+    private void ApplyDeltas(IEnumerable<AgentEvent> events)
+    {
+        foreach (var e in events)
+        {
+            if (e.TaskId is null) continue;
+            if (e.Type == EventTypes.AssistantDelta)
+            {
+                if (!_live.TryGetValue(e.TaskId, out var live)) _live[e.TaskId] = live = new LiveText { BotId = e.BotId ?? "" };
+                if (live.Step != e.Data) { live.Step = e.Data ?? ""; live.Text.Clear(); }
+                live.Text.Append(e.Message);
+            }
+            else if (e.Type is EventTypes.MessageAdded or EventTypes.ToolCallStarted || e.Type == EventTypes.TaskStateChanged && e.Data is "Completed" or "Failed" or "Cancelled")
+            {
+                _live.Remove(e.TaskId);
+            }
+        }
+    }
 
     protected override bool Accept(AgentEvent e) =>
         _thread is not null && e.ThreadId == _thread.Id || e.Type is EventTypes.BotStateChanged or EventTypes.BotCreated;
@@ -313,6 +354,12 @@
     protected override async Task RefreshAsync(IReadOnlyList<AgentEvent> events)
     {
         if (_thread is null) return;
+        ApplyDeltas(events);
+        if (events.All(e => e.Type == EventTypes.AssistantDelta))
+        {
+            _scrollForce = false;
+            return; // streaming text only: no need to reload anything
+        }
         if (events.Any(e => e.Type is EventTypes.BotStateChanged or EventTypes.BotCreated))
         {
             _bots = await Registry.ActiveAsync();

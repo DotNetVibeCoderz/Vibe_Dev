@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Marbots.Abstractions;
 using Marbots.Kernel;
@@ -292,6 +293,39 @@ public class ProviderTests
         Assert.Equal("read_file", r.ToolCalls[0].Name);
         Assert.Equal(12, r.Usage.InputTokens);
         Assert.Equal(7, r.Usage.OutputTokens);
+    }
+
+    [Fact]
+    public async Task Reads_streamed_text_tool_calls_and_usage()
+    {
+        var sse = string.Join("\n", [
+            "data: {\"model\":\"m\",\"choices\":[{\"delta\":{\"content\":\"Hel\"}}]}",
+            "",
+            "data: {\"choices\":[{\"delta\":{\"content\":\"lo\"}}]}",
+            "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"c1\",\"function\":{\"name\":\"read_\",\"arguments\":\"{\\\"pa\"}}]}}]}",
+            "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"name\":\"file\",\"arguments\":\"th\\\":\\\"a\\\"}\"}}]}}]}",
+            "data: {\"choices\":[{\"finish_reason\":\"tool_calls\",\"delta\":{}}]}",
+            "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":11,\"completion_tokens\":4}}",
+            "data: [DONE]",
+        ]);
+        var pieces = new List<string>();
+        var r = await OpenAiCompatibleProvider.ReadStreamAsync(new MemoryStream(Encoding.UTF8.GetBytes(sse)), pieces.Add, default);
+        Assert.Equal(["Hel", "lo"], pieces);
+        Assert.Equal("Hello", r.Content);
+        Assert.Equal("tool_calls", r.FinishReason);
+        var call = Assert.Single(r.ToolCalls);
+        Assert.Equal(("c1", "read_file", "{\"path\":\"a\"}"), (call.Id, call.Name, call.Arguments));
+        Assert.Equal(11, r.Usage.InputTokens);
+        Assert.Equal(4, r.Usage.OutputTokens);
+    }
+
+    [Fact]
+    public void Streaming_requests_ask_for_stream_and_usage()
+    {
+        var body = OpenAiCompatibleProvider.BuildBody(new ModelRequest { Model = "m", Messages = [ModelMessage.User("hi")], OnTextDelta = _ => { } });
+        using var doc = JsonDocument.Parse(body);
+        Assert.True(doc.RootElement.GetProperty("stream").GetBoolean());
+        Assert.True(doc.RootElement.GetProperty("stream_options").GetProperty("include_usage").GetBoolean());
     }
 
     [Theory]

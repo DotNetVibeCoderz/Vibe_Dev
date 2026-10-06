@@ -52,6 +52,7 @@ public sealed class OpenAiCompatibleProvider : IModelProvider
             if (resp.IsSuccessStatusCode)
             {
                 await using var stream = await resp.Content.ReadAsStreamAsync(cancellationToken);
+                if (request.OnTextDelta is not null) return await ReadStreamAsync(stream, request.OnTextDelta, cancellationToken);
                 using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
                 return Parse(doc.RootElement);
             }
@@ -120,9 +121,69 @@ public sealed class OpenAiCompatibleProvider : IModelProvider
                 w.WriteEndArray();
             }
             if (request.MaxOutputTokens is { } max) w.WriteNumber("max_completion_tokens", max);
+            if (request.OnTextDelta is not null)
+            {
+                w.WriteBoolean("stream", true);
+                w.WriteStartObject("stream_options");
+                w.WriteBoolean("include_usage", true);
+                w.WriteEndObject();
+            }
             w.WriteEndObject();
         }
         return buffer.ToArray();
+    }
+
+    /// <summary>
+    /// Reads an SSE chat-completions stream: text deltas are reported immediately; tool-call fragments are assembled by
+    /// index; the final chunk carries usage.
+    /// </summary>
+    internal static async Task<ModelResponse> ReadStreamAsync(Stream stream, Action<string> onDelta, CancellationToken ct)
+    {
+        var result = new ModelResponse();
+        var text = new StringBuilder();
+        var calls = new SortedDictionary<int, (StringBuilder Id, StringBuilder Name, StringBuilder Args)>();
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        while (await reader.ReadLineAsync(ct) is { } line)
+        {
+            if (!line.StartsWith("data:", StringComparison.Ordinal)) continue;
+            var data = line.AsSpan(5).Trim();
+            if (data.SequenceEqual("[DONE]")) break;
+            using var doc = JsonDocument.Parse(data.ToString());
+            var root = doc.RootElement;
+            if (root.TryGetProperty("model", out var model) && model.ValueKind == JsonValueKind.String) result.Model = model.GetString() ?? result.Model;
+            if (root.TryGetProperty("usage", out var usage) && usage.ValueKind == JsonValueKind.Object)
+            {
+                long Get(string n) => usage.TryGetProperty(n, out var v) && v.TryGetInt64(out var l) ? l : 0;
+                result.Usage = new ModelUsage(Get("prompt_tokens"), Get("completion_tokens"));
+            }
+            if (!root.TryGetProperty("choices", out var choices) || choices.GetArrayLength() == 0) continue;
+            var choice = choices[0];
+            if (choice.TryGetProperty("finish_reason", out var fr) && fr.ValueKind == JsonValueKind.String) result.FinishReason = fr.GetString()!;
+            if (!choice.TryGetProperty("delta", out var delta)) continue;
+            if (delta.TryGetProperty("content", out var c) && c.ValueKind == JsonValueKind.String && c.GetString() is { Length: > 0 } piece)
+            {
+                text.Append(piece);
+                onDelta(piece);
+            }
+            if (delta.TryGetProperty("tool_calls", out var tcs) && tcs.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var tc in tcs.EnumerateArray())
+                {
+                    var index = tc.TryGetProperty("index", out var ix) ? ix.GetInt32() : 0;
+                    if (!calls.TryGetValue(index, out var acc)) calls[index] = acc = (new(), new(), new());
+                    if (tc.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String) acc.Id.Append(id.GetString());
+                    if (tc.TryGetProperty("function", out var fn))
+                    {
+                        if (fn.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String) acc.Name.Append(n.GetString());
+                        if (fn.TryGetProperty("arguments", out var a) && a.ValueKind == JsonValueKind.String) acc.Args.Append(a.GetString());
+                    }
+                }
+            }
+        }
+        result.Content = text.Length == 0 ? null : text.ToString();
+        foreach (var (_, acc) in calls)
+            result.ToolCalls.Add(new ToolCall { Id = acc.Id.Length > 0 ? acc.Id.ToString() : Ids.New("call"), Name = acc.Name.ToString(), Arguments = acc.Args.Length > 0 ? acc.Args.ToString() : "{}" });
+        return result;
     }
 
     internal static ModelResponse Parse(JsonElement root)

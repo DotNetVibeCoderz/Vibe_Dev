@@ -339,10 +339,17 @@ internal sealed class Commands(MarbotsClient client, Ui ui)
         var sent = await client.Threads.SendAsync(threadId, text, false, 600, ct);
         var rootId = sent.Task.Id;
         var spinner = ui.Spinner();
+        var streamedRoot = false;
         try
         {
             await foreach (var e in client.Events.StreamAsync(threadId, null, streamCts.Token))
             {
+                if (e.Type == EventTypes.AssistantDelta)
+                {
+                    if (e.TaskId == rootId) { Console.Write(e.Message); streamedRoot = true; }
+                    continue;
+                }
+                if (streamedRoot && e.Type is EventTypes.ToolCallStarted or EventTypes.TaskDelegated) { Console.WriteLine(); streamedRoot = false; }
                 if (e.Type is EventTypes.ToolCallStarted or EventTypes.TaskDelegated or EventTypes.ApprovalRequested or EventTypes.SkillLoaded)
                     PrintEvent(e, spinner.Next());
                 if (e.Type == EventTypes.TaskStateChanged && e.TaskId == rootId && e.Data is "Completed" or "Failed" or "Cancelled") break;
@@ -353,8 +360,8 @@ internal sealed class Commands(MarbotsClient client, Ui ui)
         var messages = await client.Threads.MessagesAsync(threadId, 0, ct);
         var reply = messages.LastOrDefault(m => m.TaskId == rootId && m.Role is "assistant" or "system" && m.ToolCalls is null);
         Console.WriteLine();
-        if (task.State == TaskState.Completed) ui.Reply(reply?.Content ?? task.Result ?? "");
-        else ui.Error($"{task.State}: {task.Error}");
+        if (task.State != TaskState.Completed) ui.Error($"{task.State}: {task.Error}");
+        else if (!streamedRoot) ui.Reply(reply?.Content ?? task.Result ?? "");
         ui.Dim($"{task.Steps} steps · {task.InputTokens + task.OutputTokens:N0} tokens · ${task.CostUsd:0.0000}");
         return task.State == TaskState.Completed ? 0 : 1;
     }

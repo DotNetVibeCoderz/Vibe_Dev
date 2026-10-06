@@ -350,6 +350,21 @@ public sealed class EngineTests : IAsyncLifetime
         Assert.Contains(EventTypes.TaskStateChanged, seen);
     }
 
+    [Fact]
+    public async Task Streaming_text_is_published_live_but_not_stored()
+    {
+        var bus = _sp.GetRequiredService<IEventBus>();
+        var deltas = new List<string>();
+        using var _ = bus.Subscribe(e => { if (e.Type == EventTypes.AssistantDelta) lock (deltas) deltas.Add(e.Message!); });
+        Mock.EnqueueText("A fairly long streamed answer from the mock model.");
+        var thread = await Engine.CreateThreadAsync("atlas");
+        var task = await Engine.WaitAsync((await Engine.SendAsync(thread.Id, "stream please")).Id, TimeSpan.FromSeconds(10));
+        Assert.True(deltas.Count > 1);
+        Assert.Equal(task.Result, string.Concat(deltas));
+        var stored = await _sp.GetRequiredService<IEventStore>().ListAsync(thread.Id, null, 0, 1000);
+        Assert.DoesNotContain(stored, e => e.Type == EventTypes.AssistantDelta);
+    }
+
     private static byte[] DecompressAll(byte[] zipBytes)
     {
         using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(zipBytes));

@@ -25,6 +25,10 @@ public sealed class ModelRequest
     public List<ModelMessage> Messages { get; set; } = [];
     public List<ToolSchema> Tools { get; set; } = [];
     public int? MaxOutputTokens { get; set; }
+
+    /// <summary>When set, the provider streams and reports each text fragment as it arrives (not serialized).</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Action<string>? OnTextDelta { get; set; }
 }
 
 public sealed record ModelUsage(long InputTokens, long OutputTokens);

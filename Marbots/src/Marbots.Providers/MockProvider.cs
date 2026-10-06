@@ -40,15 +40,23 @@ public sealed class MockProvider : IModelProvider
             Requests.Add(request);
             _script.TryDequeue(out step);
         }
-        if (step is not null) return Task.FromResult(step(request));
-        if (Responder?.Invoke(request) is { } answer) return Task.FromResult(answer);
+        if (step is not null) return Task.FromResult(Stream(request, step(request)));
+        if (Responder?.Invoke(request) is { } answer) return Task.FromResult(Stream(request, answer));
 
         var lastUser = request.Messages.LastOrDefault(m => m.Role == "user")?.Content ?? "";
         var lastTool = request.Messages.LastOrDefault()?.Role == "tool";
         var text = lastTool
             ? "Done. (offline mock model — configure a provider in Settings for real answers)"
             : $"I'm running in offline mock mode, so I can't reason about: \"{Shorten(lastUser)}\". Add an API key under Settings → Model providers to bring me to life.";
-        return Task.FromResult(new ModelResponse { Content = text, Model = "mock", Usage = new(lastUser.Length / 4, text.Length / 4) });
+        return Task.FromResult(Stream(request, new ModelResponse { Content = text, Model = "mock", Usage = new(lastUser.Length / 4, text.Length / 4) }));
+    }
+
+    /// <summary>Reports the answer text in a few fragments when the caller streams.</summary>
+    private static ModelResponse Stream(ModelRequest request, ModelResponse response)
+    {
+        if (request.OnTextDelta is { } onDelta && response.Content is { Length: > 0 } text)
+            for (var i = 0; i < text.Length; i += 12) onDelta(text.Substring(i, Math.Min(12, text.Length - i)));
+        return response;
     }
 
     private static string Shorten(string s) => s.Length > 120 ? s[..120] + "…" : s;

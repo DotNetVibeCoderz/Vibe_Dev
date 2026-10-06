@@ -62,7 +62,7 @@ Legend: ✅ done · 🟡 partial / preview · ⏳ planned
 ## Phase 4 — Rich clients ⏳
 - ⏳ Avalonia desktop app (embedded runtime or remote control plane)
 - ⏳ .NET MAUI Hybrid mobile app (chat, approvals, push notifications)
-- ⏳ Streaming token output in chat
+- ✅ Streaming token output in chat and CLI (OpenAI-compatible SSE, transient `AssistantDelta` events)
 
 ## Phase 5 — Auto-Learn + 3D 🟡
 - ✅ Auto-Learn: `MemoryOnly` and `SuggestSkills` (review queue, secret scanning, never auto-published)
