@@ -26,6 +26,15 @@ public sealed class MarbotsOptions
     /// marbots-host-&lt;rid&gt; (linux-x64, linux-arm64, osx-arm64). Defaults to data/host-packages.
     /// </summary>
     public string? HostPackagesDirectory { get; set; }
+
+    /// <summary>Database: SQLite in the data directory by default, or PostgreSQL / SQL Server / MySQL.</summary>
+    public Marbots.Storage.DatabaseOptions Database { get; set; } = new();
+
+    /// <summary>Tenant whose rows this runtime reads and writes ("default" in single-tenant mode).</summary>
+    public string TenantId { get; set; } = "default";
+
+    /// <summary>Memory embeddings: "hash" (offline, default), "none", or "provider/model" for an embeddings endpoint.</summary>
+    public string EmbeddingModel { get; set; } = "hash";
     /// <summary>Start with approvals skipped (server flag <c>--dangerously-skip-approvals</c>). Can be turned off at runtime.</summary>
     public bool DangerouslySkipApprovals { get; set; }
 
@@ -289,7 +298,7 @@ public sealed class EventBus(IEventStore store, ILogger<EventBus> log) : IEventB
         {
             await store.AppendAsync(evt, CancellationToken.None);
         }
-        catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or InvalidOperationException)
+        catch (Exception ex) when (ex is System.Data.Common.DbException or InvalidOperationException)
         {
             log.LogWarning(ex, "Failed to persist event {Type}", evt.Type);
         }

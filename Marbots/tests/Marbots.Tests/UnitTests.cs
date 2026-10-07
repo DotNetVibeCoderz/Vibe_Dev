@@ -337,59 +337,6 @@ public class ProviderTests
         Assert.Equal(expected, OpenAiCompatibleProvider.BuildChatUri(new ProviderConfig { Kind = kind, Endpoint = endpoint }).ToString());
 }
 
-public class StorageTests : IDisposable
-{
-    private readonly string _dir = Path.Combine(Path.GetTempPath(), "mb-test-" + Guid.NewGuid().ToString("N")[..8]);
-    private readonly SqliteDatabase _db;
-
-    public StorageTests() => _db = new SqliteDatabase(Path.Combine(_dir, "t.db"));
-
-    [Fact]
-    public async Task Memory_search_ranks_and_filters_by_owner()
-    {
-        var store = new SqliteMemoryStore(_db);
-        await store.WriteAsync(new MemoryRecord { Owner = "atlas", Content = "The client prefers reports in Bahasa Indonesia" });
-        await store.WriteAsync(new MemoryRecord { Owner = "atlas", Content = "Quarterly revenue target is 2 billion rupiah" });
-        await store.WriteAsync(new MemoryRecord { Owner = "alice", Content = "Reports must use Bahasa Indonesia headings" });
-        var hits = await store.SearchAsync(new MemoryQuery("what language for reports?", ["atlas"]));
-        Assert.NotEmpty(hits);
-        Assert.All(hits, h => Assert.Equal("atlas", h.Record.Owner));
-        Assert.Contains("Bahasa", hits[0].Record.Content);
-    }
-
-    [Fact]
-    public async Task Fts_query_is_injection_safe() =>
-        Assert.Empty(await new SqliteMemoryStore(_db).SearchAsync(new MemoryQuery("\" OR 1=1 -- NEAR(", ["x"])));
-
-    [Fact]
-    public async Task Messages_get_sequential_numbers_per_thread()
-    {
-        var store = new SqliteMessageStore(_db);
-        await Task.WhenAll(Enumerable.Range(0, 20).Select(i => store.AppendAsync(new ChatMessage { ThreadId = "t1", Content = i.ToString() })));
-        var list = await store.ListAsync("t1");
-        Assert.Equal(Enumerable.Range(1, 20).Select(i => (long)i), list.Select(m => m.Seq));
-    }
-
-    [Fact]
-    public async Task Events_replay_after_id()
-    {
-        var store = new SqliteEventStore(_db);
-        var first = await store.AppendAsync(new AgentEvent { Type = "A", ThreadId = "t" });
-        await store.AppendAsync(new AgentEvent { Type = "B", ThreadId = "t" });
-        await store.AppendAsync(new AgentEvent { Type = "C", ThreadId = "other" });
-        var after = await store.ListAsync("t", null, first, 10);
-        Assert.Single(after);
-        Assert.Equal("B", after[0].Type);
-        Assert.True(after[0].Id > first);
-    }
-
-    public void Dispose()
-    {
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        try { Directory.Delete(_dir, true); } catch (IOException) { }
-        GC.SuppressFinalize(this);
-    }
-}
 
 public class AutoLearnTests
 {

@@ -1,9 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>SQLite storage for Marbots (documents, messages, events, FTS5 memory).</Description>
+    <Description>Storage for Marbots on SQLite, PostgreSQL, SQL Server or MySQL (documents, messages, events, memory, vectors), tenant-scoped.</Description>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Microsoft.Data.SqlClient" />
+    <PackageReference Include="MySqlConnector" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Marbots.Abstractions\Marbots.Abstractions.csproj" />

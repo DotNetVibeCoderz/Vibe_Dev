@@ -168,6 +168,17 @@ public interface IMemoryStore
     ValueTask<int> DeleteOwnerAsync(string owner, CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Turns text into a vector for semantic memory search. Marbots ships an offline hashing embedder; a provider's
+/// embeddings endpoint (OpenAI-compatible) can be configured for real semantic similarity.
+/// </summary>
+public interface IEmbeddingProvider
+{
+    /// <summary>Identifies the embedding space; vectors from different models are never compared.</summary>
+    string Model { get; }
+    ValueTask<float[]?> EmbedAsync(string text, CancellationToken cancellationToken = default);
+}
+
 public interface ISecretProvider
 {
     string? Get(string name);

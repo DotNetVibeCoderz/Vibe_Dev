@@ -12,7 +12,8 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddMarbotsRuntime(this IServiceCollection services, MarbotsOptions options)
     {
         services.AddSingleton(options);
-        services.AddSingleton(_ => new SqliteDatabase(options.DataPath("marbots.db")));
+        services.AddSingleton(_ => MarbotsDatabase.Create(options.Database, options.DataPath("marbots.db"), options.TenantId));
+        services.AddSingleton<IEmbeddingProvider>(sp => EmbeddingProviders.Create(options, sp));
         var ctx = MarbotsJsonContext.Default;
         AddDocs(services, "bot", ctx.BotDefinition, b => b.Id);
         AddDocs(services, "template", ctx.BotTemplate, t => t.Id);
@@ -31,9 +32,9 @@ public static class ServiceCollectionExtensions
         AddDocs(services, "host", ctx.HostRecord, h => h.Id);
         AddDocs(services, "hostenroll", ctx.HostEnrollment, e => e.Id);
         AddDocs(services, "threadhost", ctx.ThreadHost, t => t.Id);
-        services.AddSingleton<IMessageStore, SqliteMessageStore>();
-        services.AddSingleton<IEventStore, SqliteEventStore>();
-        services.AddSingleton<IMemoryStore, SqliteMemoryStore>();
+        services.AddSingleton<IMessageStore, MessageStore>();
+        services.AddSingleton<IEventStore, EventStore>();
+        services.AddSingleton<IMemoryStore>(sp => new MemoryStore(sp.GetRequiredService<MarbotsDatabase>(), sp.GetRequiredService<IEmbeddingProvider>()));
 
         services.AddHttpClient("marbots-llm", c => c.Timeout = TimeSpan.FromMinutes(6));
         services.AddHttpClient("marbots-mcp", c => c.Timeout = TimeSpan.FromMinutes(5));
@@ -101,7 +102,7 @@ public static class ServiceCollectionExtensions
     }
 
     private static void AddDocs<T>(IServiceCollection s, string kind, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> info, Func<T, string> id) where T : class =>
-        s.AddSingleton<IDocumentStore<T>>(sp => new SqliteDocumentStore<T>(sp.GetRequiredService<SqliteDatabase>(), kind, info, id));
+        s.AddSingleton<IDocumentStore<T>>(sp => new DocumentStore<T>(sp.GetRequiredService<MarbotsDatabase>(), kind, info, id));
 }
 
 /// <summary>Seeds catalogues, ensures Boss Man exists, loads providers and recovers interrupted work at startup.</summary>
