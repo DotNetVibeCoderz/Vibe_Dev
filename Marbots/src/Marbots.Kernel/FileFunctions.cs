@@ -176,6 +176,7 @@ public sealed class GrepFunction : KernelFunctionBase
             .Select(f => (Path: f, Rel: WorkspacePaths.ToRelative(dir, f)))
             .Where(f => !f.Rel.Contains("node_modules/", StringComparison.Ordinal) && !f.Rel.StartsWith(".git/", StringComparison.Ordinal)
                         && (glob is null || glob.IsMatch(f.Rel)))
+            .OrderBy(f => f.Rel, StringComparer.Ordinal) // same order on every OS (Linux does not enumerate sorted)
             .ToList();
 
         List<string> Search((string Path, string Rel) f)
