@@ -55,7 +55,7 @@ public sealed class HostProvisioner(HostRegistry registry, HostConnectionManager
                 var r = await connections.InvokeAsync(onHost, new HostInvoke
                 {
                     Function = "run_shell", CallId = Guid.NewGuid().ToString("N")[..8], TaskId = "provision", Workspace = workspace,
-                    Arguments = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string> { ["command"] = command, ["timeout_seconds"] = "300" }, MarbotsJsonContext.Default.DictionaryStringString),
+                    Arguments = new System.Text.Json.Nodes.JsonObject { ["command"] = command, ["timeout_seconds"] = 600 }.ToJsonString(),
                 }, TimeSpan.FromMinutes(6), ct);
                 if (!r.Success) return Fail(r.Content, steps);
                 output = r.Content;
@@ -108,7 +108,7 @@ public sealed class HostProvisioner(HostRegistry registry, HostConnectionManager
             var r = await connections.InvokeAsync(host.ProvisionedOn, new HostInvoke
             {
                 Function = "run_shell", CallId = Guid.NewGuid().ToString("N")[..8], TaskId = "deprovision", Workspace = "provision-x64",
-                Arguments = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string> { ["command"] = command }, MarbotsJsonContext.Default.DictionaryStringString),
+                Arguments = new System.Text.Json.Nodes.JsonObject { ["command"] = command }.ToJsonString(),
             }, TimeSpan.FromMinutes(2), ct);
             return r.Success ? null : r.Content;
         }
