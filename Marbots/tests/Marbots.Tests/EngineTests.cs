@@ -85,6 +85,45 @@ public sealed class EngineTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Runs_emit_gen_ai_spans_and_metrics()
+    {
+        var spans = new System.Collections.Concurrent.ConcurrentBag<System.Diagnostics.Activity>();
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = s => s.Name == MarbotsTelemetry.Name,
+            Sample = (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) => System.Diagnostics.ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = spans.Add,
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+        var measured = new System.Collections.Concurrent.ConcurrentBag<string>();
+        using var meters = new System.Diagnostics.Metrics.MeterListener
+        {
+            InstrumentPublished = (i, l) => { if (i.Meter.Name == MarbotsTelemetry.Name) l.EnableMeasurementEvents(i); },
+        };
+        meters.SetMeasurementEventCallback<long>((i, _, _, _) => measured.Add(i.Name));
+        meters.SetMeasurementEventCallback<double>((i, _, _, _) => measured.Add(i.Name));
+        meters.Start();
+
+        Mock.EnqueueTool("write_file", """{"path":"otel.txt","content":"traced"}""");
+        Mock.EnqueueText("Done.");
+        var thread = await Engine.CreateThreadAsync("alice");
+        var task = await Engine.WaitAsync((await Engine.SendAsync(thread.Id, "trace me")).Id, TimeSpan.FromSeconds(20));
+        Assert.Equal(TaskState.Completed, task.State);
+
+        var agent = Assert.Single(spans, a => a.OperationName.StartsWith("invoke_agent", StringComparison.Ordinal) && (string?)a.GetTagItem("marbots.task.id") == task.Id);
+        Assert.Equal("alice", agent.GetTagItem("gen_ai.agent.id"));
+        Assert.Equal("default", agent.GetTagItem("marbots.tenant"));
+        var children = spans.Where(a => a.ParentSpanId == agent.SpanId).ToList();
+        Assert.Equal(2, children.Count(a => (string?)a.GetTagItem("gen_ai.operation.name") == "chat"));
+        var tool = Assert.Single(children, a => (string?)a.GetTagItem("gen_ai.operation.name") == "execute_tool");
+        Assert.Equal("write_file", tool.GetTagItem("gen_ai.tool.name"));
+        Assert.Equal("ok", tool.GetTagItem("marbots.outcome"));
+        Assert.All(children.Where(a => a.OperationName == "chat"), c => Assert.NotNull(c.GetTagItem("gen_ai.request.model")));
+        foreach (var name in new[] { "gen_ai.client.token.usage", "gen_ai.client.operation.duration", "marbots.tool.calls", "marbots.tasks", "marbots.task.duration" })
+            Assert.Contains(name, measured);
+    }
+
+    [Fact]
     public async Task Path_traversal_is_refused_by_the_tool()
     {
         Mock.EnqueueTool("write_file", """{"path":"../../escape.txt","content":"x"}""");

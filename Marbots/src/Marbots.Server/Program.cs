@@ -21,6 +21,7 @@ var dp = builder.Services.AddDataProtection()
 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) dp.ProtectKeysWithDpapi();
 
 builder.Services.AddMarbotsTenancy(options);
+builder.AddMarbotsTelemetry(options);
 builder.Services.AddMarbotsAuth(options);
 builder.Services.AddOpenApi();
 builder.Services.ConfigureHttpJsonOptions(o =>

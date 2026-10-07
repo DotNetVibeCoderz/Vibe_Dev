@@ -244,6 +244,7 @@ public sealed class MarbotsEngine(
         task.CurrentActivity = null;
         task.CompletedAt = DateTimeOffset.UtcNow;
         await tasks.UpsertAsync(task, CancellationToken.None);
+        MarbotsTelemetry.TaskFinished(task, options.TenantId);
         if (writeToTranscript && task.Depth == 0)
         {
             var msg = await messages.AppendAsync(new ChatMessage
@@ -333,6 +334,13 @@ public sealed class MarbotsEngine(
             foreach (var dep in s.DependsOn)
                 if (!keys.Contains(dep, StringComparer.OrdinalIgnoreCase)) throw new BotValidationException($"Task '{s.Key}' depends on unknown key '{dep}'.");
         DetectCycle(specs);
+
+        using var activity = MarbotsTelemetry.Source.StartActivity($"delegate {from.Name}");
+        activity?.SetTag("gen_ai.agent.id", from.Id);
+        activity?.SetTag("marbots.tenant", options.TenantId);
+        activity?.SetTag("marbots.delegation.count", specs.Count);
+        activity?.SetTag("marbots.delegation.bots", string.Join(",", specs.Select(x => x.Bot)));
+        MarbotsTelemetry.Delegations.Add(specs.Count, new System.Diagnostics.TagList { { "gen_ai.agent.id", from.Id }, { "marbots.tenant", options.TenantId } });
 
         var resolved = new Dictionary<string, BotDefinition>(StringComparer.OrdinalIgnoreCase);
         foreach (var s in specs)

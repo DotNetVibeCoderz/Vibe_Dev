@@ -93,9 +93,46 @@ public sealed class AgentRuntime(
     ToolAssembler toolAssembler,
     BotRegistry registry,
     IEventBus bus,
+    MarbotsOptions options,
     ILogger<AgentRuntime> log)
 {
     public async Task<AgentRunResult> RunAsync(AgentRunRequest req, CancellationToken ct)
+    {
+        using var activity = MarbotsTelemetry.StartAgent(req.Bot, req.Task, options.TenantId);
+        try
+        {
+            var result = await RunCoreAsync(req, ct);
+            activity?.SetTag("gen_ai.usage.input_tokens", req.Task.InputTokens);
+            activity?.SetTag("gen_ai.usage.output_tokens", req.Task.OutputTokens);
+            activity?.SetTag("marbots.steps", req.Task.Steps);
+            return result;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            MarbotsTelemetry.Fail(activity, ex);
+            throw;
+        }
+    }
+
+    /// <summary>One model call, traced as a gen_ai "chat" span with token and latency metrics.</summary>
+    private async Task<(ModelResponse Response, ModelProfile Profile)> CompleteAsync(BotDefinition bot, ModelRequest request, CancellationToken ct)
+    {
+        using var activity = MarbotsTelemetry.StartModelCall(bot.ModelProfile);
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
+        {
+            var (response, profile) = await router.CompleteAsync(bot.ModelProfile, request, ct);
+            MarbotsTelemetry.EndModelCall(activity, profile, response.Usage, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalSeconds, options.TenantId, bot.Id);
+            return (response, profile);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            MarbotsTelemetry.Fail(activity, ex);
+            throw;
+        }
+    }
+
+    private async Task<AgentRunResult> RunCoreAsync(AgentRunRequest req, CancellationToken ct)
     {
         var bot = req.Bot;
         var task = req.Task;
@@ -145,7 +182,7 @@ public sealed class AgentRuntime(
             task.Steps = step;
             await SetActivityAsync(task, TaskState.Running, "Thinking", req.ThreadId, EventTypes.AgentThinkingStarted, ct);
 
-            var (response, profile) = await router.CompleteAsync(bot.ModelProfile, new ModelRequest
+            var (response, profile) = await CompleteAsync(bot, new ModelRequest
             {
                 Messages = modelMessages, Tools = schemas,
                 OnTextDelta = piece => bus.PublishTransient(new AgentEvent
@@ -191,7 +228,7 @@ public sealed class AgentRuntime(
         if (final is null)
         {
             modelMessages.Add(ModelMessage.User("You have reached the step limit for this task. Stop using tools and summarize what you completed, where the results are, and what remains."));
-            var (response, profile) = await router.CompleteAsync(bot.ModelProfile, new ModelRequest { Messages = modelMessages }, ct);
+            var (response, profile) = await CompleteAsync(bot, new ModelRequest { Messages = modelMessages }, ct);
             Meter(task, response, profile);
             final = (response.Content ?? "").Trim();
             if (final.Length == 0) final = "I reached the step limit before finishing.";
@@ -250,6 +287,8 @@ public sealed class AgentRuntime(
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(TimeSpan.FromSeconds(d.Pack is "agents" or Packs.Subagents ? 3600 : d.TimeoutSeconds + 15));
             FunctionResult result;
+            using var span = MarbotsTelemetry.StartTool(d, call.Id);
+            var started = System.Diagnostics.Stopwatch.GetTimestamp();
             try
             {
                 result = await fn.InvokeAsync(new FunctionCall(call.Id, call.Name, args.RootElement), execCtx, timeout.Token);
@@ -263,6 +302,7 @@ public sealed class AgentRuntime(
                 log.LogWarning(ex, "Tool {Tool} threw", d.Name);
                 result = FunctionResult.Fail(ex.Message);
             }
+            MarbotsTelemetry.EndTool(span, d, result.Success, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalSeconds, options.TenantId);
             task.State = TaskState.Running;
             await PublishToolAsync(EventTypes.ToolCallCompleted, task, threadId, $"{d.Name} → {Preview(result.Content, 200)}", result.Success, ct);
             return result;

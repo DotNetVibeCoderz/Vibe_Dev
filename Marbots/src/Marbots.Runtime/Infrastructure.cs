@@ -38,6 +38,9 @@ public sealed class MarbotsOptions
     /// <summary>Start with approvals skipped (server flag <c>--dangerously-skip-approvals</c>). Can be turned off at runtime.</summary>
     public bool DangerouslySkipApprovals { get; set; }
 
+    /// <summary>OpenTelemetry export (traces, metrics, logs over OTLP).</summary>
+    public MarbotsTelemetryOptions Telemetry { get; set; } = new();
+
     /// <summary>Run one isolated runtime per tenant (see docs: multi-tenant).</summary>
     public bool MultiTenant { get; set; }
 
