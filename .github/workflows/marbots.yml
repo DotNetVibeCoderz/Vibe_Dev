@@ -5,7 +5,8 @@
 #  • Storage conformance also runs against PostgreSQL, MySQL and SQL Server service containers
 #  • Tag "marbots-v*" (e.g. marbots-v0.1.1) or manual run with publish=true: pack and push NuGet packages
 #    (uses the repository secret NUGET_API_KEY)
-#  • Tag "marbots-v*": marbots-host binaries for 6 platforms + CycloneDX SBOMs + SHA256SUMS on the GitHub release
+#  • Tag "marbots-v*": per-platform packages (server + CLI + host, .zip/.tar.gz), .deb, Scoop manifest, marbots-host
+#    binaries, CycloneDX SBOMs and SHA256SUMS on the GitHub release; multi-arch image ghcr.io/dotnetvibecoderz/marbots
 #  • Java SDK: JitPack builds tags marbots-java-v* (see /jitpack.yml). Manual run with publish_maven=true publishes to
 #    Maven Central once the com.gravicode namespace is verified for the MAVEN_CENTRAL_* account
 name: Marbots
@@ -104,6 +105,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -112,14 +114,43 @@ jobs:
         with: { node-version: "22" }
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
-      - name: marbots-host binaries
+      - name: Version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#marbots-v}" >> "$GITHUB_OUTPUT"
+      - name: Packages per platform (server + CLI + host), host binaries, .deb
         run: |
+          v=${{ steps.version.outputs.version }}
           mkdir -p dist
           for rid in win-x64 win-arm64 linux-x64 linux-arm64 osx-x64 osx-arm64; do
-            dotnet publish src/Marbots.AgentHost -c Release -r $rid --self-contained -p:PublishSingleFile=true -o out/$rid
+            bash install/packaging/package.sh "$v" "$rid" dist
             ext=""; [[ $rid == win-* ]] && ext=".exe"
-            cp out/$rid/marbots-host$ext dist/marbots-host-$rid$ext
+            # Stand-alone host binaries: SSH bootstrap and container hosts download these on demand.
+            cp "dist/stage-$rid/marbots-$v-$rid/bin/marbots-host$ext" "dist/marbots-host-$rid$ext"
+            if [[ $rid == linux-* ]]; then bash install/packaging/build-deb.sh "$v" "$rid" dist; fi
+            rm -rf "dist/stage-$rid"
           done
+      - name: Scoop manifest
+        run: |
+          v=${{ steps.version.outputs.version }}
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          x64=$(sha256sum dist/marbots-$v-win-x64.zip | cut -d' ' -f1)
+          arm=$(sha256sum dist/marbots-$v-win-arm64.zip | cut -d' ' -f1)
+          sed -e "s|@VERSION@|$v|g" -e "s|@BASE@|$base|g" -e "s|@HASH_X64@|$x64|" -e "s|@HASH_ARM64@|$arm|" install/packaging/scoop-marbots.json > dist/marbots.json
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ github.token }}" }
+      - name: Docker image (linux/amd64, linux/arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: Marbots
+          file: Marbots/install/docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          build-args: VERSION=${{ steps.version.outputs.version }}
+          push: true
+          tags: |
+            ghcr.io/dotnetvibecoderz/marbots:${{ steps.version.outputs.version }}
+            ghcr.io/dotnetvibecoderz/marbots:latest
       - name: SBOMs (CycloneDX)
         run: |
           dotnet tool install --global CycloneDX

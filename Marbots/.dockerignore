@@ -1,0 +1,12 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/target/
+src/Marbots.Server/data/
+out/
+samples/
+docs/
+sdk/
+tests/
+tools/
+.git

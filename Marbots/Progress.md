@@ -118,6 +118,18 @@ Seven concurrent jobs plus A2A: **16/16 tasks completed**, ~1.02 M tokens, ≈ $
     chmod for Linux/macOS hosts; numeric arguments for `run_shell` in provisioning; macOS GPU memory and vendor
     parsing; e-mail signature detection.
 
+- **2026-10-07 (g)**: Installers and packages for every platform.
+  - **Packages.** `install.ps1` (Windows Service or logon task, PATH, upgrade/uninstall) and `install.sh` (systemd
+    user/system service, launchd agent/daemon). Per-platform release archives with the server, CLI and host; `.deb`
+    packages; a Scoop manifest; a multi-arch Docker image with compose overlays for PostgreSQL, SQL Server and MySQL.
+  - **Server.** Runs as a Windows Service or systemd notify service, and downloads host binaries from its release
+    on demand (verified against SHA256SUMS). New page: docs installation.
+  - **Tested.** Windows user install, upgrade and uninstall. In an Ubuntu 24.04 container: `install.sh` and the full
+    `.deb` lifecycle. On DEV2: the Docker image with PostgreSQL.
+  - **Bugs found and fixed:** the `Urls` setting in appsettings.json overrode `ASPNETCORE_URLS` (the container
+    listened only on localhost); PowerShell 5.1 could not parse the non-ASCII installer; `addgroup` is missing in
+    minimal images.
+
 ## Known limitations
 
 - Bots on the same host are isolated per thread workspace and policy; use a container profile or a container host for process isolation.

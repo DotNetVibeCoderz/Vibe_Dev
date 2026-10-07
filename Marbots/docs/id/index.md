@@ -8,6 +8,7 @@ memori, skill, tool MCP, dan batasan izin masing-masing.
 
 | Mulai dari sini | Lalu |
 |---|---|
+| [Instalasi](installation.md) | Windows (skrip, Service, Scoop), Linux (.deb, skrip, systemd), macOS (launchd), Docker/compose, agent host, pembaruan |
 | [Memulai](getting-started.md) | Instalasi, menghubungkan model, tugas multi-bot pertama |
 | [Konsep inti](concepts.md) | Bot, Boss Man, utas, tugas, memori, pemadatan, auto-learn |
 | [Bot dan templat](bots-and-templates.md) | Galeri 58 templat, formulir bot, profil izin, ekspor/impor `.marbot` |

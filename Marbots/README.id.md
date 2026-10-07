@@ -43,7 +43,19 @@ Anda juga bisa berbicara langsung dengan bot mana pun.
 - **SDK**: .NET, Python, TypeScript, Go, Java, dan Rust, ditambah CLI `marbots` dengan tema.
 - **Dwibahasa**: UI dan dokumentasi dalam Bahasa Indonesia dan Inggris.
 
-## Mulai cepat
+## Instalasi
+
+| Platform | Perintah |
+|---|---|
+| Windows | `irm https://raw.githubusercontent.com/DotNetVibeCoderz/Vibe_Dev/main/Marbots/install/install.ps1 \| iex` (sebagai Administrator: Windows Service) |
+| Linux / macOS | `curl -fsSL https://raw.githubusercontent.com/DotNetVibeCoderz/Vibe_Dev/main/Marbots/install/install.sh \| bash` (dengan `sudo`: layanan sistem) |
+| Debian / Ubuntu | `sudo apt install ./marbots_<versi>_amd64.deb` (dari rilis) |
+| Docker | `docker compose -f install/docker/compose.yml up -d` atau `docker run -p 5170:8080 -v marbots-data:/data ghcr.io/dotnetvibecoderz/marbots` |
+
+Lalu buka http://localhost:5170. Scoop, paket offline, database, pembaruan, dan agent host:
+[docs/id/installation.md](docs/id/installation.md).
+
+## Mulai cepat dari kode sumber
 
 ```bash
 git clone https://github.com/DotNetVibeCoderz/Vibe_Dev.git && cd Vibe_Dev/Marbots

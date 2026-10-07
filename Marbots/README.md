@@ -42,7 +42,19 @@ teammates in parallel, waits for dependencies, reviews the results and reports b
 - **SDKs**: .NET, Python, TypeScript, Go, Java and Rust, plus the `marbots` CLI with themes.
 - **Bilingual**: UI and docs in English and Bahasa Indonesia.
 
-## Quick start
+## Install
+
+| Platform | Command |
+|---|---|
+| Windows | `irm https://raw.githubusercontent.com/DotNetVibeCoderz/Vibe_Dev/main/Marbots/install/install.ps1 \| iex` (as Administrator: Windows Service) |
+| Linux / macOS | `curl -fsSL https://raw.githubusercontent.com/DotNetVibeCoderz/Vibe_Dev/main/Marbots/install/install.sh \| bash` (with `sudo`: system service) |
+| Debian / Ubuntu | `sudo apt install ./marbots_<version>_amd64.deb` (from the release) |
+| Docker | `docker compose -f install/docker/compose.yml up -d` or `docker run -p 5170:8080 -v marbots-data:/data ghcr.io/dotnetvibecoderz/marbots` |
+
+Then open http://localhost:5170. Scoop, offline packages, databases, upgrades and agent hosts:
+[docs/en/installation.md](docs/en/installation.md).
+
+## Quick start from source
 
 ```bash
 git clone https://github.com/DotNetVibeCoderz/Vibe_Dev.git && cd Vibe_Dev/Marbots

@@ -1,0 +1,23 @@
+# Marbots with SQLite (data in a volume). Gravicode Studios, led by Kang Fadhil.
+#   docker compose -f install/docker/compose.yml up -d            → http://localhost:5170
+# With a server database add one overlay:
+#   docker compose -f install/docker/compose.yml -f install/docker/compose.postgres.yml up -d
+#   (or compose.sqlserver.yml / compose.mysql.yml)
+# Settings: put Marbots__* variables in install/docker/marbots.env (see marbots.env.example).
+services:
+  marbots:
+    image: ${MARBOTS_IMAGE:-ghcr.io/dotnetvibecoderz/marbots:latest}
+    build:
+      context: ../..
+      dockerfile: install/docker/Dockerfile
+    ports:
+      - "${MARBOTS_PORT:-5170}:8080"
+    volumes:
+      - marbots-data:/data
+    env_file:
+      - path: marbots.env
+        required: false
+    restart: unless-stopped
+
+volumes:
+  marbots-data:

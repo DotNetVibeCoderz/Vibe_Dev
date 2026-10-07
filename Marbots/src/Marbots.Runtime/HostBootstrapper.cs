@@ -11,7 +11,7 @@ namespace Marbots.Runtime;
 /// scheduled task in the user's interactive session, so desktop/computer-use tools work; systemd user unit on Linux).
 /// The SSH password or key is used only for this call and never stored.
 /// </summary>
-public sealed class HostBootstrapper(MarbotsOptions options, HostRegistry registry, HostConnectionManager connections, ILogger<HostBootstrapper> log)
+public sealed class HostBootstrapper(MarbotsOptions options, HostRegistry registry, HostConnectionManager connections, ILogger<HostBootstrapper> log, IHttpClientFactory? httpFactory = null)
 {
     public const string LaunchdLabel = "id.gravicode.marbots-host";
 
@@ -25,6 +25,43 @@ public sealed class HostBootstrapper(MarbotsOptions options, HostRegistry regist
             foreach (var name in new[] { $"marbots-host-{rid}.exe", $"marbots-host-{rid}" })
                 if (File.Exists(Path.Combine(dir, name))) return Path.Combine(dir, name);
         return null;
+    }
+
+    public static string ReleaseVersion => typeof(HostBootstrapper).Assembly.GetName().Version?.ToString(3) ?? "0.3.0";
+
+    public string? PackagesUrl => options.HostPackagesUrl is { } u
+        ? (u.Length == 0 ? null : u.TrimEnd('/'))
+        : $"https://github.com/DotNetVibeCoderz/Vibe_Dev/releases/download/marbots-v{ReleaseVersion}";
+
+    /// <summary>The host binary for <paramref name="rid"/>: local, or downloaded once from the release and verified.</summary>
+    public async Task<string?> EnsurePackageAsync(string rid, CancellationToken ct)
+    {
+        if (PackageFor(rid) is { } local) return local;
+        if (PackagesUrl is not { } baseUrl || httpFactory is null) return null;
+        var name = $"marbots-host-{rid}{(rid.StartsWith("win", StringComparison.Ordinal) ? ".exe" : "")}";
+        var http = httpFactory.CreateClient("marbots-packages");
+        http.Timeout = TimeSpan.FromMinutes(10);
+        try
+        {
+            var sums = await http.GetStringAsync($"{baseUrl}/SHA256SUMS", ct);
+            var expected = sums.Split('\n').Select(l => l.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                .FirstOrDefault(p => p.Length == 2 && p[1].TrimStart('*') == name)?[0];
+            if (expected is null) { log.LogWarning("{Name} is not listed in {Url}/SHA256SUMS", name, baseUrl); return null; }
+            var bytes = await http.GetByteArrayAsync($"{baseUrl}/{name}", ct);
+            var actual = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes));
+            if (!actual.Equals(expected, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"Checksum mismatch for downloaded {name}; not used.");
+            Directory.CreateDirectory(PackagesDirectory);
+            var path = Path.Combine(PackagesDirectory, name);
+            await File.WriteAllBytesAsync(path, bytes, ct);
+            log.LogInformation("Downloaded {Name} ({Size} MB) from {Url}", name, bytes.Length / 1024 / 1024, baseUrl);
+            return path;
+        }
+        catch (HttpRequestException ex)
+        {
+            log.LogWarning("Could not download {Name}: {Error}", name, ex.Message);
+            return null;
+        }
     }
 
     public async Task<SshBootstrapResult> BootstrapAsync(SshBootstrapRequest req, string by, CancellationToken ct)
@@ -79,7 +116,7 @@ public sealed class HostBootstrapper(MarbotsOptions options, HostRegistry regist
             if (code is not ("200" or "401")) throw new InvalidOperationException($"The host cannot reach {server} ({code}). Use this server's LAN address and allow it through the firewall.");
             Step($"The host can reach {server}.");
 
-            var package = PackageFor(rid) ?? throw new InvalidOperationException(
+            var package = await EnsurePackageAsync(rid, ct) ?? throw new InvalidOperationException(
                 $"No agent-host package for {rid}. Build it with: dotnet publish src/Marbots.AgentHost -c Release -r {rid} -o {PackagesDirectory} then rename to marbots-host-{rid}{(windows ? ".exe" : "")}.");
 
             // ---- stop an older copy, upload

@@ -1,0 +1,29 @@
+{
+    "version": "@VERSION@",
+    "description": "Marbots: multi-agent collaboration platform (server, marbots CLI and marbots-host). By Gravicode Studios, led by Kang Fadhil.",
+    "homepage": "https://github.com/DotNetVibeCoderz/Vibe_Dev/tree/main/Marbots",
+    "license": "MIT",
+    "architecture": {
+        "64bit": {
+            "url": "@BASE@/marbots-@VERSION@-win-x64.zip",
+            "hash": "@HASH_X64@",
+            "extract_dir": "marbots-@VERSION@-win-x64"
+        },
+        "arm64": {
+            "url": "@BASE@/marbots-@VERSION@-win-arm64.zip",
+            "hash": "@HASH_ARM64@",
+            "extract_dir": "marbots-@VERSION@-win-arm64"
+        }
+    },
+    "bin": [
+        "bin\\marbots.exe",
+        "bin\\marbots-host.exe",
+        ["server\\Marbots.Server.exe", "marbots-server"]
+    ],
+    "persist": "server\\data",
+    "notes": [
+        "Start the server with: marbots-server   (then open http://localhost:5170)",
+        "Data is kept in $persist_dir\\server\\data across upgrades.",
+        "For a Windows Service use install.ps1 from an elevated PowerShell instead."
+    ]
+}

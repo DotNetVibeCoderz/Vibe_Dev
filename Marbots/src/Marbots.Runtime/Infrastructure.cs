@@ -26,6 +26,11 @@ public sealed class MarbotsOptions
     /// marbots-host-&lt;rid&gt; (linux-x64, linux-arm64, osx-arm64, osx-x64). Defaults to data/host-packages.
     /// </summary>
     public string? HostPackagesDirectory { get; set; }
+    /// <summary>
+    /// Where missing agent-host binaries are downloaded from (checked against SHA256SUMS). Default: this version's
+    /// GitHub release. Empty disables downloads.
+    /// </summary>
+    public string? HostPackagesUrl { get; set; }
 
     /// <summary>Database: SQLite in the data directory by default, or PostgreSQL / SQL Server / MySQL.</summary>
     public Marbots.Storage.DatabaseOptions Database { get; set; } = new();

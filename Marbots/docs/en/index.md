@@ -8,6 +8,7 @@ and permission boundaries.
 
 | Start here | Then |
 |---|---|
+| [Installation](installation.md) | Windows (script, Service, Scoop), Linux (.deb, script, systemd), macOS (launchd), Docker/compose, agent hosts, upgrades |
 | [Getting started](getting-started.md) | Install, connect a model, first multi-bot task |
 | [Core concepts](concepts.md) | Bots, Boss Man, threads, tasks, memory, compaction, auto-learn |
 | [Bots and templates](bots-and-templates.md) | The 58-template gallery, the bot form, permission profiles, `.marbot` export/import |

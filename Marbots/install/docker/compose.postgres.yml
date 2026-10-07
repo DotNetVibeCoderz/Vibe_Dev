@@ -1,0 +1,23 @@
+# Overlay: PostgreSQL storage (multi-tenant ready).
+services:
+  marbots:
+    environment:
+      Marbots__Database__Provider: postgresql
+      Marbots__Database__ConnectionString: Host=postgres;Database=marbots;Username=marbots;Password=${POSTGRES_PASSWORD:-marbots-change-me}
+    depends_on:
+      postgres: { condition: service_healthy }
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: marbots
+      POSTGRES_USER: marbots
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-marbots-change-me}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marbots -d marbots"]
+      interval: 5s
+      retries: 20
+    restart: unless-stopped
+volumes:
+  postgres-data:

@@ -1,0 +1,24 @@
+# Overlay: MySQL storage.
+services:
+  marbots:
+    environment:
+      Marbots__Database__Provider: mysql
+      Marbots__Database__ConnectionString: Server=mysql;Port=3306;Database=marbots;User ID=marbots;Password=${MYSQL_PASSWORD:-marbots-change-me};AllowUserVariables=true
+    depends_on:
+      mysql: { condition: service_healthy }
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: marbots
+      MYSQL_USER: marbots
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-marbots-change-me}
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -umarbots -p$$MYSQL_PASSWORD"]
+      interval: 5s
+      retries: 30
+    restart: unless-stopped
+volumes:
+  mysql-data:

@@ -5,7 +5,14 @@ using Marbots.Server.Components;
 using Marbots.Server.Services;
 using Microsoft.AspNetCore.DataProtection;
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    // A Windows Service starts in System32; use the install folder instead (no-op from a console).
+    ContentRootPath = Microsoft.Extensions.Hosting.WindowsServices.WindowsServiceHelpers.IsWindowsService() ? AppContext.BaseDirectory : null,
+});
+builder.Host.UseWindowsService(o => o.ServiceName = "Marbots");
+builder.Host.UseSystemd();
 // Serve wwwroot + framework assets when running from source in any environment (no-op for published output).
 builder.WebHost.UseStaticWebAssets();
 

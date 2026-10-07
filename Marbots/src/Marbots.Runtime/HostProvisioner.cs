@@ -24,7 +24,7 @@ public sealed class HostProvisioner(HostRegistry registry, HostConnectionManager
         if (remote && !connections.IsOnline(onHost)) return Fail($"Host {onHost} is offline.");
         if (remote && connections.HelloOf(onHost) is { } hello && !hello.Capabilities.Contains("docker")) return Fail($"Host {onHost} has no running Docker.");
         var arch = req.Arch is "arm64" ? "arm64" : "x64";
-        var package = bootstrapper.PackageFor("linux-" + arch);
+        var package = await bootstrapper.EnsurePackageAsync("linux-" + arch, ct);
         if (package is null) return Fail($"No marbots-host package for linux-{arch} in {bootstrapper.PackagesDirectory}.");
 
         var (token, _) = await registry.CreateEnrollmentAsync(req.Name, TimeSpan.FromMinutes(30), "provision", ct);
