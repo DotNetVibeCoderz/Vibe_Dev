@@ -21,11 +21,12 @@ Example::
 """
 
 from .client import (
-    ApprovalsApi, BotsApi, EventsApi, MarbotsClient, MarbotsError, McpApi, MemoryApi, ModelsApi, SchedulesApi,
+    AgentHostsApi, ApprovalsApi, BotsApi, EventsApi, MarbotsClient, MarbotsError, McpApi, MemoryApi, ModelsApi, SchedulesApi,
     SkillsApi, TasksApi, TemplatesApi, ThreadsApi,
 )
 from .types import (
-    BOSS_MAN, TERMINAL_STATES, AgentEvent, ApprovalRequest, ApprovalScope, ApprovalState, AutoLearnMode, Bot,
+    AUTO_HOST, BOSS_MAN, LOCAL_HOST, TERMINAL_STATES, AgentEvent, BootstrapResult, ContainerProfile, EnrollmentToken,
+    HostMetrics, SkillEvaluation, SkillStats, SkillVerdict, ApprovalRequest, ApprovalScope, ApprovalState, AutoLearnMode, Bot,
     BotModelInfo, BotSpec, BotStatus, BotTemplate, ChatMessage, ChatThread, EventType, HostInfo, KernelPack,
     McpServer, MemoryKind, MemoryRecord, ModelCatalog, ModelProfileInfo, ModelRef, PermissionProfile, ScheduleJob,
     ScheduleSpec, SendResult, SkillInfo, SystemInfo, TaskRecord, TaskState, ToolCall, WorkspaceFile,
@@ -33,11 +34,13 @@ from .types import (
 
 __all__ = [
     "MarbotsClient", "MarbotsError", "BotsApi", "TemplatesApi", "ModelsApi", "ThreadsApi", "TasksApi", "ApprovalsApi",
-    "SkillsApi", "McpApi", "SchedulesApi", "MemoryApi", "EventsApi",
+    "SkillsApi", "McpApi", "SchedulesApi", "MemoryApi", "EventsApi", "AgentHostsApi",
+    "LOCAL_HOST", "AUTO_HOST", "ContainerProfile", "HostMetrics", "EnrollmentToken", "BootstrapResult",
+    "SkillStats", "SkillEvaluation", "SkillVerdict",
     "BOSS_MAN", "TERMINAL_STATES", "KernelPack", "PermissionProfile", "EventType", "ModelRef",
     "BotStatus", "TaskState", "AutoLearnMode", "ApprovalScope", "ApprovalState", "MemoryKind",
     "Bot", "BotSpec", "BotTemplate", "BotModelInfo", "ModelCatalog", "ModelProfileInfo", "ChatThread", "ChatMessage",
     "ToolCall", "TaskRecord", "SendResult", "WorkspaceFile", "ApprovalRequest", "AgentEvent", "MemoryRecord",
     "SkillInfo", "McpServer", "ScheduleSpec", "ScheduleJob", "HostInfo", "SystemInfo",
 ]
-__version__ = "0.1.0"
+__version__ = "0.2.0"

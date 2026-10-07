@@ -20,6 +20,12 @@ TERMINAL_STATES: frozenset[str] = frozenset({"Completed", "Failed", "Cancelled",
 #: Id of the protected manager bot.
 BOSS_MAN = "boss-man"
 
+#: ``Bot.host_ref`` values besides a registered host id: the server itself, or automatic placement.
+LOCAL_HOST = "local-default"
+AUTO_HOST = "auto"
+
+SkillVerdict = Literal["CollectingEvidence", "Healthy", "Underperforming", "RollbackRecommended", "ReadyToPromote", "DiscardRecommended"]
+
 
 class KernelPack(str, enum.Enum):
     """Built-in tool packs a bot can enable (typos are rejected by type checkers)."""
@@ -31,6 +37,10 @@ class KernelPack(str, enum.Enum):
     MEMORY = "memory"
     TODO = "todo"
     AGENTS = "agents"
+    #: Computer use: screenshots, mouse and keyboard on the bot's computer (Windows hosts).
+    DESKTOP = "desktop"
+    #: spawn_subagents: parallel temporary copies of the bot.
+    SUBAGENTS = "subagents"
 
     def __str__(self) -> str:
         return self.value
@@ -139,6 +149,25 @@ def _lo(d: Json, k: str) -> List[Json]:
 
 
 @dataclass(frozen=True)
+class ContainerProfile:
+    """Run the bot's shell commands in a throwaway Docker container with these quotas."""
+
+    image: str
+    cpus: float = 1.0
+    memory_mb: int = 1024
+    network: bool = True
+
+    def to_wire(self) -> Json:
+        return {"image": self.image, "cpus": self.cpus, "memoryMb": self.memory_mb, "network": self.network}
+
+    @staticmethod
+    def from_wire(d: Optional[Json]) -> Optional["ContainerProfile"]:
+        if not d:
+            return None
+        return ContainerProfile(_s(d, "image"), _f(d, "cpus") or 1.0, _i(d, "memoryMb") or 1024, bool(d.get("network", True)))
+
+
+@dataclass(frozen=True)
 class Bot:
     id: str
     name: str
@@ -159,6 +188,9 @@ class Bot:
     status: BotStatus
     is_system: bool
     template_id: Optional[str] = None
+    #: Where the bot's files/shell/desktop tools run: ``LOCAL_HOST``, a host id, or ``AUTO_HOST``.
+    host_ref: str = LOCAL_HOST
+    container: Optional[ContainerProfile] = None
 
     @property
     def uses_default_model(self) -> bool:
@@ -170,7 +202,8 @@ class Bot:
                    _s(d, "modelProfile", "default"), _ls(d, "kernelFunctions"), _ls(d, "skills"), _ls(d, "mcpServers"),
                    _s(d, "permissionProfile"), cast(AutoLearnMode, _s(d, "autoLearn", "Off")), _b(d, "shortTermMemory"),
                    _b(d, "longTermMemory"), _i(d, "maxSteps"), cast(BotStatus, _s(d, "status", "Ready")),
-                   _b(d, "isSystem"), _os(d, "templateId"))
+                   _b(d, "isSystem"), _os(d, "templateId"), _s(d, "hostRef", LOCAL_HOST),
+                   ContainerProfile.from_wire(d.get("container") if isinstance(d.get("container"), dict) else None))
 
 
 @dataclass
@@ -192,13 +225,16 @@ class BotSpec:
     short_term_memory: bool = True
     long_term_memory: bool = True
     max_steps: int = 24
+    host_ref: str = LOCAL_HOST
+    container: Optional[ContainerProfile] = None
 
     def to_wire(self, bot_id: str = "") -> Json:
         return {"id": bot_id, "name": self.name, "role": self.role, "description": self.description, "persona": self.persona,
                 "color": self.color, "modelProfile": self.model, "kernelFunctions": [k.value for k in self.kernel_functions],
                 "skills": self.skills, "mcpServers": self.mcp_servers, "permissionProfile": self.permission_profile.value,
                 "autoLearn": self.auto_learn, "shortTermMemory": self.short_term_memory,
-                "longTermMemory": self.long_term_memory, "maxSteps": self.max_steps}
+                "longTermMemory": self.long_term_memory, "maxSteps": self.max_steps, "hostRef": self.host_ref,
+                "container": self.container.to_wire() if self.container else None}
 
 
 @dataclass(frozen=True)
@@ -360,10 +396,13 @@ class WorkspaceFile:
     path: str
     size: int
     modified: str
+    #: Set when the file lives on a remote agent host (download with ``?host=<id>``).
+    host: Optional[str] = None
+    host_name: Optional[str] = None
 
     @staticmethod
     def from_wire(d: Json) -> "WorkspaceFile":
-        return WorkspaceFile(_s(d, "path"), _i(d, "size"), _s(d, "modified"))
+        return WorkspaceFile(_s(d, "path"), _i(d, "size"), _s(d, "modified"), _os(d, "host"), _os(d, "hostName"))
 
 
 # ---------------------------------------------------------------- approvals, events, memory, skills, mcp, schedules
@@ -499,6 +538,20 @@ class ScheduleJob:
 
 
 @dataclass(frozen=True)
+class HostMetrics:
+    cpu_percent: float
+    free_memory_mb: int
+    running_calls: int
+    free_disk_mb: int
+
+    @staticmethod
+    def from_wire(d: Optional[Json]) -> Optional["HostMetrics"]:
+        if not d:
+            return None
+        return HostMetrics(_f(d, "cpuPercent"), _i(d, "freeMemoryMb"), _i(d, "runningCalls"), _i(d, "freeDiskMb"))
+
+
+@dataclass(frozen=True)
 class HostInfo:
     id: str
     name: str
@@ -506,10 +559,94 @@ class HostInfo:
     os: str
     status: str
     processor_count: int
+    architecture: str = ""
+    agent_version: str = ""
+    #: shell, files, desktop, docker, dotnet, node, python, ``pkg:winget`` …
+    capabilities: List[str] = field(default_factory=list)
+    metrics: Optional[HostMetrics] = None
+    installed_via: Optional[str] = None
 
     @staticmethod
     def from_wire(d: Json) -> "HostInfo":
-        return HostInfo(_s(d, "id"), _s(d, "name"), _s(d, "kind"), _s(d, "os"), _s(d, "status"), _i(d, "processorCount"))
+        m = d.get("metrics")
+        return HostInfo(_s(d, "id"), _s(d, "name"), _s(d, "kind"), _s(d, "os"), _s(d, "status"), _i(d, "processorCount"),
+                        _s(d, "architecture"), _s(d, "agentVersion"), _ls(d, "capabilities"),
+                        HostMetrics.from_wire(m if isinstance(m, dict) else None), _os(d, "installedVia"))
+
+
+@dataclass(frozen=True)
+class EnrollmentToken:
+    """One-time token for ``marbots-host enroll`` (valid until ``expires_at``)."""
+
+    token: str
+    expires_at: str
+    enroll_command: str
+
+    @staticmethod
+    def from_wire(d: Json) -> "EnrollmentToken":
+        return EnrollmentToken(_s(d, "token"), _s(d, "expiresAt"), _s(d, "enrollCommand"))
+
+
+@dataclass(frozen=True)
+class BootstrapResult:
+    success: bool
+    host_id: Optional[str]
+    log: List[str]
+    error: Optional[str] = None
+
+    @staticmethod
+    def from_wire(d: Json) -> "BootstrapResult":
+        return BootstrapResult(_b(d, "success"), _os(d, "hostId"), _ls(d, "log"), _os(d, "error"))
+
+
+@dataclass(frozen=True)
+class SkillStats:
+    name: str
+    version: str
+    loads: int
+    successes: int
+    failures: int
+
+    @property
+    def runs(self) -> int:
+        return self.successes + self.failures
+
+    @property
+    def success_rate(self) -> float:
+        return self.successes / self.runs if self.runs else 0.0
+
+    @staticmethod
+    def from_wire(d: Optional[Json]) -> Optional["SkillStats"]:
+        if not d:
+            return None
+        return SkillStats(_s(d, "name"), _s(d, "version"), _i(d, "loads"), _i(d, "successes"), _i(d, "failures"))
+
+
+@dataclass(frozen=True)
+class SkillEvaluation:
+    """Learning evaluation of one skill: outcomes of its current version and a verdict."""
+
+    name: str
+    version: str
+    pending: bool
+    current: SkillStats
+    verdict: SkillVerdict
+    reason: str
+    previous_version: Optional[str] = None
+    previous: Optional[SkillStats] = None
+
+    @property
+    def can_rollback(self) -> bool:
+        return self.previous_version is not None
+
+    @staticmethod
+    def from_wire(d: Json) -> "SkillEvaluation":
+        cur = d.get("current")
+        prev = d.get("previous")
+        current = SkillStats.from_wire(cur if isinstance(cur, dict) else None) or SkillStats(_s(d, "name"), _s(d, "version"), 0, 0, 0)
+        return SkillEvaluation(_s(d, "name"), _s(d, "version"), _b(d, "pending"), current,
+                               cast(SkillVerdict, _s(d, "verdict", "CollectingEvidence")), _s(d, "reason"),
+                               _os(d, "previousVersion"), SkillStats.from_wire(prev if isinstance(prev, dict) else None))
 
 
 @dataclass(frozen=True)

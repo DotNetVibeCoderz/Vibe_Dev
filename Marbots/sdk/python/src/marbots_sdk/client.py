@@ -9,9 +9,9 @@ import urllib.request
 from typing import Any, Dict, Iterator, List, Optional
 
 from .types import (
-    AgentEvent, ApprovalRequest, ApprovalScope, Bot, BotModelInfo, BotSpec, BotTemplate, ChatMessage, ChatThread,
-    HostInfo, McpServer, MemoryKind, MemoryRecord, ModelCatalog, ScheduleJob, ScheduleSpec, SendResult, SkillInfo,
-    SystemInfo, TaskRecord, WorkspaceFile,
+    AgentEvent, ApprovalRequest, ApprovalScope, BootstrapResult, Bot, BotModelInfo, BotSpec, BotTemplate, ChatMessage,
+    ChatThread, EnrollmentToken, HostInfo, McpServer, MemoryKind, MemoryRecord, ModelCatalog, ScheduleJob, ScheduleSpec,
+    SendResult, SkillEvaluation, SkillInfo, SystemInfo, TaskRecord, WorkspaceFile,
 )
 
 
@@ -223,6 +223,56 @@ class SkillsApi:
     def install(self, source: str) -> List[SkillInfo]:
         return [SkillInfo.from_wire(d) for d in _objs(self._h.json("POST", "/api/v1/skills/install", {"source": source}))]
 
+    def evaluations(self) -> List[SkillEvaluation]:
+        """Learning evaluation: outcomes per skill version and a verdict."""
+        return [SkillEvaluation.from_wire(d) for d in _objs(self._h.json("GET", "/api/v1/skills/evaluations"))]
+
+    def rollback(self, name: str) -> str:
+        """Restore the previous version of an installed skill; returns the restored version."""
+        return str(_obj(self._h.json("POST", f"/api/v1/skills/{_q(name)}/rollback")).get("version", ""))
+
+    def promote(self, name: str) -> None:
+        """Publish a skill drafted by auto-learn."""
+        self._h.json("POST", f"/api/v1/skills/{_q(name)}/approve")
+
+    def discard(self, name: str) -> None:
+        self._h.json("POST", f"/api/v1/skills/{_q(name)}/reject")
+
+    def auto_rollback(self) -> bool:
+        return bool(_obj(self._h.json("GET", "/api/v1/system/learning")).get("autoRollbackSkills"))
+
+    def set_auto_rollback(self, on: bool) -> bool:
+        return bool(_obj(self._h.json("PUT", "/api/v1/system/learning", {"autoRollbackSkills": on})).get("autoRollbackSkills"))
+
+
+class AgentHostsApi:
+    """Computers that run bots' tools (see docs/en/computers.md)."""
+
+    def __init__(self, h: _Http) -> None:
+        self._h = h
+
+    def list(self) -> List[HostInfo]:
+        return [HostInfo.from_wire(d) for d in _objs(self._h.json("GET", "/api/v1/hosts"))]
+
+    def create_enrollment(self, name: str, valid_minutes: int = 60) -> EnrollmentToken:
+        return EnrollmentToken.from_wire(_obj(self._h.json("POST", "/api/v1/hosts/enrollments", {"name": name, "validMinutes": valid_minutes})))
+
+    def bootstrap(self, host: str, user: str, server_url: str, name: str = "", password: Optional[str] = None,
+                  private_key: Optional[str] = None, port: int = 22, update_only: bool = False) -> BootstrapResult:
+        """Install marbots-host over SSH. The password/key is used for this call only and never stored."""
+        payload = {"host": host, "port": port, "user": user, "password": password, "privateKey": private_key,
+                   "name": name or host, "serverUrl": server_url, "updateOnly": update_only}
+        return BootstrapResult.from_wire(_obj(self._h.json("POST", "/api/v1/hosts/bootstrap", payload, timeout=600)))
+
+    def disable(self, host_id: str) -> None:
+        self._h.json("POST", f"/api/v1/hosts/{_q(host_id)}/disable")
+
+    def enable(self, host_id: str) -> None:
+        self._h.json("POST", f"/api/v1/hosts/{_q(host_id)}/enable")
+
+    def remove(self, host_id: str) -> None:
+        self._h.json("DELETE", f"/api/v1/hosts/{_q(host_id)}")
+
 
 class McpApi:
     def __init__(self, h: _Http) -> None:
@@ -301,6 +351,7 @@ class MarbotsClient:
         self.schedules = SchedulesApi(self._h)
         self.memory = MemoryApi(self._h)
         self.events = EventsApi(self._h)
+        self.agent_hosts = AgentHostsApi(self._h)
 
     @property
     def base_url(self) -> str:

@@ -105,6 +105,17 @@ Setiap SDK menyediakan nama-nama platform sebagai konstanta/enum, sehingga salah
 pengaturan model (`ModelRef.Default`, `ModelRef.Of("azure", "gpt-5.6-luna")`). Setiap SDK memiliki tes yang
 membuktikan salah ketik yang disengaja gagal di-compile, serta tes conformance terhadap server sungguhan.
 
+### Yang baru di 0.2.0 (semua SDK)
+
+| Area | .NET | Python | TypeScript | Go | Java | Rust |
+|---|---|---|---|---|---|---|
+| Komputer (agent host) | `client.Hosts` | `mb.agent_hosts` | `mb.agentHosts` | `mb.AgentHosts` | `mb.agentHosts()` | `mb.agent_hosts()` |
+| Evaluasi pembelajaran | `client.Skills.EvaluationsAsync/RollbackAsync/PromoteAsync` | `mb.skills.evaluations/rollback/promote` | `mb.skills.evaluations/rollback/promote` | `mb.Skills.Evaluations/Rollback/Promote` | `mb.skills().evaluations()/rollback()` | `mb.skills().evaluations()/rollback()` |
+| Penempatan bot | `HostRef`, `Container` | `host_ref`, `container` | `hostRef`, `container` | `HostRef`, `Container` | `.hostRef()`, `.container()` | `.host_ref()`, `.container()` |
+| Pack baru | `KernelPacks.Desktop/Subagents` | `KernelPack.DESKTOP/SUBAGENTS` | `KernelPack.Desktop/Subagents` | `KernelPackDesktop/Subagents` | `KernelPack.DESKTOP/SUBAGENTS` | `KernelPack::Desktop/Subagents` |
+
+Setiap SDK tetap memiliki pemeriksaan typo saat kompilasi dan uji conformance terhadap server sungguhan untuk panggilan ini.
+
 ## Model per bot
 
 ```bash

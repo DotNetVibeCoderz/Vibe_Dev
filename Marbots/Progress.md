@@ -90,6 +90,10 @@ Seven concurrent jobs plus A2A: **16/16 tasks completed**, ~1.02 M tokens, ≈ $
     used Playwright, Docker and computer use. See docs/en/trials.md, including what fell short.
   - **Bugs found by the trials and fixed:** `create_bot` approval timeout, pip/npm packages, skill scripts on hosts,
     the container note, and SSE resume dropping transient events.
+- **2026-10-07 (e)**: Release 0.2.0. All six SDKs (.NET, Python, TypeScript, Go, Java, Rust) gained agent hosts
+  (list, enrollment, SSH bootstrap, disable/enable/remove), learning evaluation (evaluations, rollback, promote,
+  discard, auto-rollback), bot placement (`hostRef`, container profile) and the desktop/subagents packs, each with
+  typo checks and conformance tests. `marbots-host` binaries are attached to the GitHub release.
 
 ## Known limitations
 

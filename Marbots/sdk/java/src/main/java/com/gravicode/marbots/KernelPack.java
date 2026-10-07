@@ -8,7 +8,11 @@ public enum KernelPack {
     WEB("web"),
     MEMORY("memory"),
     TODO("todo"),
-    AGENTS("agents");
+    AGENTS("agents"),
+    /** Computer use: screenshots, mouse and keyboard on the bot's computer (Windows hosts). */
+    DESKTOP("desktop"),
+    /** spawn_subagents: parallel temporary copies of the bot. */
+    SUBAGENTS("subagents");
 
     private final String wire;
 

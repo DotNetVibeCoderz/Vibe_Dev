@@ -115,6 +115,33 @@ public final class ConformanceTest {
             check(e.status() == 400, "bad cron rejected");
         }
         check(mb.templates().list("designer", null).stream().anyMatch(t -> "ux-designer".equals(t.id())), "template search");
+
+        HostInfo local = mb.agentHosts().list().stream().filter(h -> HostRef.LOCAL.equals(h.id())).findFirst().orElseThrow();
+        check(local.capabilities().contains("shell"), "local host capabilities");
+        EnrollmentToken token = mb.agentHosts().createEnrollment("lab-pc", 10);
+        check(token.token().startsWith("mbe_") && token.enrollCommand().contains("marbots-host enroll"), "enrollment token");
+        try {
+            mb.agentHosts().disable("host-that-does-not-exist");
+            check(false, "unknown host rejected");
+        } catch (MarbotsException e) {
+            check(e.status() == 404, "unknown host rejected with 404");
+        }
+
+        Bot placed = mb.bots().create(BotSpec.builder("Placed Java").hostRef(HostRef.AUTO)
+            .container(new ContainerProfile("python:3.12-slim", 1.5, 512, false)).kernelFunctions(KernelPack.SHELL, KernelPack.SUBAGENTS));
+        check(HostRef.AUTO.equals(placed.hostRef()) && placed.container() != null && placed.container().memoryMb() == 512
+            && !placed.container().network() && placed.kernelFunctions().contains(KernelPack.SUBAGENTS), "placement and container round trip");
+
+        List<SkillEvaluation> evals = mb.skills().evaluations();
+        check(!evals.isEmpty() && evals.stream().allMatch(e -> e.verdict() == SkillVerdict.COLLECTING_EVIDENCE), "skill evaluations");
+        check(mb.skills().setAutoRollback(true) && mb.skills().autoRollback(), "auto rollback on");
+        check(!mb.skills().setAutoRollback(false), "auto rollback off");
+        try {
+            mb.skills().rollback("no-such-skill");
+            check(false, "unknown skill rollback rejected");
+        } catch (MarbotsException e) {
+            check(e.status() == 404, "unknown skill rollback rejected with 404");
+        }
     }
 
     private static void check(boolean ok, String what) {

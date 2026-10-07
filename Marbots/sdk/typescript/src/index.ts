@@ -18,8 +18,8 @@
  * ```
  */
 import type {
-  AgentEvent, ApprovalRequest, ApprovalScope, Bot, BotModelInfo, BotSpec, BotTemplate, ChatMessage, ChatThread,
-  ClientOptions, HostInfo, McpServer, MemoryKind, MemoryRecord, ModelCatalog, ModelSetting, ScheduleJob, ScheduleSpec,
+  AgentEvent, ApprovalRequest, ApprovalScope, BootstrapOptions, BootstrapResult, Bot, BotModelInfo, BotSpec, BotTemplate,
+  ChatMessage, ChatThread, ClientOptions, EnrollmentToken, HostInfo, SkillEvaluation, McpServer, MemoryKind, MemoryRecord, ModelCatalog, ModelSetting, ScheduleJob, ScheduleSpec,
   SendOptions, SendResult, SkillInfo, SystemInfo, TaskRecord, WorkspaceFile,
 } from "./types.js";
 import { TERMINAL_STATES } from "./types.js";
@@ -48,7 +48,7 @@ function botBody(spec: BotSpec, id = ""): Record<string, unknown> {
     kernelFunctions: spec.kernelFunctions ?? ["files", "search", "web", "memory", "todo"],
     skills: spec.skills ?? [], mcpServers: spec.mcpServers ?? [], permissionProfile: spec.permissionProfile ?? "developer-safe",
     autoLearn: spec.autoLearn ?? "Off", shortTermMemory: spec.shortTermMemory ?? true, longTermMemory: spec.longTermMemory ?? true,
-    maxSteps: spec.maxSteps ?? 24,
+    maxSteps: spec.maxSteps ?? 24, hostRef: spec.hostRef ?? "local-default", container: spec.container ?? null,
   };
 }
 
@@ -166,6 +166,33 @@ export class MarbotsClient {
   readonly skills = {
     list: (): Promise<SkillInfo[]> => this.json("GET", "/api/v1/skills"),
     install: (source: string): Promise<SkillInfo[]> => this.json("POST", "/api/v1/skills/install", { source }),
+    /** Learning evaluation: outcomes per skill version and a verdict. */
+    evaluations: (): Promise<SkillEvaluation[]> => this.json("GET", "/api/v1/skills/evaluations"),
+    /** Restores the previous version of an installed skill; resolves to the restored version. */
+    rollback: async (name: string): Promise<string> =>
+      (await this.json<{ version: string }>("POST", `/api/v1/skills/${q(name)}/rollback`)).version,
+    /** Publishes a skill drafted by auto-learn. */
+    promote: (name: string): Promise<void> => this.json("POST", `/api/v1/skills/${q(name)}/approve`),
+    discard: (name: string): Promise<void> => this.json("POST", `/api/v1/skills/${q(name)}/reject`),
+    autoRollback: async (): Promise<boolean> =>
+      (await this.json<{ autoRollbackSkills: boolean }>("GET", "/api/v1/system/learning")).autoRollbackSkills,
+    setAutoRollback: async (on: boolean): Promise<boolean> =>
+      (await this.json<{ autoRollbackSkills: boolean }>("PUT", "/api/v1/system/learning", { autoRollbackSkills: on })).autoRollbackSkills,
+  };
+
+  /** Computers that run bots' tools (see docs/en/computers.md). */
+  readonly agentHosts = {
+    list: (): Promise<HostInfo[]> => this.json("GET", "/api/v1/hosts"),
+    createEnrollment: (name: string, validMinutes = 60): Promise<EnrollmentToken> =>
+      this.json("POST", "/api/v1/hosts/enrollments", { name, validMinutes }),
+    /** Installs marbots-host over SSH. The password/key is used for this call only. */
+    bootstrap: (o: BootstrapOptions): Promise<BootstrapResult> => this.json("POST", "/api/v1/hosts/bootstrap", {
+      host: o.host, port: o.port ?? 22, user: o.user, password: o.password ?? null, privateKey: o.privateKey ?? null,
+      name: o.name ?? o.host, serverUrl: o.serverUrl, updateOnly: o.updateOnly ?? false,
+    }),
+    disable: (id: string): Promise<void> => this.json("POST", `/api/v1/hosts/${q(id)}/disable`),
+    enable: (id: string): Promise<void> => this.json("POST", `/api/v1/hosts/${q(id)}/enable`),
+    remove: (id: string): Promise<void> => this.json("DELETE", `/api/v1/hosts/${q(id)}`),
   };
 
   readonly mcp = {

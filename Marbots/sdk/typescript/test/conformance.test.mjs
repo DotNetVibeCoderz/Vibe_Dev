@@ -7,7 +7,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { MarbotsClient, MarbotsError, KernelPack, PermissionProfile, EventType, ModelRef, BOSS_MAN, isTaskFinished } from "../dist/index.js";
+import { MarbotsClient, MarbotsError, HostRef, KernelPack, PermissionProfile, EventType, ModelRef, BOSS_MAN, isTaskFinished } from "../dist/index.js";
 
 const dll = process.env.MARBOTS_SERVER_DLL ?? resolve("../../src/Marbots.Server/bin/Debug/net10.0/Marbots.Server.dll");
 const skip = !existsSync(dll);
@@ -114,4 +114,31 @@ test("templates, approvals, schedules", { skip }, async () => {
   assert.ok(job.nextRunAt);
   await mb.schedules.delete(job.id);
   await assert.rejects(() => mb.schedules.create({ name: "bad", botId: "atlas", prompt: "x", cron: "nope" }), MarbotsError);
+});
+
+test("agent hosts and enrollment", { skip }, async () => {
+  const hosts = await mb.agentHosts.list();
+  const local = hosts.find((h) => h.id === HostRef.Local);
+  assert.ok(local?.capabilities.includes("shell"));
+  const token = await mb.agentHosts.createEnrollment("lab-pc", 10);
+  assert.match(token.token, /^mbe_/);
+  assert.match(token.enrollCommand, /marbots-host enroll/);
+  await assert.rejects(mb.agentHosts.disable("host-that-does-not-exist"), MarbotsError);
+});
+
+test("placement and container round trip", { skip }, async () => {
+  const bot = await mb.bots.create({ name: "Placed Ts", hostRef: HostRef.Auto,
+    container: { image: "python:3.12-slim", cpus: 1.5, memoryMb: 512, network: false },
+    kernelFunctions: [KernelPack.Shell, KernelPack.Subagents] });
+  assert.equal(bot.hostRef, "auto");
+  assert.deepEqual([bot.container?.cpus, bot.container?.memoryMb, bot.container?.network], [1.5, 512, false]);
+});
+
+test("skill evaluations and auto rollback", { skip }, async () => {
+  const evals = await mb.skills.evaluations();
+  assert.ok(evals.length > 0 && evals.every((e) => e.verdict === "CollectingEvidence"));
+  assert.equal(await mb.skills.setAutoRollback(true), true);
+  assert.equal(await mb.skills.autoRollback(), true);
+  assert.equal(await mb.skills.setAutoRollback(false), false);
+  await assert.rejects(mb.skills.rollback("no-such-skill"), MarbotsError);
 });

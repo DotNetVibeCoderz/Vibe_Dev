@@ -49,6 +49,7 @@ public final class MarbotsClient {
     private final Schedules schedules = new Schedules();
     private final Memory memory = new Memory();
     private final Events events = new Events();
+    private final AgentHosts agentHosts = new AgentHosts();
 
     private MarbotsClient(String baseUrl, String apiKey, Duration timeout) {
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
@@ -75,6 +76,8 @@ public final class MarbotsClient {
     public Schedules schedules() { return schedules; }
     public Memory memory() { return memory; }
     public Events events() { return events; }
+    /** Computers that run bots' tools (see docs/en/computers.md). */
+    public AgentHosts agentHosts() { return agentHosts; }
 
     public SystemInfo system() { return SystemInfo.from(W.obj(getJson("/api/v1/system"))); }
 
@@ -247,9 +250,38 @@ public final class MarbotsClient {
 
         public List<SkillInfo> list() { return MarbotsClient.list(getJson("/api/v1/skills"), SkillInfo::from); }
         public List<SkillInfo> install(String source) { return MarbotsClient.list(call("POST", "/api/v1/skills/install", map("source", source)), SkillInfo::from); }
+        /** Learning evaluation: outcomes per skill version and a verdict. */
+        public List<SkillEvaluation> evaluations() { return MarbotsClient.list(getJson("/api/v1/skills/evaluations"), SkillEvaluation::from); }
+        /** Restores the previous version of an installed skill; returns the restored version. */
+        public String rollback(String name) { return W.str(W.obj(call("POST", "/api/v1/skills/" + e(name) + "/rollback", null)), "version"); }
+        /** Publishes a skill drafted by auto-learn. */
+        public void promote(String name) { call("POST", "/api/v1/skills/" + e(name) + "/approve", null); }
+        public void discard(String name) { call("POST", "/api/v1/skills/" + e(name) + "/reject", null); }
+        public boolean autoRollback() { return W.bool(W.obj(getJson("/api/v1/system/learning")), "autoRollbackSkills"); }
+        public boolean setAutoRollback(boolean on) {
+            return W.bool(W.obj(call("PUT", "/api/v1/system/learning", map("autoRollbackSkills", on))), "autoRollbackSkills");
+        }
     }
 
     /** MCP servers. */
+    /** Computers that run bots' tools. */
+    public final class AgentHosts {
+        private AgentHosts() {}
+
+        public List<HostInfo> list() { return MarbotsClient.list(getJson("/api/v1/hosts"), HostInfo::from); }
+        /** One-time token for {@code marbots-host enroll}. */
+        public EnrollmentToken createEnrollment(String name, int validMinutes) {
+            return EnrollmentToken.from(W.obj(call("POST", "/api/v1/hosts/enrollments", map("name", name, "validMinutes", validMinutes))));
+        }
+        /** Installs marbots-host over SSH; the password/key is used for this call only. */
+        public BootstrapResult bootstrap(BootstrapOptions options) {
+            return BootstrapResult.from(W.obj(call("POST", "/api/v1/hosts/bootstrap", options.toWire())));
+        }
+        public void disable(String id) { call("POST", "/api/v1/hosts/" + e(id) + "/disable", null); }
+        public void enable(String id) { call("POST", "/api/v1/hosts/" + e(id) + "/enable", null); }
+        public void remove(String id) { call("DELETE", "/api/v1/hosts/" + e(id), null); }
+    }
+
     public final class Mcp {
         private Mcp() {}
 

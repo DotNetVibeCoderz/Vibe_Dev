@@ -20,7 +20,39 @@ const (
 	KernelPackMemory KernelPack = "memory"
 	KernelPackTodo   KernelPack = "todo"
 	KernelPackAgents KernelPack = "agents"
+	// KernelPackDesktop is computer use: screenshots, mouse and keyboard on the bot's computer (Windows hosts).
+	KernelPackDesktop KernelPack = "desktop"
+	// KernelPackSubagents enables spawn_subagents: parallel temporary copies of the bot.
+	KernelPackSubagents KernelPack = "subagents"
 )
+
+// HostRef values besides a registered host id.
+const (
+	// HostLocal runs the bot's tools on the server itself.
+	HostLocal = "local-default"
+	// HostAuto lets placement choose a computer per thread.
+	HostAuto = "auto"
+)
+
+// SkillVerdict is the learning evaluation's conclusion about a skill.
+type SkillVerdict string
+
+const (
+	VerdictCollectingEvidence  SkillVerdict = "CollectingEvidence"
+	VerdictHealthy             SkillVerdict = "Healthy"
+	VerdictUnderperforming     SkillVerdict = "Underperforming"
+	VerdictRollbackRecommended SkillVerdict = "RollbackRecommended"
+	VerdictReadyToPromote      SkillVerdict = "ReadyToPromote"
+	VerdictDiscardRecommended  SkillVerdict = "DiscardRecommended"
+)
+
+// ContainerProfile runs the bot's shell commands in a throwaway Docker container with these quotas.
+type ContainerProfile struct {
+	Image    string  `json:"image"`
+	Cpus     float64 `json:"cpus"`
+	MemoryMb int     `json:"memoryMb"`
+	Network  bool    `json:"network"`
+}
 
 // PermissionProfile decides what a bot may do without asking.
 type PermissionProfile string
@@ -174,11 +206,13 @@ type Bot struct {
 	McpServers        []string          `json:"mcpServers"`
 	KernelFunctions   []KernelPack      `json:"kernelFunctions"`
 	PermissionProfile PermissionProfile `json:"permissionProfile"`
-	HostRef           string            `json:"hostRef"`
-	MaxSteps          int               `json:"maxSteps"`
-	IsSystem          bool              `json:"isSystem"`
-	Status            BotStatus         `json:"status"`
-	TemplateID        string            `json:"templateId,omitempty"`
+	// HostRef is HostLocal, a host id, or HostAuto.
+	HostRef    string            `json:"hostRef"`
+	Container  *ContainerProfile `json:"container,omitempty"`
+	MaxSteps   int               `json:"maxSteps"`
+	IsSystem   bool              `json:"isSystem"`
+	Status     BotStatus         `json:"status"`
+	TemplateID string            `json:"templateId,omitempty"`
 }
 
 // UsesDefaultModel reports whether the bot follows the workspace default model.
@@ -201,6 +235,9 @@ type BotSpec struct {
 	ShortTermMemory   *bool
 	LongTermMemory    *bool
 	MaxSteps          int
+	// HostRef: HostLocal (default), a host id, or HostAuto.
+	HostRef   string
+	Container *ContainerProfile
 }
 
 func (s BotSpec) wire(id string) map[string]any {
@@ -225,7 +262,8 @@ func (s BotSpec) wire(id string) map[string]any {
 		"skills": nonNil(s.Skills), "mcpServers": nonNil(s.McpServers),
 		"permissionProfile": or(string(s.PermissionProfile), string(PermissionDeveloperSafe)),
 		"autoLearn":         or(string(s.AutoLearn), string(AutoLearnOff)), "shortTermMemory": boolOr(s.ShortTermMemory),
-		"longTermMemory": boolOr(s.LongTermMemory), "maxSteps": steps,
+		"longTermMemory": boolOr(s.LongTermMemory), "maxSteps": steps, "hostRef": or(s.HostRef, HostLocal),
+		"container": s.Container,
 	}
 }
 
@@ -361,6 +399,9 @@ type WorkspaceFile struct {
 	Path     string    `json:"path"`
 	Size     int64     `json:"size"`
 	Modified time.Time `json:"modified"`
+	// Host is set when the file lives on a remote agent host (download with ?host=<id>).
+	Host     string `json:"host,omitempty"`
+	HostName string `json:"hostName,omitempty"`
 }
 
 // ---------------------------------------------------------------- approvals, events, memory, skills, mcp, schedules
@@ -461,6 +502,72 @@ type Host struct {
 	OS             string `json:"os"`
 	Status         string `json:"status"`
 	ProcessorCount int    `json:"processorCount"`
+	Architecture   string `json:"architecture"`
+	AgentVersion   string `json:"agentVersion"`
+	// Capabilities: shell, files, desktop, docker, dotnet, node, python, "pkg:winget" …
+	Capabilities []string     `json:"capabilities"`
+	Metrics      *HostMetrics `json:"metrics,omitempty"`
+	InstalledVia string       `json:"installedVia,omitempty"`
+}
+
+// HostMetrics is a host's latest load report.
+type HostMetrics struct {
+	CPUPercent   float64 `json:"cpuPercent"`
+	FreeMemoryMb int64   `json:"freeMemoryMb"`
+	RunningCalls int     `json:"runningCalls"`
+	FreeDiskMb   int64   `json:"freeDiskMb"`
+}
+
+// EnrollmentToken is a one-time token for `marbots-host enroll`.
+type EnrollmentToken struct {
+	Token         string    `json:"token"`
+	ExpiresAt     time.Time `json:"expiresAt"`
+	EnrollCommand string    `json:"enrollCommand"`
+}
+
+// BootstrapOptions installs marbots-host over SSH. Password/PrivateKey are used for that call only.
+type BootstrapOptions struct {
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
+	User       string `json:"user"`
+	Password   string `json:"password,omitempty"`
+	PrivateKey string `json:"privateKey,omitempty"`
+	Name       string `json:"name"`
+	// ServerURL is the address the new host uses to reach this server (LAN address, not localhost).
+	ServerURL  string `json:"serverUrl"`
+	UpdateOnly bool   `json:"updateOnly"`
+}
+
+// BootstrapResult reports each bootstrap step.
+type BootstrapResult struct {
+	Success bool     `json:"success"`
+	HostID  string   `json:"hostId,omitempty"`
+	Log     []string `json:"log"`
+	Error   string   `json:"error,omitempty"`
+}
+
+// SkillStats are the outcomes of tasks that loaded one skill version.
+type SkillStats struct {
+	Name        string  `json:"name"`
+	Version     string  `json:"version"`
+	Loads       int64   `json:"loads"`
+	Successes   int64   `json:"successes"`
+	Failures    int64   `json:"failures"`
+	Runs        int64   `json:"runs"`
+	SuccessRate float64 `json:"successRate"`
+}
+
+// SkillEvaluation is the learning evaluation of one skill.
+type SkillEvaluation struct {
+	Name            string       `json:"name"`
+	Version         string       `json:"version"`
+	Pending         bool         `json:"pending"`
+	Current         SkillStats   `json:"current"`
+	PreviousVersion string       `json:"previousVersion,omitempty"`
+	Previous        *SkillStats  `json:"previous,omitempty"`
+	Verdict         SkillVerdict `json:"verdict"`
+	Reason          string       `json:"reason"`
+	CanRollback     bool         `json:"canRollback"`
 }
 
 // SystemInfo describes the server.

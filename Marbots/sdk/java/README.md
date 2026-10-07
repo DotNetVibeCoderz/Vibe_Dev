@@ -54,3 +54,21 @@ Conformance tests: `mvn verify -Pconformance` (or compile and run `com.gravicode
 built Marbots server.
 
 Built by Gravicode Studios, led by Kang Fadhil. MIT license.
+
+## Computers, placement and learning evaluation (0.2.0)
+
+See [docs/en/computers.md](https://github.com/DotNetVibeCoderz/Vibe_Dev/blob/main/Marbots/docs/en/computers.md) and the Skills guide.
+
+```java
+// Computers (agent hosts): list, one-time enrollment token, SSH bootstrap (credentials used once)
+for (HostInfo h : mb.agentHosts().list()) System.out.println(h.name() + " " + h.status() + " " + h.capabilities());
+System.out.println(mb.agentHosts().createEnrollment("design-pc", 60).enrollCommand());
+
+// A bot that runs on whichever computer fits, with its shell in Docker and parallel sub-agents
+Bot nova = mb.bots().create(BotSpec.builder("Nova").hostRef(HostRef.AUTO).container(ContainerProfile.of("python:3.12-slim"))
+    .kernelFunctions(KernelPack.FILES, KernelPack.SHELL, KernelPack.SUBAGENTS));
+
+// Learning evaluation
+for (SkillEvaluation e : mb.skills().evaluations())
+    System.out.println(e.name() + " " + e.version() + " " + e.verdict() + " " + e.reason());
+```

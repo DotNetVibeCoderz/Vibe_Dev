@@ -5,6 +5,20 @@
 /** Id of the protected manager bot. */
 export const BOSS_MAN = "boss-man";
 
+/** `hostRef` values besides a registered host id: the server itself, or automatic placement. */
+export const HostRef = { Local: "local-default", Auto: "auto" } as const;
+
+export type SkillVerdict =
+  | "CollectingEvidence" | "Healthy" | "Underperforming" | "RollbackRecommended" | "ReadyToPromote" | "DiscardRecommended";
+
+/** Run the bot's shell commands in a throwaway Docker container with these quotas. */
+export interface ContainerProfile {
+  image: string;
+  cpus?: number;
+  memoryMb?: number;
+  network?: boolean;
+}
+
 export type BotStatus = "Ready" | "Running" | "Paused" | "Archived" | "Degraded";
 export type TaskState =
   | "Queued" | "Preparing" | "Running" | "WaitingForTool" | "WaitingForAgent" | "WaitingForHuman"
@@ -27,6 +41,10 @@ export const KernelPack = {
   Memory: "memory",
   Todo: "todo",
   Agents: "agents",
+  /** Computer use: screenshots, mouse and keyboard on the bot's computer (Windows hosts). */
+  Desktop: "desktop",
+  /** spawn_subagents: parallel temporary copies of the bot. */
+  Subagents: "subagents",
 } as const;
 export type KernelPackName = (typeof KernelPack)[keyof typeof KernelPack];
 
@@ -105,7 +123,9 @@ export interface Bot {
   mcpServers: string[];
   kernelFunctions: string[];
   permissionProfile: PermissionProfileName;
+  /** "local-default", a host id, or "auto". */
   hostRef: string;
+  container?: ContainerProfile;
   maxSteps: number;
   isSystem: boolean;
   status: BotStatus;
@@ -131,6 +151,9 @@ export interface BotSpec {
   shortTermMemory?: boolean;
   longTermMemory?: boolean;
   maxSteps?: number;
+  /** Where the bot's files/shell/desktop tools run (default `HostRef.Local`). */
+  hostRef?: string;
+  container?: ContainerProfile;
 }
 
 export interface BotTemplate {
@@ -247,6 +270,9 @@ export interface WorkspaceFile {
   path: string;
   size: number;
   modified: string;
+  /** Set when the file lives on a remote agent host (download with `?host=<id>`). */
+  host?: string;
+  hostName?: string;
 }
 
 // ---------------------------------------------------------------- approvals, events, memory, skills, mcp, schedules
@@ -329,6 +355,13 @@ export interface ScheduleJob extends Required<Pick<ScheduleSpec, "name" | "botId
   runCount: number;
 }
 
+export interface HostMetrics {
+  cpuPercent: number;
+  freeMemoryMb: number;
+  runningCalls: number;
+  freeDiskMb: number;
+}
+
 export interface HostInfo {
   id: string;
   name: string;
@@ -337,6 +370,62 @@ export interface HostInfo {
   architecture: string;
   processorCount: number;
   status: string;
+  agentVersion: string;
+  /** shell, files, desktop, docker, dotnet, node, python, "pkg:winget" … */
+  capabilities: string[];
+  metrics?: HostMetrics;
+  installedVia?: string;
+}
+
+/** One-time token for `marbots-host enroll`. */
+export interface EnrollmentToken {
+  token: string;
+  expiresAt: string;
+  enrollCommand: string;
+}
+
+export interface BootstrapOptions {
+  host: string;
+  user: string;
+  /** Address the new host uses to reach this server (LAN address, not localhost). */
+  serverUrl: string;
+  name?: string;
+  /** Used for this call only; never stored. */
+  password?: string;
+  privateKey?: string;
+  port?: number;
+  /** Replace the binary and restart, keeping the enrollment. */
+  updateOnly?: boolean;
+}
+
+export interface BootstrapResult {
+  success: boolean;
+  hostId?: string;
+  log: string[];
+  error?: string;
+}
+
+export interface SkillStats {
+  name: string;
+  version: string;
+  loads: number;
+  successes: number;
+  failures: number;
+  runs: number;
+  successRate: number;
+}
+
+/** Learning evaluation of one skill: outcomes of its current version and a verdict. */
+export interface SkillEvaluation {
+  name: string;
+  version: string;
+  pending: boolean;
+  current: SkillStats;
+  previousVersion?: string;
+  previous?: SkillStats;
+  verdict: SkillVerdict;
+  reason: string;
+  canRollback: boolean;
 }
 
 export interface SystemInfo {

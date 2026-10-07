@@ -1,6 +1,6 @@
 {
   "name": "@gravicode/marbots",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Typed TypeScript/JavaScript SDK for Marbots, the multi-agent collaboration platform (Boss Man orchestration, per-bot models, skills, MCP, A2A). By Gravicode Studios, led by Kang Fadhil.",
   "type": "module",
   "main": "dist/index.js",

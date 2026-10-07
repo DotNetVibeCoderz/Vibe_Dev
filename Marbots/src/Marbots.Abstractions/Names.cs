@@ -10,10 +10,14 @@ public static class KernelPacks
     public const string Memory = "memory";
     public const string Todo = "todo";
     public const string Agents = "agents";
+    /// <summary>Computer use: screenshots, mouse and keyboard on the bot's computer (Windows hosts).</summary>
+    public const string Desktop = "desktop";
+    /// <summary>spawn_subagents: parallel temporary copies of the bot.</summary>
+    public const string Subagents = "subagents";
     /// <summary>Boss Man only.</summary>
     public const string Management = "management";
 
-    public static readonly IReadOnlyList<string> All = [Files, Search, Shell, Web, Memory, Todo, Agents];
+    public static readonly IReadOnlyList<string> All = [Files, Search, Shell, Web, Memory, Todo, Agents, Desktop, Subagents];
 }
 
 /// <summary>Permission profiles (<see cref="BotDefinition.PermissionProfile"/>).</summary>

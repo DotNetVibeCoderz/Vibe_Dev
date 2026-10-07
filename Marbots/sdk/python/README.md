@@ -47,3 +47,25 @@ deliberate typo in `tests/typecheck/check_types.py`. The conformance tests (`tes
 real Marbots server.
 
 Built by Gravicode Studios, led by Kang Fadhil. MIT license.
+
+## Computers, placement and learning evaluation (0.2.0)
+
+See [docs/en/computers.md](https://github.com/DotNetVibeCoderz/Vibe_Dev/blob/main/Marbots/docs/en/computers.md) and the Skills guide.
+
+```python
+from marbots_sdk import AUTO_HOST, BotSpec, ContainerProfile, KernelPack
+
+# Computers (agent hosts): list, one-time enrollment token, SSH bootstrap (credentials used once)
+for h in mb.agent_hosts.list():
+    print(h.name, h.status, h.capabilities)
+print(mb.agent_hosts.create_enrollment("design-pc").enroll_command)
+
+# A bot that runs on whichever computer fits, with its shell in Docker and parallel sub-agents
+nova = mb.bots.create(BotSpec(name="Nova", host_ref=AUTO_HOST, container=ContainerProfile(image="python:3.12-slim"),
+                              kernel_functions=[KernelPack.FILES, KernelPack.SHELL, KernelPack.SUBAGENTS]))
+
+# Learning evaluation
+for e in mb.skills.evaluations():
+    print(e.name, e.version, e.verdict, e.reason)
+mb.skills.set_auto_rollback(True)
+```

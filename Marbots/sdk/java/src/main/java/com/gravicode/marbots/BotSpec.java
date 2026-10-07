@@ -21,6 +21,7 @@ public final class BotSpec {
         wire.put("shortTermMemory", true);
         wire.put("longTermMemory", true);
         wire.put("maxSteps", 24);
+        wire.put("hostRef", HostRef.LOCAL);
     }
 
     /** Starts a spec for a bot named {@code name}. */
@@ -45,6 +46,10 @@ public final class BotSpec {
     public BotSpec shortTermMemory(boolean v) { wire.put("shortTermMemory", v); return this; }
     public BotSpec longTermMemory(boolean v) { wire.put("longTermMemory", v); return this; }
     public BotSpec maxSteps(int v) { wire.put("maxSteps", v); return this; }
+    /** {@link HostRef#LOCAL} (default), a host id, or {@link HostRef#AUTO}. */
+    public BotSpec hostRef(String v) { wire.put("hostRef", v); return this; }
+    /** Run the bot's shell commands in a Docker container. */
+    public BotSpec container(ContainerProfile v) { wire.put("container", v == null ? null : v.toWire()); return this; }
 
     Map<String, Object> toWire(String id) {
         Map<String, Object> m = new LinkedHashMap<>(wire);

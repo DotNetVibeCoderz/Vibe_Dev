@@ -105,6 +105,17 @@ types (`EventType.TaskStateChanged`), task states, approval scopes, and model se
 `ModelRef.Of("azure", "gpt-5.6-luna")`). Each SDK ships a test that proves deliberate typos fail to compile and a
 conformance test that drives a real server.
 
+### What's new in 0.2.0 (all SDKs)
+
+| Area | .NET | Python | TypeScript | Go | Java | Rust |
+|---|---|---|---|---|---|---|
+| Computers (agent hosts) | `client.Hosts` | `mb.agent_hosts` | `mb.agentHosts` | `mb.AgentHosts` | `mb.agentHosts()` | `mb.agent_hosts()` |
+| Learning evaluation | `client.Skills.EvaluationsAsync/RollbackAsync/PromoteAsync` | `mb.skills.evaluations/rollback/promote` | `mb.skills.evaluations/rollback/promote` | `mb.Skills.Evaluations/Rollback/Promote` | `mb.skills().evaluations()/rollback()` | `mb.skills().evaluations()/rollback()` |
+| Bot placement | `HostRef`, `Container` | `host_ref`, `container` | `hostRef`, `container` | `HostRef`, `Container` | `.hostRef()`, `.container()` | `.host_ref()`, `.container()` |
+| New packs | `KernelPacks.Desktop/Subagents` | `KernelPack.DESKTOP/SUBAGENTS` | `KernelPack.Desktop/Subagents` | `KernelPackDesktop/Subagents` | `KernelPack.DESKTOP/SUBAGENTS` | `KernelPack::Desktop/Subagents` |
+
+Each SDK keeps its compile-time typo checks and a conformance test against a real server for these calls.
+
 ## Per-bot models
 
 ```bash

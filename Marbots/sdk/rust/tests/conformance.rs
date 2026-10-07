@@ -192,4 +192,54 @@ fn conformance() {
         .unwrap()
         .iter()
         .any(|t| t.id == "ux-designer"));
+
+    // agent hosts, placement, learning evaluation
+    let hosts = mb.agent_hosts().list().unwrap();
+    let local = hosts.iter().find(|h| h.id == HostRef::LOCAL).unwrap();
+    assert!(local.capabilities.iter().any(|c| c == "shell"));
+    let token = mb.agent_hosts().create_enrollment("lab-pc", 10).unwrap();
+    assert!(
+        token.token.starts_with("mbe_") && token.enroll_command.contains("marbots-host enroll")
+    );
+    assert_eq!(
+        mb.agent_hosts()
+            .disable("host-that-does-not-exist")
+            .unwrap_err()
+            .status(),
+        Some(404)
+    );
+    let placed = mb
+        .bots()
+        .create(
+            BotSpec::new("Placed Rust")
+                .host_ref(HostRef::AUTO)
+                .container(ContainerProfile {
+                    image: "python:3.12-slim".into(),
+                    cpus: 1.5,
+                    memory_mb: 512,
+                    network: false,
+                })
+                .kernel_functions([KernelPack::Shell, KernelPack::Subagents]),
+        )
+        .unwrap();
+    assert_eq!(placed.host_ref, HostRef::AUTO);
+    let container = placed.container.unwrap();
+    assert_eq!(
+        (container.cpus, container.memory_mb, container.network),
+        (1.5, 512, false)
+    );
+    let evals = mb.skills().evaluations().unwrap();
+    assert!(
+        !evals.is_empty()
+            && evals
+                .iter()
+                .all(|e| e.verdict == SkillVerdict::CollectingEvidence)
+    );
+    assert!(mb.skills().set_auto_rollback(true).unwrap());
+    assert!(mb.skills().auto_rollback().unwrap());
+    assert!(!mb.skills().set_auto_rollback(false).unwrap());
+    assert_eq!(
+        mb.skills().rollback("no-such-skill").unwrap_err().status(),
+        Some(404)
+    );
 }

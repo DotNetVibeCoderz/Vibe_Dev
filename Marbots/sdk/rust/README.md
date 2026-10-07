@@ -42,3 +42,28 @@ for e in mb.events().stream(Some(&thread.id))? {
 `cargo test` runs the conformance test against a real Marbots server (`dotnet build Marbots.slnx` first).
 
 Built by Gravicode Studios, led by Kang Fadhil. MIT license.
+
+## Computers, placement and learning evaluation (0.2.0)
+
+See [docs/en/computers.md](https://github.com/DotNetVibeCoderz/Vibe_Dev/blob/main/Marbots/docs/en/computers.md) and the Skills guide.
+
+```rust
+// Computers (agent hosts): list, one-time enrollment token, SSH bootstrap (credentials used once)
+for h in mb.agent_hosts().list()? {
+    println!("{} {} {:?}", h.name, h.status, h.capabilities);
+}
+println!("{}", mb.agent_hosts().create_enrollment("design-pc", 60)?.enroll_command);
+
+// A bot that runs on whichever computer fits, with its shell in Docker and parallel sub-agents
+let nova = mb.bots().create(
+    BotSpec::new("Nova")
+        .host_ref(HostRef::AUTO)
+        .container(ContainerProfile::new("python:3.12-slim"))
+        .kernel_functions([KernelPack::Files, KernelPack::Shell, KernelPack::Subagents]),
+)?;
+
+// Learning evaluation
+for e in mb.skills().evaluations()? {
+    println!("{} {} {:?} {}", e.name, e.version, e.verdict, e.reason);
+}
+```

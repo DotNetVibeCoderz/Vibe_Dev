@@ -53,6 +53,8 @@ type Client struct {
 	Schedules *SchedulesAPI
 	Memory    *MemoryAPI
 	Events    *EventsAPI
+	// AgentHosts manages the computers that run bots' tools.
+	AgentHosts *AgentHostsAPI
 }
 
 // New creates a client for baseURL (e.g. "http://localhost:5170").
@@ -72,6 +74,7 @@ func New(baseURL string, opts ...Option) *Client {
 	c.Schedules = &SchedulesAPI{c}
 	c.Memory = &MemoryAPI{c}
 	c.Events = &EventsAPI{c}
+	c.AgentHosts = &AgentHostsAPI{c}
 	return c
 }
 
@@ -399,6 +402,87 @@ func (a *SkillsAPI) List(ctx context.Context) ([]Skill, error) {
 func (a *SkillsAPI) Install(ctx context.Context, source string) ([]Skill, error) {
 	var out []Skill
 	return out, a.c.do(ctx, http.MethodPost, "/api/v1/skills/install", map[string]string{"source": source}, &out)
+}
+
+// Evaluations returns the learning evaluation: outcomes per skill version and a verdict.
+func (a *SkillsAPI) Evaluations(ctx context.Context) ([]SkillEvaluation, error) {
+	var out []SkillEvaluation
+	return out, a.c.do(ctx, http.MethodGet, "/api/v1/skills/evaluations", nil, &out)
+}
+
+// Rollback restores the previous version of an installed skill and returns the restored version.
+func (a *SkillsAPI) Rollback(ctx context.Context, name string) (string, error) {
+	var out struct {
+		Version string `json:"version"`
+	}
+	err := a.c.do(ctx, http.MethodPost, "/api/v1/skills/"+esc(name)+"/rollback", nil, &out)
+	return out.Version, err
+}
+
+// Promote publishes a skill drafted by auto-learn.
+func (a *SkillsAPI) Promote(ctx context.Context, name string) error {
+	return a.c.do(ctx, http.MethodPost, "/api/v1/skills/"+esc(name)+"/approve", nil, nil)
+}
+
+// Discard deletes a skill draft.
+func (a *SkillsAPI) Discard(ctx context.Context, name string) error {
+	return a.c.do(ctx, http.MethodPost, "/api/v1/skills/"+esc(name)+"/reject", nil, nil)
+}
+
+// AutoRollback reports whether skills roll back automatically when their evaluation recommends it.
+func (a *SkillsAPI) AutoRollback(ctx context.Context) (bool, error) {
+	var out struct {
+		On bool `json:"autoRollbackSkills"`
+	}
+	err := a.c.do(ctx, http.MethodGet, "/api/v1/system/learning", nil, &out)
+	return out.On, err
+}
+
+// SetAutoRollback switches automatic skill rollback on or off.
+func (a *SkillsAPI) SetAutoRollback(ctx context.Context, on bool) (bool, error) {
+	var out struct {
+		On bool `json:"autoRollbackSkills"`
+	}
+	err := a.c.do(ctx, http.MethodPut, "/api/v1/system/learning", map[string]bool{"autoRollbackSkills": on}, &out)
+	return out.On, err
+}
+
+// AgentHostsAPI manages the computers that run bots' tools (see docs/en/computers.md).
+type AgentHostsAPI struct{ c *Client }
+
+func (a *AgentHostsAPI) List(ctx context.Context) ([]Host, error) {
+	var out []Host
+	return out, a.c.do(ctx, http.MethodGet, "/api/v1/hosts", nil, &out)
+}
+
+// CreateEnrollment returns a one-time token for `marbots-host enroll`.
+func (a *AgentHostsAPI) CreateEnrollment(ctx context.Context, name string, validMinutes int) (*EnrollmentToken, error) {
+	var out EnrollmentToken
+	return &out, a.c.do(ctx, http.MethodPost, "/api/v1/hosts/enrollments", map[string]any{"name": name, "validMinutes": validMinutes}, &out)
+}
+
+// Bootstrap installs marbots-host on a computer over SSH. The password/key is used for this call only.
+func (a *AgentHostsAPI) Bootstrap(ctx context.Context, opts BootstrapOptions) (*BootstrapResult, error) {
+	if opts.Port == 0 {
+		opts.Port = 22
+	}
+	if opts.Name == "" {
+		opts.Name = opts.Host
+	}
+	var out BootstrapResult
+	return &out, a.c.do(ctx, http.MethodPost, "/api/v1/hosts/bootstrap", opts, &out)
+}
+
+func (a *AgentHostsAPI) Disable(ctx context.Context, id string) error {
+	return a.c.do(ctx, http.MethodPost, "/api/v1/hosts/"+esc(id)+"/disable", nil, nil)
+}
+
+func (a *AgentHostsAPI) Enable(ctx context.Context, id string) error {
+	return a.c.do(ctx, http.MethodPost, "/api/v1/hosts/"+esc(id)+"/enable", nil, nil)
+}
+
+func (a *AgentHostsAPI) Remove(ctx context.Context, id string) error {
+	return a.c.do(ctx, http.MethodDelete, "/api/v1/hosts/"+esc(id), nil, nil)
 }
 
 // MCPAPI manages MCP servers.

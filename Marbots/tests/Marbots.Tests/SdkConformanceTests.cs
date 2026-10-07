@@ -36,6 +36,32 @@ public sealed class SdkConformanceTests : IClassFixture<SdkConformanceTests.Serv
     }
 
     [Fact]
+    public async Task Agent_hosts_placement_and_learning_evaluation()
+    {
+        var hosts = await _mb.Hosts.ListAsync();
+        Assert.Contains(hosts, h => h.Id == WellKnown.LocalHostId && h.Capabilities.Contains("shell"));
+        var token = await _mb.Hosts.CreateEnrollmentAsync("lab-pc", 10);
+        Assert.StartsWith("mbe_", token.Token);
+        Assert.Equal(404, (await Assert.ThrowsAsync<MarbotsApiException>(() => _mb.Hosts.DisableAsync("host-that-does-not-exist"))).StatusCode);
+
+        var placed = await _mb.Bots.CreateAsync(new BotDefinition
+        {
+            Name = "Placed Net", HostRef = WellKnown.AutoHost, KernelFunctions = [KernelPacks.Shell, KernelPacks.Subagents],
+            Container = new ContainerProfile { Image = "python:3.12-slim", Cpus = 1.5, MemoryMb = 512, Network = false },
+        });
+        Assert.Equal(WellKnown.AutoHost, placed.HostRef);
+        Assert.Equal((1.5, 512, false), (placed.Container!.Cpus, placed.Container.MemoryMb, placed.Container.Network));
+
+        var evals = await _mb.Skills.EvaluationsAsync();
+        Assert.NotEmpty(evals);
+        Assert.All(evals, e => Assert.Equal(SkillVerdict.CollectingEvidence, e.Verdict));
+        Assert.True(await _mb.Skills.SetAutoRollbackAsync(true));
+        Assert.True(await _mb.Skills.GetAutoRollbackAsync());
+        Assert.False(await _mb.Skills.SetAutoRollbackAsync(false));
+        Assert.Equal(404, (await Assert.ThrowsAsync<MarbotsApiException>(() => _mb.Skills.RollbackAsync("no-such-skill"))).StatusCode);
+    }
+
+    [Fact]
     public async Task System_and_team()
     {
         var sys = await _mb.SystemAsync();
@@ -89,7 +115,7 @@ public sealed class SdkConformanceTests : IClassFixture<SdkConformanceTests.Serv
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         var completed = Task.Run(async () =>
         {
-            await foreach (var e in _mb.Events.StreamAsync(thread.Id, ct: cts.Token))
+            await foreach (var e in _mb.Events.StreamAsync(thread.Id, afterId: 0, ct: cts.Token)) // replays stored events too, so a late subscription cannot miss it
                 if (e.Type == EventTypes.TaskStateChanged && e.Data == nameof(TaskState.Completed)) return true;
             return false;
         });

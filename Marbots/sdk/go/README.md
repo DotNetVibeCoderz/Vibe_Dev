@@ -42,3 +42,25 @@ for e := range events {
 `go test ./...` runs the conformance tests against a real Marbots server (`dotnet build Marbots.slnx` first).
 
 Built by Gravicode Studios, led by Kang Fadhil. MIT license.
+
+## Computers, placement and learning evaluation (0.2.0)
+
+See [docs/en/computers.md](https://github.com/DotNetVibeCoderz/Vibe_Dev/blob/main/Marbots/docs/en/computers.md) and the Skills guide.
+
+```go
+// Computers (agent hosts): list, one-time enrollment token, SSH bootstrap (credentials used once)
+hosts, _ := mb.AgentHosts.List(ctx)
+tok, _ := mb.AgentHosts.CreateEnrollment(ctx, "design-pc", 60)
+fmt.Println(len(hosts), tok.EnrollCommand)
+
+// A bot that runs on whichever computer fits, with its shell in Docker and parallel sub-agents
+nova, _ := mb.Bots.Create(ctx, marbots.BotSpec{Name: "Nova", HostRef: marbots.HostAuto,
+	Container:       &marbots.ContainerProfile{Image: "python:3.12-slim", Cpus: 1, MemoryMb: 1024, Network: true},
+	KernelFunctions: []marbots.KernelPack{marbots.KernelPackFiles, marbots.KernelPackShell, marbots.KernelPackSubagents}})
+
+// Learning evaluation
+evals, _ := mb.Skills.Evaluations(ctx)
+for _, e := range evals {
+	fmt.Println(e.Name, e.Version, e.Verdict == marbots.VerdictHealthy, e.Reason)
+}
+```

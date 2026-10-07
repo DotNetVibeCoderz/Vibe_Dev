@@ -237,6 +237,10 @@ impl Client {
     pub fn memory(&self) -> Memory<'_> {
         Memory(self)
     }
+    /// Computers that run bots' tools.
+    pub fn agent_hosts(&self) -> AgentHosts<'_> {
+        AgentHosts(self)
+    }
     pub fn events(&self) -> Events<'_> {
         Events(self)
     }
@@ -487,6 +491,94 @@ impl Skills<'_> {
             "/api/v1/skills/install",
             Some(&json!({ "source": source })),
         )
+    }
+    /// Learning evaluation: outcomes per skill version and a verdict.
+    pub fn evaluations(&self) -> Result<Vec<SkillEvaluation>> {
+        self.0.get("/api/v1/skills/evaluations")
+    }
+    /// Restores the previous version of an installed skill; returns the restored version.
+    pub fn rollback(&self, name: &str) -> Result<String> {
+        let v: Value = self.0.send(
+            "POST",
+            &format!("/api/v1/skills/{}/rollback", esc(name)),
+            NONE,
+        )?;
+        Ok(v.get("version")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string())
+    }
+    /// Publishes a skill drafted by auto-learn.
+    pub fn promote(&self, name: &str) -> Result<()> {
+        self.0
+            .send::<Value, Value>(
+                "POST",
+                &format!("/api/v1/skills/{}/approve", esc(name)),
+                NONE,
+            )
+            .map(|_| ())
+    }
+    pub fn discard(&self, name: &str) -> Result<()> {
+        self.0
+            .send::<Value, Value>(
+                "POST",
+                &format!("/api/v1/skills/{}/reject", esc(name)),
+                NONE,
+            )
+            .map(|_| ())
+    }
+    pub fn auto_rollback(&self) -> Result<bool> {
+        let v: Value = self.0.get("/api/v1/system/learning")?;
+        Ok(v.get("autoRollbackSkills")
+            .and_then(Value::as_bool)
+            .unwrap_or(false))
+    }
+    pub fn set_auto_rollback(&self, on: bool) -> Result<bool> {
+        let v: Value = self.0.send(
+            "PUT",
+            "/api/v1/system/learning",
+            Some(&json!({ "autoRollbackSkills": on })),
+        )?;
+        Ok(v.get("autoRollbackSkills")
+            .and_then(Value::as_bool)
+            .unwrap_or(false))
+    }
+}
+
+/// Computers that run bots' tools (see docs/en/computers.md).
+pub struct AgentHosts<'a>(&'a Client);
+
+impl AgentHosts<'_> {
+    pub fn list(&self) -> Result<Vec<HostInfo>> {
+        self.0.get("/api/v1/hosts")
+    }
+    /// One-time token for `marbots-host enroll`.
+    pub fn create_enrollment(&self, name: &str, valid_minutes: u32) -> Result<EnrollmentToken> {
+        self.0.send(
+            "POST",
+            "/api/v1/hosts/enrollments",
+            Some(&json!({ "name": name, "validMinutes": valid_minutes })),
+        )
+    }
+    /// Installs marbots-host over SSH; the password/key is used for this call only.
+    pub fn bootstrap(&self, options: &BootstrapOptions) -> Result<BootstrapResult> {
+        self.0
+            .send("POST", "/api/v1/hosts/bootstrap", Some(options))
+    }
+    pub fn disable(&self, id: &str) -> Result<()> {
+        self.0
+            .send::<Value, Value>("POST", &format!("/api/v1/hosts/{}/disable", esc(id)), NONE)
+            .map(|_| ())
+    }
+    pub fn enable(&self, id: &str) -> Result<()> {
+        self.0
+            .send::<Value, Value>("POST", &format!("/api/v1/hosts/{}/enable", esc(id)), NONE)
+            .map(|_| ())
+    }
+    pub fn remove(&self, id: &str) -> Result<()> {
+        self.0
+            .send::<Value, Value>("DELETE", &format!("/api/v1/hosts/{}", esc(id)), NONE)
+            .map(|_| ())
     }
 }
 

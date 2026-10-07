@@ -8,7 +8,7 @@ namespace Marbots.Runtime;
 public static class Packs
 {
     /// <summary>Optional pack: lets a bot split work across temporary copies of itself (spawn_subagents).</summary>
-    public const string Subagents = "subagents";
+    public const string Subagents = KernelPacks.Subagents;
 }
 
 public sealed record DelegationSpec(string Key, string Bot, string Objective, IReadOnlyList<string> DependsOn);

@@ -1,5 +1,5 @@
 // Compile-time checks (`npm test` runs `tsc` on this file): each @ts-expect-error line must fail to compile.
-import { MarbotsClient, KernelPack, PermissionProfile, EventType, ModelRef, isTaskFinished, type BotSpec, type TaskRecord } from "../src/index.js";
+import { HostRef, MarbotsClient, KernelPack, PermissionProfile, EventType, ModelRef, isTaskFinished, type BotSpec, type TaskRecord } from "../src/index.js";
 
 async function main() {
   const mb = new MarbotsClient({ baseUrl: "http://localhost:5170" });
@@ -52,5 +52,22 @@ async function main() {
   await mb.schedules.create({ name: "weekly", botId: "atlas", prompt: "brief", cron: "0 8 * * 1" });
   // @ts-expect-error wrong property name
   await mb.schedules.create({ name: "weekly", bot: "atlas", prompt: "brief" });
+
+  const hosts = await mb.agentHosts.list();
+  const caps: string[] = hosts[0].capabilities;
+  const token: string = (await mb.agentHosts.createEnrollment("lab-pc")).token;
+  // @ts-expect-error misspelled method
+  await mb.agentHosts.boostrap({ host: "10.0.0.2", user: "dev", serverUrl: "http://10.0.0.1:5170" });
+  // @ts-expect-error serverUrl is required
+  await mb.agentHosts.bootstrap({ host: "10.0.0.2", user: "dev" });
+  const evals = await mb.skills.evaluations();
+  const healthy = evals[0].verdict === "Healthy";
+  // @ts-expect-error not a SkillVerdict
+  const typoVerdict = evals[0].verdict === "Healty";
+  await mb.bots.create({ name: "Nova", hostRef: HostRef.Auto, container: { image: "python:3.12-slim", cpus: 1.5 },
+    kernelFunctions: [KernelPack.Shell, KernelPack.Desktop, KernelPack.Subagents] });
+  // @ts-expect-error wrong container property
+  await mb.bots.create({ name: "x", container: { image: "x", memory: "1g" } });
+  void caps; void token; void healthy; void typoVerdict;
 }
 void main;

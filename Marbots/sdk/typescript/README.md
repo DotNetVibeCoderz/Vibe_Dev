@@ -43,3 +43,23 @@ for await (const e of mb.events(thread.id)) {
 against a real Marbots server.
 
 Built by Gravicode Studios, led by Kang Fadhil. MIT license.
+
+## Computers, placement and learning evaluation (0.2.0)
+
+See [docs/en/computers.md](https://github.com/DotNetVibeCoderz/Vibe_Dev/blob/main/Marbots/docs/en/computers.md) and the Skills guide.
+
+```ts
+import { HostRef, KernelPack } from "@gravicode/marbots";
+
+// Computers (agent hosts): list, one-time enrollment token, SSH bootstrap (credentials used once)
+for (const h of await mb.agentHosts.list()) console.log(h.name, h.status, h.capabilities);
+console.log((await mb.agentHosts.createEnrollment("design-pc")).enrollCommand);
+
+// A bot that runs on whichever computer fits, with its shell in Docker and parallel sub-agents
+await mb.bots.create({ name: "Nova", hostRef: HostRef.Auto, container: { image: "python:3.12-slim" },
+  kernelFunctions: [KernelPack.Files, KernelPack.Shell, KernelPack.Subagents] });
+
+// Learning evaluation
+for (const e of await mb.skills.evaluations()) console.log(e.name, e.version, e.verdict, e.reason);
+await mb.skills.setAutoRollback(true);
+```

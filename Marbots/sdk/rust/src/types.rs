@@ -14,6 +14,49 @@ where
 /// Id of the protected manager bot.
 pub const BOSS_MAN: &str = "boss-man";
 
+/// `host_ref` values besides a registered host id.
+pub struct HostRef;
+
+impl HostRef {
+    /// Run the bot's tools on the server itself.
+    pub const LOCAL: &'static str = "local-default";
+    /// Let placement choose a computer per thread.
+    pub const AUTO: &'static str = "auto";
+}
+
+/// Runs the bot's shell commands in a throwaway Docker container with these quotas.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContainerProfile {
+    pub image: String,
+    pub cpus: f64,
+    pub memory_mb: u32,
+    pub network: bool,
+}
+
+impl ContainerProfile {
+    /// `image` with 1 CPU, 1024 MB and network access.
+    pub fn new(image: impl Into<String>) -> Self {
+        Self {
+            image: image.into(),
+            cpus: 1.0,
+            memory_mb: 1024,
+            network: true,
+        }
+    }
+}
+
+/// The learning evaluation's conclusion about a skill.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillVerdict {
+    CollectingEvidence,
+    Healthy,
+    Underperforming,
+    RollbackRecommended,
+    ReadyToPromote,
+    DiscardRecommended,
+}
+
 /// Built-in tool packs a bot can enable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -27,6 +70,10 @@ pub enum KernelPack {
     Agents,
     /// Boss Man only.
     Management,
+    /// Computer use: screenshots, mouse and keyboard on the bot's computer (Windows hosts).
+    Desktop,
+    /// `spawn_subagents`: parallel temporary copies of the bot.
+    Subagents,
 }
 
 /// What a bot may do without asking.
@@ -199,6 +246,10 @@ pub struct Bot {
     #[serde(default)]
     pub is_system: bool,
     pub template_id: Option<String>,
+    /// Where the bot's files/shell/desktop tools run: [`HostRef::LOCAL`], a host id or [`HostRef::AUTO`].
+    #[serde(default, deserialize_with = "null_default")]
+    pub host_ref: String,
+    pub container: Option<ContainerProfile>,
 }
 
 impl Bot {
@@ -229,6 +280,8 @@ pub struct BotSpec {
     short_term_memory: bool,
     long_term_memory: bool,
     max_steps: u32,
+    host_ref: String,
+    container: Option<ContainerProfile>,
 }
 
 impl BotSpec {
@@ -256,7 +309,19 @@ impl BotSpec {
             short_term_memory: true,
             long_term_memory: true,
             max_steps: 24,
+            host_ref: HostRef::LOCAL.into(),
+            container: None,
         }
+    }
+    /// [`HostRef::LOCAL`] (default), a host id, or [`HostRef::AUTO`].
+    pub fn host_ref(mut self, v: impl Into<String>) -> Self {
+        self.host_ref = v.into();
+        self
+    }
+    /// Run the bot's shell commands in a Docker container.
+    pub fn container(mut self, v: ContainerProfile) -> Self {
+        self.container = Some(v);
+        self
     }
     pub fn role(mut self, v: impl Into<String>) -> Self {
         self.role = v.into();
@@ -457,6 +522,9 @@ impl SendResult {
 pub struct WorkspaceFile {
     pub path: String,
     pub size: u64,
+    /// Set when the file lives on a remote agent host (download with `?host=<id>`).
+    pub host: Option<String>,
+    pub host_name: Option<String>,
 }
 
 /// A risky action waiting for (or resolved by) a human.
@@ -601,6 +669,144 @@ pub struct HostInfo {
     pub os: String,
     pub status: String,
     pub processor_count: u32,
+    #[serde(default, deserialize_with = "null_default")]
+    pub architecture: String,
+    #[serde(default, deserialize_with = "null_default")]
+    pub agent_version: String,
+    /// shell, files, desktop, docker, dotnet, node, python, `pkg:winget` …
+    #[serde(default, deserialize_with = "null_default")]
+    pub capabilities: Vec<String>,
+    pub metrics: Option<HostMetrics>,
+    pub installed_via: Option<String>,
+}
+
+/// A host's latest load report.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostMetrics {
+    pub cpu_percent: f64,
+    pub free_memory_mb: i64,
+    pub running_calls: u32,
+    pub free_disk_mb: i64,
+}
+
+/// One-time token for `marbots-host enroll`.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnrollmentToken {
+    pub token: String,
+    pub expires_at: String,
+    pub enroll_command: String,
+}
+
+/// SSH bootstrap of an agent host. The password/key is used for that call only.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BootstrapOptions {
+    host: String,
+    port: u16,
+    user: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    password: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    private_key: Option<String>,
+    name: String,
+    server_url: String,
+    update_only: bool,
+}
+
+impl BootstrapOptions {
+    /// `server_url` is the address the new host uses to reach this server (LAN address, not localhost).
+    pub fn new(
+        host: impl Into<String>,
+        user: impl Into<String>,
+        server_url: impl Into<String>,
+    ) -> Self {
+        let host = host.into();
+        Self {
+            name: host.clone(),
+            host,
+            port: 22,
+            user: user.into(),
+            password: None,
+            private_key: None,
+            server_url: server_url.into(),
+            update_only: false,
+        }
+    }
+    pub fn password(mut self, v: impl Into<String>) -> Self {
+        self.password = Some(v.into());
+        self
+    }
+    pub fn private_key(mut self, v: impl Into<String>) -> Self {
+        self.private_key = Some(v.into());
+        self
+    }
+    pub fn name(mut self, v: impl Into<String>) -> Self {
+        self.name = v.into();
+        self
+    }
+    pub fn port(mut self, v: u16) -> Self {
+        self.port = v;
+        self
+    }
+    /// Replace the binary and restart, keeping the enrollment.
+    pub fn update_only(mut self, v: bool) -> Self {
+        self.update_only = v;
+        self
+    }
+}
+
+/// What an SSH bootstrap did, step by step.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BootstrapResult {
+    pub success: bool,
+    pub host_id: Option<String>,
+    #[serde(default, deserialize_with = "null_default")]
+    pub log: Vec<String>,
+    pub error: Option<String>,
+}
+
+/// Outcomes of the tasks that loaded one skill version.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillStats {
+    #[serde(default, deserialize_with = "null_default")]
+    pub name: String,
+    #[serde(default, deserialize_with = "null_default")]
+    pub version: String,
+    pub loads: u64,
+    pub successes: u64,
+    pub failures: u64,
+}
+
+impl SkillStats {
+    pub fn runs(&self) -> u64 {
+        self.successes + self.failures
+    }
+    pub fn success_rate(&self) -> f64 {
+        if self.runs() == 0 {
+            0.0
+        } else {
+            self.successes as f64 / self.runs() as f64
+        }
+    }
+}
+
+/// Learning evaluation of one skill: outcomes of its current version and a verdict.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillEvaluation {
+    pub name: String,
+    pub version: String,
+    pub pending: bool,
+    pub current: SkillStats,
+    pub previous_version: Option<String>,
+    pub previous: Option<SkillStats>,
+    pub verdict: SkillVerdict,
+    pub reason: String,
+    pub can_rollback: bool,
 }
 
 /// Server information.

@@ -216,3 +216,69 @@ func TestSkipApprovalsAndSchedules(t *testing.T) {
 		t.Fatalf("templates: %v", err)
 	}
 }
+
+func TestAgentHostsAndEnrollment(t *testing.T) {
+	ctx := need(t)
+	hosts, err := client.AgentHosts.List(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	local := false
+	for _, h := range hosts {
+		if h.ID == marbots.HostLocal {
+			for _, c := range h.Capabilities {
+				local = local || c == "shell"
+			}
+		}
+	}
+	if !local {
+		t.Fatalf("local host without shell capability: %+v", hosts)
+	}
+	tok, err := client.AgentHosts.CreateEnrollment(ctx, "lab-pc", 10)
+	if err != nil || !strings.HasPrefix(tok.Token, "mbe_") || !strings.Contains(tok.EnrollCommand, "marbots-host enroll") {
+		t.Fatalf("enrollment: %+v %v", tok, err)
+	}
+	if err := client.AgentHosts.Disable(ctx, "host-that-does-not-exist"); err == nil {
+		t.Fatal("expected an error for an unknown host")
+	}
+}
+
+func TestPlacementAndContainerRoundTrip(t *testing.T) {
+	ctx := need(t)
+	bot, err := client.Bots.Create(ctx, marbots.BotSpec{
+		Name: "Placed Go", HostRef: marbots.HostAuto,
+		Container:       &marbots.ContainerProfile{Image: "python:3.12-slim", Cpus: 1.5, MemoryMb: 512, Network: false},
+		KernelFunctions: []marbots.KernelPack{marbots.KernelPackShell, marbots.KernelPackSubagents},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bot.HostRef != marbots.HostAuto || bot.Container == nil || bot.Container.Cpus != 1.5 || bot.Container.MemoryMb != 512 || bot.Container.Network {
+		t.Fatalf("round trip: %+v %+v", bot, bot.Container)
+	}
+}
+
+func TestSkillEvaluationsAndAutoRollback(t *testing.T) {
+	ctx := need(t)
+	evals, err := client.Skills.Evaluations(ctx)
+	if err != nil || len(evals) == 0 {
+		t.Fatalf("evaluations: %d %v", len(evals), err)
+	}
+	for _, e := range evals {
+		if e.Verdict != marbots.VerdictCollectingEvidence {
+			t.Fatalf("fresh skill %s has verdict %s", e.Name, e.Verdict)
+		}
+	}
+	if on, err := client.Skills.SetAutoRollback(ctx, true); err != nil || !on {
+		t.Fatalf("set auto rollback: %v %v", on, err)
+	}
+	if on, err := client.Skills.AutoRollback(ctx); err != nil || !on {
+		t.Fatalf("auto rollback: %v %v", on, err)
+	}
+	if on, _ := client.Skills.SetAutoRollback(ctx, false); on {
+		t.Fatal("auto rollback should be off")
+	}
+	if _, err := client.Skills.Rollback(ctx, "no-such-skill"); err == nil {
+		t.Fatal("expected an error rolling back an unknown skill")
+	}
+}

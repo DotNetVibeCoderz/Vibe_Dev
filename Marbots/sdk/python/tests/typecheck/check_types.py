@@ -1,7 +1,7 @@
 """Static typing fixture: mypy must accept the plain lines and reject exactly the lines marked ``# E:``."""
 
 from marbots_sdk import (
-    BotSpec, EventType, KernelPack, MarbotsClient, ModelRef, PermissionProfile, ScheduleSpec, TaskRecord,
+    AUTO_HOST, BotSpec, ContainerProfile, EventType, KernelPack, MarbotsClient, ModelRef, PermissionProfile, ScheduleSpec, TaskRecord,
 )
 
 mb = MarbotsClient()
@@ -29,3 +29,13 @@ for event in mb.events.stream("thr_1"):
         break
 job = mb.schedules.create(ScheduleSpec(name="weekly", bot_id="atlas", prompt="brief", cron="0 8 * * 1"))
 mb.schedules.create(ScheduleSpec(name="weekly", bot="atlas", prompt="brief"))  # E: wrong keyword
+hosts = mb.agent_hosts.list()
+caps: list[str] = hosts[0].capabilities
+token = mb.agent_hosts.create_enrollment("lab-pc").token
+mb.agent_hosts.boostrap("10.0.0.2", "dev", "http://10.0.0.1:5170")  # E: misspelled method
+evals = mb.skills.evaluations()
+healthy: bool = evals[0].verdict == "Healthy"
+rolled: str = mb.skills.rollback("report-style")
+remote = BotSpec(name="Nova", host_ref=AUTO_HOST, container=ContainerProfile(image="python:3.12-slim", cpus=1.5),
+                 kernel_functions=[KernelPack.SHELL, KernelPack.DESKTOP, KernelPack.SUBAGENTS])
+box_bad = ContainerProfile(image="python:3.12-slim", memory="1g")  # E: wrong keyword

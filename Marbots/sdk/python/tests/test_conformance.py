@@ -19,7 +19,7 @@ import urllib.request
 from typing import List, Optional
 
 from marbots_sdk import (
-    BOSS_MAN, AgentEvent, BotSpec, EventType, KernelPack, MarbotsClient, MarbotsError, ModelRef, PermissionProfile,
+    AUTO_HOST, BOSS_MAN, LOCAL_HOST, AgentEvent, ContainerProfile, BotSpec, EventType, KernelPack, MarbotsClient, MarbotsError, ModelRef, PermissionProfile,
     ScheduleSpec,
 )
 
@@ -143,6 +143,34 @@ class ConformanceTest(unittest.TestCase):
         with self.assertRaises(MarbotsError):
             self.mb.schedules.create(ScheduleSpec(name="bad", bot_id="atlas", prompt="x", cron="nope"))
 
+    def test_agent_hosts_and_enrollment(self) -> None:
+        hosts = self.mb.agent_hosts.list()
+        local = next(h for h in hosts if h.id == LOCAL_HOST)
+        self.assertIn("shell", local.capabilities)
+        token = self.mb.agent_hosts.create_enrollment("lab-pc", valid_minutes=10)
+        self.assertTrue(token.token.startswith("mbe_"))
+        self.assertIn("marbots-host enroll", token.enroll_command)
+        with self.assertRaises(MarbotsError):
+            self.mb.agent_hosts.disable("host-that-does-not-exist")
+
+    def test_remote_placement_and_container_round_trip(self) -> None:
+        bot = self.mb.bots.create(BotSpec(name="Placed Py", host_ref=AUTO_HOST,
+                                          container=ContainerProfile(image="python:3.12-slim", cpus=1.5, memory_mb=512, network=False),
+                                          kernel_functions=[KernelPack.SHELL, KernelPack.SUBAGENTS]))
+        self.assertEqual(AUTO_HOST, bot.host_ref)
+        self.assertIsNotNone(bot.container)
+        assert bot.container is not None
+        self.assertEqual((1.5, 512, False), (bot.container.cpus, bot.container.memory_mb, bot.container.network))
+
+    def test_skill_evaluations_and_auto_rollback(self) -> None:
+        evals = self.mb.skills.evaluations()
+        self.assertTrue(evals)
+        self.assertTrue(all(e.verdict == "CollectingEvidence" for e in evals))
+        self.assertTrue(self.mb.skills.set_auto_rollback(True))
+        self.assertTrue(self.mb.skills.auto_rollback())
+        self.assertFalse(self.mb.skills.set_auto_rollback(False))
+        with self.assertRaises(MarbotsError):
+            self.mb.skills.rollback("no-such-skill")
 
 if __name__ == "__main__":
     unittest.main()
