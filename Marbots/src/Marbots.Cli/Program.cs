@@ -150,6 +150,8 @@ internal sealed class Commands(MarbotsClient client, Ui ui)
           hosts                          Control plane + remote agent hosts (status, capabilities, load)
           hosts token <name>             One-time token to enroll a machine by hand (marbots-host enroll …)
           hosts bootstrap <user>@<host> --server <url> [--name N] [--password-file f | --key-file f] [--port 22] [--update]
+          hosts provision <name> [--on <docker-host>] [--server <url>] [--gpu] [--cpus 2] [--memory 4096] [--no-network]
+                                         Disposable container host (marbots-host in Docker); removed with "hosts remove"
           hosts disable|enable|remove <id>
           bot skills|packs <bot> [a,b,c]  Show or set a bot's skills / tool packs (files,search,shell,web,memory,todo,desktop,…)
           bot profile <bot> [profile]    read-only | workspace-write | developer-safe | autonomous
@@ -472,6 +474,14 @@ internal sealed class Commands(MarbotsClient client, Ui ui)
                 foreach (var line in r.Log) ui.Line("  " + line);
                 if (!r.Success) { ui.Error(r.Error ?? "Bootstrap failed."); return 1; }
                 ui.Ok(r.HostId is null ? "Host updated." : $"Host {r.HostId} installed. Put a bot on it: marbots bot host <bot> {r.HostId}");
+                return 0;
+            case "provision" when a.Count > 2:
+                var pr = await client.Hosts.ProvisionAsync(new ProvisionHostRequest(a[2], opt("--server") ?? "http://host.docker.internal:5170", opt("--on"), opt("--image"),
+                    double.TryParse(opt("--cpus"), System.Globalization.CultureInfo.InvariantCulture, out var cpus) ? cpus : 2,
+                    int.TryParse(opt("--memory"), out var mem) ? mem : 4096, a.Contains("--gpu"), !a.Contains("--no-network"), opt("--arch") ?? "x64"), ct);
+                foreach (var line in pr.Log) ui.Line("  " + line);
+                if (!pr.Success) { ui.Error(pr.Error ?? "Provisioning failed."); return 1; }
+                ui.Ok($"Container host {pr.HostId} is up ({pr.ContainerName}). Remove it with: marbots hosts remove {pr.HostId}");
                 return 0;
             case "disable" when a.Count > 2: await client.Hosts.DisableAsync(a[2], ct); ui.Ok("Disabled."); return 0;
             case "enable" when a.Count > 2: await client.Hosts.EnableAsync(a[2], ct); ui.Ok("Enabled."); return 0;

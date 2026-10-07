@@ -125,6 +125,9 @@ public sealed class HostRecord
     public string SecretHash { get; set; } = "";
     /// <summary>Thumbprint of the only client certificate accepted for this host (mutual TLS).</summary>
     public string? CertificateThumbprint { get; set; }
+    /// <summary>For provisioned container hosts: the Docker machine it runs on and the container name.</summary>
+    public string? ProvisionedOn { get; set; }
+    public string? ContainerName { get; set; }
     public DateTimeOffset? CertificateExpiresAt { get; set; }
     public HostHello? LastHello { get; set; }
     public HostMetrics? LastMetrics { get; set; }
@@ -165,6 +168,14 @@ public sealed record HostEnrollmentRequest(string Token, HostHello Hello, string
 /// <param name="Certificate">The host's client certificate (PEM) when a CSR was sent.</param>
 /// <param name="CaCertificate">The tenant's host CA (PEM).</param>
 public sealed record HostEnrollmentResult(string HostId, string Secret, string ServerVersion, string? Certificate = null, string? CaCertificate = null);
+/// <summary>
+/// A disposable container host: marbots-host in a container on this server or a connected Docker host.
+/// <paramref name="ServerUrl"/> is how the container reaches this server (e.g. http://host.docker.internal:5170).
+/// </summary>
+public sealed record ProvisionHostRequest(string Name, string ServerUrl, string? OnHost = null, string? Image = null, double Cpus = 2, int MemoryMb = 4096,
+    bool Gpu = false, bool Network = true, string Arch = "x64", int WaitSeconds = 120);
+public sealed record ProvisionHostResult(bool Success, string? HostId, string? ContainerName, IReadOnlyList<string> Log, string? Error);
+
 /// <summary>Renewal of a host's client certificate (authenticated with the host id + secret headers).</summary>
 public sealed record HostCertificateRenewal(string Csr);
 public sealed record HostCertificateResult(string Certificate, string CaCertificate, DateTimeOffset ExpiresAt);

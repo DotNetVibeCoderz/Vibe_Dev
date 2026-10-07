@@ -52,6 +52,9 @@ public static class HostEndpoints
             }
         });
 
+        // A disposable container host on this server or a connected Docker host.
+        api.MapPost("/provision", (ProvisionHostRequest req, HostProvisioner p, CancellationToken ct) => p.ProvisionAsync(req, ct));
+
         // SSH bootstrap: credentials are used for this request only.
         api.MapPost("/bootstrap", (SshBootstrapRequest req, HostBootstrapper b, CancellationToken ct) => b.BootstrapAsync(req, "api", ct));
 
@@ -63,7 +66,14 @@ public static class HostEndpoints
 
         api.MapPost("/{id}/disable", async (string id, HostRegistry hosts, CancellationToken ct) => await SetDisabled(hosts, id, true, ct));
         api.MapPost("/{id}/enable", async (string id, HostRegistry hosts, CancellationToken ct) => await SetDisabled(hosts, id, false, ct));
-        api.MapDelete("/{id}", async (string id, HostRegistry hosts, CancellationToken ct) => await hosts.RemoveAsync(id, ct) ? Results.NoContent() : Results.NotFound());
+        api.MapDelete("/{id}", async (string id, HostRegistry hosts, HostProvisioner p, CancellationToken ct) =>
+        {
+            if (await hosts.GetAsync(id, ct) is not { } host) return Results.NotFound();
+            // Provisioned containers are removed with the host; a failure is reported but does not keep the record.
+            var warning = await p.DeprovisionAsync(host, ct);
+            await hosts.RemoveAsync(id, ct);
+            return warning is null ? Results.NoContent() : Results.Ok(new { removed = id, warning });
+        });
     }
 
     /// <summary>

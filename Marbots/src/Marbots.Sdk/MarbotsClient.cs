@@ -406,6 +406,10 @@ public sealed class HostsClient(MarbotsClient c)
     public Task<SshBootstrapResult> BootstrapAsync(SshBootstrapRequest request, CancellationToken ct = default) =>
         c.SendAsync<SshBootstrapResult>(HttpMethod.Post, "api/v1/hosts/bootstrap", request, ct);
 
+    /// <summary>Starts a disposable container host (marbots-host in Docker) on this server or a connected Docker host.</summary>
+    public Task<ProvisionHostResult> ProvisionAsync(ProvisionHostRequest request, CancellationToken ct = default) =>
+        c.SendAsync<ProvisionHostResult>(HttpMethod.Post, "api/v1/hosts/provision", request, ct);
+
     public Task DisableAsync(string id, CancellationToken ct = default) => c.SendAsync(HttpMethod.Post, $"api/v1/hosts/{MarbotsClient.E(id)}/disable", null, ct);
     public Task EnableAsync(string id, CancellationToken ct = default) => c.SendAsync(HttpMethod.Post, $"api/v1/hosts/{MarbotsClient.E(id)}/enable", null, ct);
     public Task RemoveAsync(string id, CancellationToken ct = default) => c.SendAsync(HttpMethod.Delete, $"api/v1/hosts/{MarbotsClient.E(id)}", null, ct);

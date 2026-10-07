@@ -40,6 +40,8 @@ namespace Marbots.Abstractions;
 [JsonSerializable(typeof(HostEnrollmentResult))]
 [JsonSerializable(typeof(HostCertificateRenewal))]
 [JsonSerializable(typeof(HostCertificateResult))]
+[JsonSerializable(typeof(ProvisionHostRequest))]
+[JsonSerializable(typeof(ProvisionHostResult))]
 [JsonSerializable(typeof(CreateEnrollmentRequest))]
 [JsonSerializable(typeof(CreateEnrollmentResult))]
 [JsonSerializable(typeof(SshBootstrapRequest))]

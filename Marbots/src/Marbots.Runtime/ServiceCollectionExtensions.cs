@@ -82,6 +82,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<HostConnectionManager>();
         services.AddSingleton<PlacementService>();
         services.AddSingleton<HostBootstrapper>();
+        services.AddSingleton<HostProvisioner>();
         services.AddSingleton<SchedulerService>();
         services.AddHostedService<MarbotsBootstrapper>();
         services.AddHostedService(sp => sp.GetRequiredService<SchedulerService>());
