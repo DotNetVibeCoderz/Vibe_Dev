@@ -143,4 +143,54 @@ public sealed class SkillEvaluationTests : IAsyncLifetime
         Assert.True(eval.Pending);
         await Evaluator.StopAsync(default);
     }
+
+    private async Task<FunctionResult> CallAsync(string tool, string json)
+    {
+        var fn = _sp.GetServices<IKernelFunction>().First(f => f.Descriptor.Name == tool);
+        using var args = System.Text.Json.JsonDocument.Parse(json);
+        return await fn.InvokeAsync(new FunctionCall("c1", tool, args.RootElement.Clone()),
+            new FunctionExecutionContext { Bot = new BotDefinition { Id = WellKnown.BossManId, Name = "Boss Man" }, TaskId = "t", ThreadId = "th", WorkspacePath = _dir, Services = _sp }, default);
+    }
+
+    [Fact]
+    public async Task Available_skills_are_given_to_bots_without_a_download()
+    {
+        var builtIn = Registry.All.First(s => s.Trust == "Marbots Verified");
+        var r = await CallAsync("install_skill", $$"""{"name":"{{builtIn.Name}}","bots":["atlas"]}""");
+        Assert.True(r.Success, r.Content);
+        Assert.Contains(builtIn.Name, (await _sp.GetRequiredService<BotRegistry>().GetAsync("atlas"))!.Skills);
+        Assert.Empty(await _sp.GetRequiredService<ApprovalService>().PendingAsync());
+        Assert.Contains("pptx", (await CallAsync("list_skill_catalog", "{}")).Content); // curated, downloadable
+    }
+
+    [Fact]
+    public async Task Skills_outside_the_catalog_are_refused_and_downloads_need_approval()
+    {
+        Assert.Contains("curated catalog", (await CallAsync("install_skill", """{"name":"totally-unknown"}""")).Content);
+        var approvals = _sp.GetRequiredService<ApprovalService>();
+        var call = CallAsync("install_skill", """{"name":"pptx","bots":["dara-not-needed"]}""");
+        Assert.False((await call).Success); // unknown bot is reported before anything else
+        var pending = CallAsync("install_skill", """{"name":"pptx"}""");
+        ApprovalRequest? ask = null;
+        for (var i = 0; i < 100 && ask is null; i++) { await Task.Delay(30); ask = (await approvals.PendingAsync()).FirstOrDefault(a => a.ToolName == "install_skill"); }
+        Assert.NotNull(ask);
+        Assert.Contains("anthropics/skills", ask.Summary);
+        await approvals.ResolveAsync(ask.Id, false, ApprovalScope.Once, "test");
+        Assert.False((await pending).Success);
+        Assert.Null(Registry.Find("pptx"));
+    }
+
+    [Fact]
+    public async Task Installing_from_a_source_can_pick_single_skills()
+    {
+        var src = Path.Combine(_dir, "repo");
+        foreach (var n in new[] { "alpha", "beta" })
+        {
+            Directory.CreateDirectory(Path.Combine(src, n));
+            await File.WriteAllTextAsync(Path.Combine(src, n, "SKILL.md"), $"---\nname: {n}\ndescription: {n} skill\n---\nBody");
+        }
+        var installed = await Registry.InstallAsync(src, default, ["beta"]);
+        Assert.Equal(["beta"], installed.Select(s => s.Name));
+        Assert.Null(Registry.Find("alpha"));
+    }
 }

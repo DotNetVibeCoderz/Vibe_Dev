@@ -54,6 +54,20 @@ review** on the Skills page. **Publish skill** moves a draft into `data/skills`;
 A learned skill never grants new permissions: it runs inside the bot's existing permission profile.
 
 
+## Ask Boss Man for a skill
+
+For example: "Kirana wants to make generative art posters; find a fitting skill for her." Boss Man works like this:
+
+1. `list_skill_catalog` lists the skills that are already available (built-in or installed) and the curated catalog:
+   Anthropic's official skills, such as pptx, docx, xlsx, pdf, frontend-design, webapp-testing, canvas-design and
+   algorithmic-art.
+2. `install_skill` gives an available skill to the named bots right away.
+3. A catalog skill is downloaded first, and only after you approve. The card shows the source and that skills may
+   contain scripts. Only that skill is copied from the repository.
+
+Skills outside the catalog are installed by a person on the Skills page. A skill never widens a bot's permission
+profile.
+
 ## Learning evaluation
 
 Every task that loads a skill counts for that skill **version**: completed tasks are successes, failed tasks are

@@ -413,3 +413,98 @@ internal static class McpTools
         entry.Env.Values.Where(v => v.StartsWith("secret:", StringComparison.Ordinal)).Select(v => v[7..])
             .Where(n => string.IsNullOrEmpty(secrets.Get(n))).Distinct().ToList();
 }
+
+/// <summary>Boss Man: skills that can be given to bots — available ones and the curated catalog.</summary>
+public sealed class ListSkillCatalogFunction : KernelFunctionBase
+{
+    public override FunctionDescriptor Descriptor { get; } = new(
+        "list_skill_catalog", "List skills you can give to bots: the ones already available (built-in or installed) and the curated catalog that install_skill can download (e.g. pptx, docx, xlsx, pdf, frontend-design).",
+        """{"type":"object","properties":{"query":{"type":"string","description":"Optional filter, e.g. pdf, design, spreadsheet"}}}""",
+        "management", PermissionCategory.ReadOnly, RiskLevel.Low);
+
+    protected override ValueTask<FunctionResult> ExecuteAsync(FunctionCall call, FunctionExecutionContext ctx, CancellationToken ct)
+    {
+        var registry = ctx.Services.GetRequiredService<SkillRegistry>();
+        var q = call.GetString("query") ?? "";
+        bool Match(string name, string desc) => q.Length == 0 || $"{name} {desc}".Contains(q, StringComparison.OrdinalIgnoreCase);
+        var available = registry.All.Where(s => !s.Pending && Match(s.Name, s.Description)).ToList();
+        var sb = new System.Text.StringBuilder("Available now (give them to bots with install_skill):\n");
+        foreach (var s in available) sb.Append("- ").Append(s.Name).Append(" (").Append(s.Trust).Append(", v").Append(s.Version).Append(s.HasScripts ? ", has scripts" : "").Append("): ").AppendLine(AgentRuntime.Preview(s.Description, 140));
+        var downloadable = SkillCatalog.Entries.Where(e => registry.Find(e.Name) is null && Match(e.Name, e.Description)).ToList();
+        if (downloadable.Count > 0)
+        {
+            sb.AppendLine().AppendLine("Curated catalog (install_skill downloads it after the user approves):");
+            foreach (var e in downloadable) sb.Append("- ").Append(e.Name).Append(" (").Append(e.Publisher).Append("): ").AppendLine(e.Description);
+        }
+        return ValueTask.FromResult(FunctionResult.Ok(available.Count + downloadable.Count == 0 ? "No skill matches." : sb.ToString()));
+    }
+}
+
+/// <summary>
+/// Boss Man: give a skill to bots. Available skills are attached directly; curated catalog skills are downloaded first,
+/// after a human approves. Skills outside the catalog are installed by a person on the Skills page.
+/// </summary>
+public sealed class InstallSkillFunction : KernelFunctionBase
+{
+    public override FunctionDescriptor Descriptor { get; } = new(
+        "install_skill", "Give a skill to bots. If it is not available yet and it is in the curated catalog (list_skill_catalog), it is downloaded after the user approves.",
+        """
+        {"type":"object","properties":{
+          "name":{"type":"string","description":"Skill name from list_skill_catalog"},
+          "bots":{"type":"array","items":{"type":"string"},"description":"Bot ids or names that should get the skill"},
+          "reason":{"type":"string","description":"Why (shown to the user when a download needs approval)"}},
+          "required":["name"]}
+        """,
+        "management", PermissionCategory.AgentControl, RiskLevel.Medium, 3600);
+
+    protected override async ValueTask<FunctionResult> ExecuteAsync(FunctionCall call, FunctionExecutionContext ctx, CancellationToken ct)
+    {
+        var name = call.Require("name").Trim();
+        var skills = ctx.Services.GetRequiredService<SkillRegistry>();
+        var registry = ctx.Services.GetRequiredService<BotRegistry>();
+        var botNames = call.Arguments.TryGetProperty("bots", out var arr) && arr.ValueKind == JsonValueKind.Array
+            ? arr.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).ToList() : [];
+        var bots = new List<BotDefinition>();
+        foreach (var b in botNames)
+            bots.Add(await registry.ResolveAsync(b, ct) ?? throw new ArgumentException($"No bot named '{b}'."));
+
+        var report = new System.Text.StringBuilder();
+        var skill = skills.Find(name);
+        if (skill is null)
+        {
+            var entry = SkillCatalog.Find(name);
+            if (entry is null) return FunctionResult.Fail($"'{name}' is neither available nor in the curated catalog. Use list_skill_catalog; other skills are installed by the user on the Skills page.");
+            var approval = await ctx.Services.GetRequiredService<ApprovalService>().RequestAsync(new ApprovalRequest
+            {
+                TaskId = ctx.TaskId, ThreadId = ctx.ThreadId, BotId = ctx.Bot.Id, ToolName = "install_skill", Arguments = call.Arguments.GetRawText(),
+                Category = PermissionCategory.Admin, Risk = RiskLevel.Medium,
+                Reason = $"Download the skill '{entry.Name}' ({entry.Publisher})" + (bots.Count > 0 ? $" for {string.Join(", ", bots.Select(b => b.Name))}" : "") + ".",
+                Summary = $"**Install skill: {entry.Name}**\n\n{entry.Description}\n\n- From: {entry.Source} ({entry.Publisher})\n- Skills may include scripts; bots with shell access can run them inside their permission profile." +
+                          (bots.Count > 0 ? $"\n- Give it to: {string.Join(", ", bots.Select(b => b.Name))}" : "") +
+                          (call.GetString("reason") is { Length: > 0 } why ? $"\n\nWhy: {why}" : ""),
+            }, ct);
+            if (approval.State != ApprovalState.Approved) return FunctionResult.Fail("The user did not approve installing this skill.");
+            try
+            {
+                await skills.InstallAsync(entry.Source, ct, [entry.Name]);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+            {
+                return FunctionResult.Fail("Download failed: " + ex.Message);
+            }
+            skill = skills.Find(name);
+            if (skill is null) return FunctionResult.Fail($"The download did not contain the skill '{name}'.");
+            report.Append($"Installed the skill '{skill.Name}' v{skill.Version} from {entry.Publisher}{(skill.HasScripts ? " (includes scripts)" : "")}. ");
+        }
+        var given = new List<string>();
+        foreach (var bot in bots)
+        {
+            if (bot.Skills.Contains("*") || bot.Skills.Contains(skill.Name, StringComparer.OrdinalIgnoreCase)) continue;
+            bot.Skills.Add(skill.Name);
+            await registry.UpdateAsync(bot, ct);
+            given.Add(bot.Name);
+        }
+        report.Append(given.Count > 0 ? $"Gave '{skill.Name}' to {string.Join(", ", given)}." : bots.Count > 0 ? $"{string.Join(", ", bots.Select(b => b.Name))} already had it." : $"'{skill.Name}' is available; name bots to give it to them.");
+        return FunctionResult.Ok(report.ToString());
+    }
+}

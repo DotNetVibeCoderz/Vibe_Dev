@@ -161,7 +161,7 @@ public sealed class SkillRegistry
     }
 
     /// <summary>Install from a local folder or a git URL. Returns the installed skills.</summary>
-    public async Task<IReadOnlyList<SkillInfo>> InstallAsync(string source, CancellationToken ct)
+    public async Task<IReadOnlyList<SkillInfo>> InstallAsync(string source, CancellationToken ct, IReadOnlyCollection<string>? only = null)
     {
         string root;
         string? temp = null;
@@ -184,6 +184,7 @@ public sealed class SkillRegistry
                 var info = Read(skillFile, "Local", "installed", false);
                 var name = Ids.Slug(info.Name);
                 if (name.Length == 0) continue;
+                if (only is not null && !only.Contains(info.Name, StringComparer.OrdinalIgnoreCase)) continue;
                 var dest = Path.Combine(InstalledDirectory, name);
                 if (Directory.Exists(dest)) { Archive(name); TryDelete(dest); }
                 CopyDirectory(Path.GetDirectoryName(skillFile)!, dest);
@@ -388,4 +389,37 @@ public sealed class ReadSkillFileFunction(SkillRegistry registry) : KernelFuncti
         var text = await File.ReadAllTextAsync(path, ct);
         return FunctionResult.Ok(text.Length > 60_000 ? text[..60_000] + "…" : text);
     }
+}
+
+/// <summary>
+/// Curated skills that bots (through Boss Man) may install from chat. Anything else is installed by a person on the
+/// Skills page. Built-in and already installed skills are always offered too.
+/// </summary>
+public static class SkillCatalog
+{
+    public const string AnthropicRepo = "https://github.com/anthropics/skills.git";
+
+    public sealed record Entry(string Name, string Description, string Source, string Publisher);
+
+    public static readonly IReadOnlyList<Entry> Entries =
+    [
+        new("pptx", "Create, edit and analyse PowerPoint decks (layouts, speaker notes, thumbnails).", AnthropicRepo, "Anthropic"),
+        new("docx", "Create and edit Word documents with tracked changes, comments and formatting.", AnthropicRepo, "Anthropic"),
+        new("xlsx", "Spreadsheets with formulas, formatting, charts and recalculation.", AnthropicRepo, "Anthropic"),
+        new("pdf", "Read, fill, merge, split and create PDF files.", AnthropicRepo, "Anthropic"),
+        new("frontend-design", "Distinctive, intentional visual design for web and app UIs.", AnthropicRepo, "Anthropic"),
+        new("webapp-testing", "Test local web apps with Playwright: screenshots, logs, UI checks.", AnthropicRepo, "Anthropic"),
+        new("canvas-design", "Visual art and posters as PNG/PDF using design philosophy.", AnthropicRepo, "Anthropic"),
+        new("algorithmic-art", "Generative art with p5.js (seeded randomness, flow fields).", AnthropicRepo, "Anthropic"),
+        new("theme-factory", "Apply consistent themes (colours, fonts) to slides, docs and pages.", AnthropicRepo, "Anthropic"),
+        new("brand-guidelines", "Apply brand colours and typography to artifacts.", AnthropicRepo, "Anthropic"),
+        new("doc-coauthoring", "A structured workflow for co-writing documents and proposals.", AnthropicRepo, "Anthropic"),
+        new("internal-comms", "Status reports, updates, newsletters and FAQs in house style.", AnthropicRepo, "Anthropic"),
+        new("mcp-builder", "Build high-quality MCP servers (Python or TypeScript).", AnthropicRepo, "Anthropic"),
+        new("skill-creator", "Create and improve skills, with evals.", AnthropicRepo, "Anthropic"),
+        new("web-artifacts-builder", "Multi-component HTML artifacts with React, Tailwind and shadcn/ui.", AnthropicRepo, "Anthropic"),
+        new("slack-gif-creator", "Animated GIFs optimised for Slack.", AnthropicRepo, "Anthropic"),
+    ];
+
+    public static Entry? Find(string name) => Entries.FirstOrDefault(e => e.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 }

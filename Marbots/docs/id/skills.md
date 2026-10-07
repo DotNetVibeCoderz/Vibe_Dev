@@ -54,6 +54,19 @@ Bot dengan mode `SuggestSkills` dapat membuat draf skill baru dari tugas multi-l
 Skill hasil belajar tidak pernah memberi izin baru: ia berjalan di dalam profil izin bot yang sudah ada.
 
 
+## Minta skill ke Boss Man
+
+Misalnya: "Kirana ingin membuat poster seni generatif; carikan skill yang cocok untuknya." Boss Man bekerja seperti
+ini:
+
+1. `list_skill_catalog` menampilkan skill yang sudah tersedia (bawaan atau terpasang) dan katalog terkurasi: skill
+   resmi Anthropic, seperti pptx, docx, xlsx, pdf, frontend-design, webapp-testing, canvas-design, dan algorithmic-art.
+2. `install_skill` langsung memberikan skill yang sudah tersedia ke bot yang disebut.
+3. Skill dari katalog diunduh dulu, dan hanya setelah Anda menyetujui. Kartunya menampilkan sumber dan peringatan bahwa
+   skill bisa berisi skrip. Hanya skill tersebut yang disalin dari repositori.
+
+Skill di luar katalog dipasang oleh manusia di halaman Skills. Skill tidak pernah memperluas profil izin bot.
+
 ## Evaluasi pembelajaran
 
 Setiap tugas yang memuat skill dihitung untuk **versi** skill tersebut: tugas selesai adalah keberhasilan, tugas gagal
