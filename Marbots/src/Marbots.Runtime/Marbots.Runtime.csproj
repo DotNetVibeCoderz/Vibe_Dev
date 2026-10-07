@@ -14,6 +14,8 @@
   <ItemGroup>
     <!-- SSH bootstrap of remote agent hosts. -->
     <PackageReference Include="SSH.NET" />
+    <!-- E-mail channel (IMAP/SMTP). -->
+    <PackageReference Include="MailKit" />
   </ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

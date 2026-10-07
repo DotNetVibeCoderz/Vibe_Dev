@@ -334,8 +334,10 @@ public static class ChannelKinds
     public const string Slack = "slack";
     public const string WhatsApp = "whatsapp";
     public const string Discord = "discord";
+    /// <summary>IMAP in, SMTP out; one conversation per sender address.</summary>
+    public const string Email = "email";
 
-    public static readonly IReadOnlyList<string> All = [WebChat, Webhook, Telegram, Slack, WhatsApp, Discord];
+    public static readonly IReadOnlyList<string> All = [WebChat, Webhook, Telegram, Slack, WhatsApp, Discord, Email];
 }
 
 /// <summary>An external channel (Telegram, Slack, WhatsApp, web chat, webhook…) routed to a bot.</summary>
@@ -369,6 +371,8 @@ public sealed class ChannelConversation
     public string ThreadId { get; set; } = "";
     public string? SenderName { get; set; }
     public DateTimeOffset LastMessageAt { get; set; } = DateTimeOffset.UtcNow;
+    /// <summary>Channel-specific state, e.g. the e-mail subject and Message-ID a reply threads to.</summary>
+    public Dictionary<string, string> Meta { get; set; } = [];
 }
 
 /// <summary>Kinds of triggers that start a bot without a person typing.</summary>

@@ -10,7 +10,7 @@
     <div class="page-head">
         <div>
             <h1>@T["nav.channels"]</h1>
-            <p>Let people reach your bots from web chat, Telegram, Slack, WhatsApp, Discord or any webhook. Each external conversation becomes a thread, so the bot remembers it. Messages from channels are untrusted input: give channel bots a narrow permission profile.</p>
+            <p>Let people reach your bots from web chat, Telegram, Slack, WhatsApp, Discord, e-mail or any webhook. Each external conversation becomes a thread, so the bot remembers it. Messages from channels are untrusted input: give channel bots a narrow permission profile.</p>
         </div>
         <button class="btn primary" @onclick="New"><Icon Name="plus" /> Add channel</button>
     </div>
@@ -119,13 +119,14 @@
         ChannelKinds.Slack => $"{baseUrl}/api/v1/channels/{c.Id}/slack",
         ChannelKinds.WhatsApp => $"{baseUrl}/api/v1/channels/{c.Id}/whatsapp",
         ChannelKinds.Telegram => ChannelContext.Setting(c, "mode", "polling") == "webhook" ? $"{baseUrl}/api/v1/channels/{c.Id}/telegram" : "long polling (no public URL needed)",
+        ChannelKinds.Email => $"IMAP {ChannelContext.Setting(c, "imapHost", "?")} → {EmailAdapter.From(c)}",
         _ => $"{baseUrl}/api/v1/channels/{c.Id}/inbound",
     };
 
     private static string Label(string kind) => kind switch
     {
         ChannelKinds.WebChat => "Web chat", ChannelKinds.Webhook => "Webhook", ChannelKinds.Telegram => "Telegram",
-        ChannelKinds.Slack => "Slack", ChannelKinds.WhatsApp => "WhatsApp", ChannelKinds.Discord => "Discord", _ => kind,
+        ChannelKinds.Slack => "Slack", ChannelKinds.WhatsApp => "WhatsApp", ChannelKinds.Discord => "Discord", ChannelKinds.Email => "E-mail", _ => kind,
     };
 
     private static string Help(string kind) => kind switch
@@ -136,6 +137,7 @@
         ChannelKinds.Slack => "Create a Slack app with a bot token (chat:write) and the Events API (message.channels, app_mention) pointing at the inbound URL.",
         ChannelKinds.WhatsApp => "WhatsApp Cloud API: set the phone number id, a permanent token, the app secret and a verify token; point the webhook at the inbound URL.",
         ChannelKinds.Discord => "Replies go to a Discord channel webhook. Incoming messages arrive through a relay that POSTs to the inbound URL with X-Marbots-Secret.",
+        ChannelKinds.Email => "Marbots checks the mailbox over IMAP and answers over SMTP; each sender is one thread. Use a dedicated mailbox and an app password. Auto-replies and bulk mail are ignored; restrict senders with the allow-list.",
         _ => "",
     };
 
@@ -145,6 +147,13 @@
         ChannelKinds.Webhook => [new("outboundUrl", "Outbound URL", "https://hooks.example.com/marbots")],
         ChannelKinds.Telegram => [new("mode", "Mode", "polling | webhook")],
         ChannelKinds.WhatsApp => [new("phoneNumberId", "Phone number id", "1234567890")],
+        ChannelKinds.Email =>
+        [
+            new("username", "Username", "bot@example.com"), new("fromAddress", "From address", "bot@example.com"), new("fromName", "From name", "Marbots"),
+            new("imapHost", "IMAP host", "imap.example.com"), new("imapPort", "IMAP port", "993"), new("imapSecurity", "IMAP security", "ssl | starttls | none"),
+            new("smtpHost", "SMTP host", "smtp.example.com"), new("smtpPort", "SMTP port", "587"), new("smtpSecurity", "SMTP security", "starttls | ssl | none"),
+            new("folder", "Folder", "INBOX"), new("pollSeconds", "Check every (seconds)", "30"),
+        ],
         _ => [],
     };
 
@@ -155,6 +164,7 @@
         ChannelKinds.Slack => [new("token", "Bot token", "xoxb-…"), new("signingSecret", "Signing secret", "from Basic Information")],
         ChannelKinds.WhatsApp => [new("token", "Access token", "EAAG…"), new("appSecret", "App secret", "for X-Hub-Signature-256"), new("verifyToken", "Verify token", "any string you choose")],
         ChannelKinds.Discord => [new("webhookUrl", "Channel webhook URL", "https://discord.com/api/webhooks/…"), new("inboundSecret", "Inbound secret", "for your relay")],
+        ChannelKinds.Email => [new("password", "Password / app password", "used for IMAP and SMTP")],
         _ => [],
     };
 

@@ -95,9 +95,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IChannelAdapter, SlackAdapter>();
         services.AddSingleton<IChannelAdapter, WhatsAppAdapter>();
         services.AddSingleton<IChannelAdapter, DiscordAdapter>();
+        services.AddSingleton<IChannelAdapter, EmailAdapter>();
         services.AddSingleton<ChannelGateway>();
         services.AddHostedService(sp => sp.GetRequiredService<ChannelGateway>());
         services.AddHostedService<TelegramPoller>();
+        services.AddHostedService<EmailPoller>();
         return services;
     }
 
