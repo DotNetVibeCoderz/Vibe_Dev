@@ -23,7 +23,7 @@ public sealed class MarbotsOptions
     public bool SeedStarterBots { get; set; } = true;
     /// <summary>
     /// Where SSH bootstrap finds agent-host binaries: marbots-host-&lt;rid&gt;.exe (win-x64, win-arm64) or
-    /// marbots-host-&lt;rid&gt; (linux-x64, linux-arm64, osx-arm64). Defaults to data/host-packages.
+    /// marbots-host-&lt;rid&gt; (linux-x64, linux-arm64, osx-arm64, osx-x64). Defaults to data/host-packages.
     /// </summary>
     public string? HostPackagesDirectory { get; set; }
 

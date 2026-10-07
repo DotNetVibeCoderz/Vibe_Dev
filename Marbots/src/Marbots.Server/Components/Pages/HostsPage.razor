@@ -109,7 +109,7 @@ marbots-host run</pre>
     {
         _hosts = await Hosts.ListAsync();
         _bots = await Bots.ActiveAsync();
-        _packages = new[] { "win-x64", "win-arm64", "linux-x64", "linux-arm64", "osx-arm64" }.Where(r => Bootstrapper.PackageFor(r) is not null).ToList();
+        _packages = new[] { "win-x64", "win-arm64", "linux-x64", "linux-arm64", "osx-arm64", "osx-x64" }.Where(r => Bootstrapper.PackageFor(r) is not null).ToList();
     }
 
     protected override bool Accept(AgentEvent e) => e.Type is EventTypes.HostConnected or EventTypes.HostDisconnected or EventTypes.BotUpdated or EventTypes.ToolCallStarted;

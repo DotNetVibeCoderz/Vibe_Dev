@@ -457,7 +457,7 @@ public sealed class HostService(MarbotsOptions options, HostRegistry registry, H
             {
                 Id = h.Id, Name = h.Name, Kind = h.Kind, Os = hello?.Os ?? "", Architecture = hello?.Architecture ?? "",
                 ProcessorCount = hello?.ProcessorCount ?? 0, TotalMemoryMb = hello?.TotalMemoryMb ?? 0, AgentVersion = hello?.AgentVersion ?? "",
-                Status = h.Disabled ? "Disabled" : online ? "Online" : "Offline", Capabilities = hello?.Capabilities ?? [],
+                Status = h.Disabled ? "Disabled" : online ? "Online" : "Offline", Capabilities = hello?.Capabilities ?? [], Gpus = hello?.Gpus ?? [],
                 Metrics = connections.MetricsOf(h.Id) ?? h.LastMetrics, InstalledVia = h.InstalledVia,
                 LastHeartbeat = online ? DateTimeOffset.UtcNow : h.LastSeen ?? h.EnrolledAt, StartedAt = h.EnrolledAt,
             });
@@ -481,7 +481,8 @@ public sealed class HostService(MarbotsOptions options, HostRegistry registry, H
             ProcessWorkingSetMb = proc.WorkingSet64 / 1024 / 1024,
             AgentVersion = typeof(HostService).Assembly.GetName().Version?.ToString() ?? "0.1.0",
             Status = "Online",
-            Capabilities = OperatingSystem.IsWindows() ? ["shell", "desktop"] : ["shell"],
+            Capabilities = PlacementService.LocalCapabilities(),
+            Gpus = PlacementService.LocalGpus,
             LastHeartbeat = DateTimeOffset.UtcNow,
             StartedAt = _started,
         };

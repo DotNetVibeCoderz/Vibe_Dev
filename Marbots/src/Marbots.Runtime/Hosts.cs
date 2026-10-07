@@ -311,10 +311,13 @@ public sealed class PlacementService(HostConnectionManager connections, HostRegi
         if (!string.Equals(bot.HostRef, WellKnown.AutoHost, StringComparison.OrdinalIgnoreCase)) return bot.HostRef;
         if (await affinity.GetAsync(threadId, ct) is { } pinned && (pinned.HostId == WellKnown.LocalHostId || connections.IsOnline(pinned.HostId)))
             return pinned.HostId;
-        var candidates = new List<HostCandidate> { new(WellKnown.LocalHostId, LocalCapabilities(), null, true) };
+        var candidates = new List<HostCandidate> { new(WellKnown.LocalHostId, LocalCapabilities(), null, true, LocalGpus) };
         foreach (var h in await registry.ListAsync(ct))
             if (!h.Disabled && connections.IsOnline(h.Id))
-                candidates.Add(new(h.Id, connections.HelloOf(h.Id)?.Capabilities ?? h.LastHello?.Capabilities ?? [], connections.MetricsOf(h.Id), false));
+            {
+                var hello = connections.HelloOf(h.Id) ?? h.LastHello;
+                candidates.Add(new(h.Id, hello?.Capabilities ?? [], connections.MetricsOf(h.Id), false, hello?.Gpus ?? []));
+            }
         var best = Choose(Required(bot), candidates, bot.Container is not null);
         var record = await affinity.GetAsync(threadId, ct) ?? new ThreadHost { Id = threadId };
         record.HostId = best;
@@ -334,7 +337,7 @@ public sealed class PlacementService(HostConnectionManager connections, HostRegi
         await affinity.UpsertAsync(record, ct);
     }
 
-    public sealed record HostCandidate(string Id, IReadOnlyCollection<string> Capabilities, HostMetrics? Metrics, bool IsLocal);
+    public sealed record HostCandidate(string Id, IReadOnlyCollection<string> Capabilities, HostMetrics? Metrics, bool IsLocal, IReadOnlyList<GpuInfo>? Gpus = null);
 
     public static IReadOnlyList<string> Required(BotDefinition bot)
     {
@@ -342,7 +345,18 @@ public sealed class PlacementService(HostConnectionManager connections, HostRegi
         if (bot.KernelFunctions.Contains("shell", StringComparer.OrdinalIgnoreCase)) req.Add("shell");
         if (bot.KernelFunctions.Contains("desktop", StringComparer.OrdinalIgnoreCase)) req.Add("desktop");
         if (bot.Container is not null) req.Add("docker");
+        foreach (var r in bot.Requires)
+            if (!string.IsNullOrWhiteSpace(r) && !req.Contains(r.Trim(), StringComparer.OrdinalIgnoreCase)) req.Add(r.Trim().ToLowerInvariant());
         return req;
+    }
+
+    /// <summary>Does the candidate meet one requirement? "gpu:16" means at least 16 GB on a single GPU.</summary>
+    public static bool Meets(HostCandidate c, string requirement)
+    {
+        if (requirement.StartsWith("gpu:", StringComparison.OrdinalIgnoreCase))
+            return double.TryParse(requirement[4..], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var gb)
+                && (c.Gpus ?? []).Any(g => g.MemoryMb >= gb * 1024);
+        return c.Capabilities.Contains(requirement, StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>Scoring (pure): hosts missing a required capability are skipped; then lower CPU, more free memory and fewer running calls win; remote hosts get a small bonus so work spreads off the control plane.</summary>
@@ -350,7 +364,7 @@ public sealed class PlacementService(HostConnectionManager connections, HostRegi
     {
         double Score(HostCandidate c)
         {
-            if (required.Any(r => !c.Capabilities.Contains(r, StringComparer.OrdinalIgnoreCase))) return double.MinValue;
+            if (required.Any(r => !Meets(c, r))) return double.MinValue;
             var m = c.Metrics;
             var score = 100.0;
             if (m is not null)
@@ -359,6 +373,13 @@ public sealed class PlacementService(HostConnectionManager connections, HostRegi
                 score += Math.Min(m.FreeMemoryMb, 16_000) / 400.0;
                 score -= m.RunningCalls * 8;
             }
+            // GPU work: prefer idle GPUs with the most free memory (the largest GPU when there are no live metrics).
+            if (required.Any(r => r.StartsWith("gpu", StringComparison.OrdinalIgnoreCase) || r is "cuda" or "rocm" or "metal"))
+            {
+                var free = m?.FreeGpuMemoryMb ?? (c.Gpus is { Count: > 0 } g ? g.Max(x => x.MemoryMb - (x.UsedMemoryMb ?? 0)) : 0);
+                score += Math.Min(free, 96_000) / 1000.0;
+                score -= (m?.GpuPercent ?? 0) * 0.5;
+            }
             if (!c.IsLocal) score += 5;
             return score;
         }
@@ -366,10 +387,16 @@ public sealed class PlacementService(HostConnectionManager connections, HostRegi
         return best.Id ?? WellKnown.LocalHostId;
     }
 
-    private static List<string> LocalCapabilities()
+    private static readonly Lazy<List<GpuInfo>> _localGpus = new(Marbots.Kernel.GpuDetector.Detect);
+
+    /// <summary>The control plane's own GPUs (detected once).</summary>
+    public static List<GpuInfo> LocalGpus => _localGpus.Value;
+
+    public static List<string> LocalCapabilities()
     {
         var caps = new List<string> { "shell" };
         if (OperatingSystem.IsWindows()) caps.Add("desktop");
+        caps.AddRange(Marbots.Kernel.GpuDetector.Capabilities(LocalGpus));
         return caps;
     }
 }

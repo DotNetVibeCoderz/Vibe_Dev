@@ -45,6 +45,7 @@ internal static class Program
                     return 0;
                 case "capabilities":
                     Console.WriteLine(string.Join(", ", Capabilities.Detect()));
+                    foreach (var g in Capabilities.Gpus) Console.WriteLine($"GPU: {g.Name} ({g.Vendor}, {g.Api}, {g.MemoryMb / 1024.0:0.#} GB)");
                     return 0;
                 default:
                     HostConsole.Help();
@@ -131,8 +132,12 @@ internal static class Capabilities
         if (Directory.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ms-playwright"))
             || Directory.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache", "ms-playwright")))
             caps.Add("playwright");
+        caps.AddRange(GpuDetector.Capabilities(Gpus));
         return caps;
     }
+
+    private static readonly Lazy<List<GpuInfo>> _gpus = new(GpuDetector.Detect);
+    public static List<GpuInfo> Gpus => _gpus.Value;
 
     private static bool DockerRunning()
     {
@@ -152,6 +157,7 @@ internal static class Capabilities
             Name = name, AgentVersion = Version, Os = RuntimeInformation.OSDescription, Architecture = RuntimeInformation.OSArchitecture.ToString(),
             ProcessorCount = Environment.ProcessorCount, TotalMemoryMb = gc.TotalAvailableMemoryBytes / 1024 / 1024,
             Capabilities = Detect(),
+            Gpus = Gpus,
             Functions = KernelCatalog.CreateDefault().Where(f => HostProtocol.RemotePacks.Contains(f.Descriptor.Pack)).Select(f => f.Descriptor.Name).ToList(),
         };
     }
@@ -253,11 +259,13 @@ internal sealed class HostAgent(HostConfig config, HostConsole ui)
             var pct = (cpu - lastCpu).TotalMilliseconds / Math.Max(1, (now - lastAt).TotalMilliseconds * Environment.ProcessorCount) * 100;
             (lastCpu, lastAt) = (cpu, now);
             var drive = new DriveInfo(Path.GetPathRoot(HostConfig.Dir)!);
+            var (gpuPct, gpuFree) = Capabilities.Gpus.Any(g => g.Vendor == "NVIDIA") ? GpuDetector.Sample() : (null, null);
             var metrics = new HostMetrics
             {
                 CpuPercent = Math.Round(pct, 1), RunningCalls = _running,
                 FreeMemoryMb = (gc.TotalAvailableMemoryBytes - gc.MemoryLoadBytes) / 1024 / 1024,
                 FreeDiskMb = drive.IsReady ? drive.AvailableFreeSpace / 1024 / 1024 : 0,
+                GpuPercent = gpuPct, FreeGpuMemoryMb = gpuFree,
             };
             ui.SetMetrics(metrics);
             await SendAsync(new HostFrame { Type = HostProtocol.Frames.Heartbeat, Metrics = metrics }, ct);

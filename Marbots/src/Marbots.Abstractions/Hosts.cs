@@ -63,6 +63,20 @@ public sealed class HostHello
     public List<string> Capabilities { get; set; } = [];
     /// <summary>Function names the host can execute.</summary>
     public List<string> Functions { get; set; } = [];
+    /// <summary>GPUs (NVIDIA/AMD/Apple/other) with memory; drives "gpu" placement.</summary>
+    public List<GpuInfo> Gpus { get; set; } = [];
+}
+
+public sealed class GpuInfo
+{
+    public string Name { get; set; } = "";
+    public string Vendor { get; set; } = "";
+    /// <summary>cuda | rocm | metal | directx</summary>
+    public string Api { get; set; } = "";
+    /// <summary>Dedicated memory (Apple: the share of unified memory Metal can use).</summary>
+    public long MemoryMb { get; set; }
+    public long? UsedMemoryMb { get; set; }
+    public double? UtilizationPercent { get; set; }
 }
 
 public sealed class HostMetrics
@@ -71,6 +85,10 @@ public sealed class HostMetrics
     public long FreeMemoryMb { get; set; }
     public int RunningCalls { get; set; }
     public long FreeDiskMb { get; set; }
+    /// <summary>Average GPU utilisation (NVIDIA hosts).</summary>
+    public double? GpuPercent { get; set; }
+    /// <summary>Free GPU memory across GPUs (NVIDIA hosts).</summary>
+    public long? FreeGpuMemoryMb { get; set; }
 }
 
 public sealed class HostInvoke

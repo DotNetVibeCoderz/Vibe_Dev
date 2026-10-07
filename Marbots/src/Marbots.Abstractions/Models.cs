@@ -70,6 +70,11 @@ public sealed class BotDefinition
     public string HostRef { get; set; } = WellKnown.LocalHostId;
     /// <summary>Optional: run the bot's shell commands in this container (Docker) with CPU/RAM quotas.</summary>
     public ContainerProfile? Container { get; set; }
+    /// <summary>
+    /// Extra host capabilities automatic placement must satisfy: gpu, cuda, rocm, metal, "gpu:16" (at least 16 GB GPU memory),
+    /// docker, python, node, dotnet, playwright, desktop...
+    /// </summary>
+    public List<string> Requires { get; set; } = [];
     public int MaxSteps { get; set; } = 24;
     public int CompactionThresholdTokens { get; set; } = 24_000;
     public bool IsSystem { get; set; }
@@ -280,6 +285,7 @@ public sealed class HostInfo
     public string AgentVersion { get; set; } = "";
     public string Status { get; set; } = "Online";
     public List<string> Capabilities { get; set; } = [];
+    public List<GpuInfo> Gpus { get; set; } = [];
     public HostMetrics? Metrics { get; set; }
     public string? InstalledVia { get; set; }
     public DateTimeOffset LastHeartbeat { get; set; } = DateTimeOffset.UtcNow;

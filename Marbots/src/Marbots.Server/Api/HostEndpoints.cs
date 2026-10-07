@@ -39,7 +39,7 @@ public static class HostEndpoints
         api.MapGet("/packages", (HostBootstrapper b) => new
         {
             directory = b.PackagesDirectory,
-            available = new[] { "win-x64", "win-arm64", "linux-x64", "linux-arm64", "osx-arm64" }.Where(r => b.PackageFor(r) is not null),
+            available = new[] { "win-x64", "win-arm64", "linux-x64", "linux-arm64", "osx-arm64", "osx-x64" }.Where(r => b.PackageFor(r) is not null),
         });
 
         api.MapPost("/{id}/disable", async (string id, HostRegistry hosts, CancellationToken ct) => await SetDisabled(hosts, id, true, ct));

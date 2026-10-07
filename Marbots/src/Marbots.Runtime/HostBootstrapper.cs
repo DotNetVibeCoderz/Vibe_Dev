@@ -65,7 +65,7 @@ public sealed class HostBootstrapper(MarbotsOptions options, HostRegistry regist
             {
                 var parts = uname.Output.Trim().Split(' ');
                 var arm = parts.Length > 1 && parts[1] is "aarch64" or "arm64";
-                rid = parts[0] == "Darwin" ? "osx-arm64" : arm ? "linux-arm64" : "linux-x64";
+                rid = parts[0] == "Darwin" ? (arm ? "osx-arm64" : "osx-x64") : arm ? "linux-arm64" : "linux-x64";
                 home = Run(ssh, "printf %s \"$HOME\"").Output.Trim();
                 Step($"{uname.Output.Trim()}.");
                 exe = home + "/.local/share/marbots/host/marbots-host";
