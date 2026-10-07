@@ -82,10 +82,36 @@ public sealed class SkillRegistry
 
     public IReadOnlyList<SkillInfo> All => _skills;
 
+    /// <summary>Folder of trusted publisher public keys: &lt;publisher&gt;.pem.</summary>
+    public string TrustedPublishersDirectory => _options.DataPath("trusted-publishers");
+
+    public IReadOnlyList<TrustedSkillPublisher> TrustedPublishers()
+    {
+        var list = new List<TrustedSkillPublisher>(_options.TrustedSkillPublishers);
+        if (Directory.Exists(TrustedPublishersDirectory))
+            foreach (var f in Directory.EnumerateFiles(TrustedPublishersDirectory, "*.pem"))
+                list.Add(new TrustedSkillPublisher { Name = Path.GetFileNameWithoutExtension(f), PublicKeyPem = File.ReadAllText(f) });
+        return list;
+    }
+
+    /// <summary>Adds a trusted publisher key (stored as data/trusted-publishers/&lt;name&gt;.pem).</summary>
+    public void TrustPublisher(string name, string publicKeyPem)
+    {
+        using (var key = System.Security.Cryptography.ECDsa.Create()) key.ImportFromPem(publicKeyPem);
+        var slug = Ids.Slug(name);
+        if (slug.Length == 0) throw new ArgumentException("Publisher name is required.");
+        Directory.CreateDirectory(TrustedPublishersDirectory);
+        File.WriteAllText(Path.Combine(TrustedPublishersDirectory, slug + ".pem"), publicKeyPem.Trim() + "\n");
+        Refresh();
+    }
+
     public SkillInfo? Find(string name) => _skills.FirstOrDefault(s => !s.Pending && s.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+    private IReadOnlyList<TrustedSkillPublisher>? _trusted;
 
     public void Refresh()
     {
+        _trusted = TrustedPublishers();
         var list = new Dictionary<string, SkillInfo>(StringComparer.OrdinalIgnoreCase);
         var builtIn = Path.Combine(AppContext.BaseDirectory, "skills");
         foreach (var dir in _options.SkillDirectories.Append(builtIn))
@@ -103,6 +129,21 @@ public sealed class SkillRegistry
             try
             {
                 var info = Read(skillFile, trust, source, pending);
+                var v = SkillSigning.Verify(info.Path, _trusted ?? []);
+                if (v.Status == SkillSignatureStatus.Invalid)
+                {
+                    // A signed skill whose files changed is never loaded.
+                    _log.LogWarning("Skill {Skill} not loaded: {Detail}", info.Name, v.Detail);
+                    continue;
+                }
+                if (_options.RequireSignedSkills && source == "installed" && v.Status != SkillSignatureStatus.Verified)
+                {
+                    _log.LogWarning("Skill {Skill} not loaded: unsigned or untrusted ({Detail})", info.Name, v.Detail);
+                    continue;
+                }
+                info.Signature = v.Status.ToString();
+                info.Publisher = v.Publisher;
+                if (v.Status == SkillSignatureStatus.Verified && source == "installed") info.Trust = "Verified Publisher";
                 var key = pending ? "pending:" + info.Name : info.Name;
                 into[key] = info;
             }
@@ -185,6 +226,10 @@ public sealed class SkillRegistry
                 var name = Ids.Slug(info.Name);
                 if (name.Length == 0) continue;
                 if (only is not null && !only.Contains(info.Name, StringComparer.OrdinalIgnoreCase)) continue;
+                var v = SkillSigning.Verify(Path.GetDirectoryName(skillFile)!, TrustedPublishers());
+                if (v.Status == SkillSignatureStatus.Invalid) throw new InvalidOperationException($"Skill {info.Name} was modified after signing: {v.Detail}.");
+                if (_options.RequireSignedSkills && v.Status != SkillSignatureStatus.Verified)
+                    throw new InvalidOperationException($"Skill {info.Name} is {(v.Status == SkillSignatureStatus.Unsigned ? "not signed" : v.Detail)}; this server only installs skills signed by a trusted publisher.");
                 var dest = Path.Combine(InstalledDirectory, name);
                 if (Directory.Exists(dest)) { Archive(name); TryDelete(dest); }
                 CopyDirectory(Path.GetDirectoryName(skillFile)!, dest);

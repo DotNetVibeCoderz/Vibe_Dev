@@ -320,6 +320,11 @@ public sealed class SkillsClient(MarbotsClient c)
     public Task<List<SkillInfo>> ListAsync(CancellationToken ct = default) => c.GetAsync<List<SkillInfo>>("api/v1/skills", ct);
     public Task<List<SkillInfo>> InstallAsync(string source, CancellationToken ct = default) => c.SendAsync<List<SkillInfo>>(HttpMethod.Post, "api/v1/skills/install", new SourceBody(source), ct);
 
+    /// <summary>Publishers whose signed skill packages this server trusts.</summary>
+    public Task<List<SkillPublisherInfo>> PublishersAsync(CancellationToken ct = default) => c.GetAsync<List<SkillPublisherInfo>>("api/v1/skills/publishers", ct);
+    public Task TrustPublisherAsync(string name, string publicKeyPem, CancellationToken ct = default) =>
+        c.SendAsync(HttpMethod.Post, "api/v1/skills/publishers", new TrustedSkillPublisher { Name = name, PublicKeyPem = publicKeyPem }, ct);
+
     /// <summary>Learning evaluation: outcomes per skill version and a verdict (healthy, rollback recommended, ready to promote…).</summary>
     public Task<List<SkillEvaluation>> EvaluationsAsync(CancellationToken ct = default) => c.GetAsync<List<SkillEvaluation>>("api/v1/skills/evaluations", ct);
 

@@ -80,6 +80,8 @@ namespace Marbots.Abstractions;
 [JsonSerializable(typeof(RegisterPushDeviceRequest))]
 [JsonSerializable(typeof(PushTestResult))]
 [JsonSerializable(typeof(PushConfig))]
+[JsonSerializable(typeof(TrustedSkillPublisher))]
+[JsonSerializable(typeof(List<SkillPublisherInfo>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 [JsonSerializable(typeof(List<string>))]
 public sealed partial class MarbotsJsonContext : JsonSerializerContext

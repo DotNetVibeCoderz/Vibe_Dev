@@ -38,6 +38,11 @@ public sealed class MarbotsOptions
     /// <summary>Start with approvals skipped (server flag <c>--dangerously-skip-approvals</c>). Can be turned off at runtime.</summary>
     public bool DangerouslySkipApprovals { get; set; }
 
+    /// <summary>Publishers whose signed skills are trusted (also: data/trusted-publishers/&lt;name&gt;.pem).</summary>
+    public List<TrustedSkillPublisher> TrustedSkillPublishers { get; set; } = [];
+    /// <summary>Refuse to install or load installed skills that are not signed by a trusted publisher.</summary>
+    public bool RequireSignedSkills { get; set; }
+
     /// <summary>Agent-host mutual TLS.</summary>
     public HostSecurityOptions HostSecurity { get; set; } = new();
 
@@ -62,6 +67,7 @@ public sealed class MarbotsOptions
         o.Providers = [.. Providers];
         o.ModelProfiles = [.. ModelProfiles];
         o.SkillDirectories = [.. SkillDirectories];
+        o.TrustedSkillPublishers = [.. TrustedSkillPublishers];
         return o;
     }
 }

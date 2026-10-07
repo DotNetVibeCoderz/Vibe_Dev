@@ -232,6 +232,9 @@ public sealed class SkillInfo
     public bool Pending { get; set; }
     /// <summary>Bot that drafted the skill (auto-learn). That bot may trial it before it is published.</summary>
     public string? Author { get; set; }
+    /// <summary>Unsigned | Verified | UntrustedPublisher (Invalid skills are never loaded).</summary>
+    public string Signature { get; set; } = "Unsigned";
+    public string? Publisher { get; set; }
 }
 
 public sealed class McpServerConfig

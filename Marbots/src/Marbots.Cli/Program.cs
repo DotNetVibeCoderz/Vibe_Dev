@@ -143,6 +143,8 @@ internal sealed class Commands(MarbotsClient client, Ui ui)
           <any command> --dangerously-skip-approvals   Skip approvals only while that command runs
                                          (alias: --dangerously-skip-permissions)
           skills | skills install <git-url-or-folder>
+          skills keygen <name> | skills sign <folder> --key <name.key.pem> --publisher <name>
+          skills verify <folder> <pub.pem>... | skills trust <name> <pub.pem> | skills publishers
           skills rollback|promote|discard <name>   Learning evaluation (verdicts in "skills")
           skills auto-rollback on|off
           mcp | mcp install <id>
@@ -319,6 +321,39 @@ internal sealed class Commands(MarbotsClient client, Ui ui)
 
     private async Task<int> SkillsAsync(List<string> a, CancellationToken ct)
     {
+        // Signing works offline on folders; trust talks to the server.
+        switch (a.Count > 1 ? a[1] : null)
+        {
+            case "keygen" when a.Count > 2:
+                var (priv, pub) = SkillSigning.CreateKey();
+                await File.WriteAllTextAsync(a[2] + ".key.pem", priv, ct);
+                await File.WriteAllTextAsync(a[2] + ".pub.pem", pub, ct);
+                ui.Ok($"Wrote {a[2]}.key.pem (keep it secret) and {a[2]}.pub.pem (give it to servers that should trust you).");
+                return 0;
+            case "sign" when a.Count > 2:
+                {
+                    var keyFile = a.IndexOf("--key") is var ki and > 0 && ki + 1 < a.Count ? a[ki + 1] : throw new ArgumentException("--key <private.pem> is required");
+                    var publisher = a.IndexOf("--publisher") is var pi and > 0 && pi + 1 < a.Count ? a[pi + 1] : throw new ArgumentException("--publisher <name> is required");
+                    var sig = SkillSigning.Sign(a[2], await File.ReadAllTextAsync(keyFile, ct), publisher);
+                    ui.Ok($"Signed {sig.Files.Count} files as {sig.Publisher} (key {sig.KeyId}).");
+                    return 0;
+                }
+            case "verify" when a.Count > 2:
+                {
+                    var pubs = a.Skip(3).Where(x => x.EndsWith(".pem", StringComparison.OrdinalIgnoreCase))
+                        .Select(f => new TrustedSkillPublisher { Name = Path.GetFileNameWithoutExtension(f).Replace(".pub", ""), PublicKeyPem = File.ReadAllText(f) }).ToList();
+                    var v = SkillSigning.Verify(a[2], pubs);
+                    if (v.Status == SkillSignatureStatus.Verified) ui.Ok(v.Detail); else ui.Warn($"{v.Status}: {v.Detail}");
+                    return v.Status == SkillSignatureStatus.Verified ? 0 : 1;
+                }
+            case "trust" when a.Count > 3:
+                await client.Skills.TrustPublisherAsync(a[2], await File.ReadAllTextAsync(a[3], ct), ct);
+                ui.Ok($"Skills signed by {a[2]} are now trusted.");
+                return 0;
+            case "publishers":
+                foreach (var p in await client.Skills.PublishersAsync(ct)) ui.Row(p.Name, p.KeyId);
+                return 0;
+        }
         if (a.Count > 2 && a[1] == "install")
         {
             var installed = await client.Skills.InstallAsync(a[2], ct);

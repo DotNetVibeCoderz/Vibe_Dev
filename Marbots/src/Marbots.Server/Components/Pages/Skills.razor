@@ -73,7 +73,7 @@
                 {
                     <tr>
                         <td><b>@s.Name</b><div class="muted small-text">@s.Description</div></td>
-                        <td><span class="chip">@s.Trust</span></td>
+                        <td><span class="chip">@s.Trust</span>@if (s.Signature == "Verified") { <span class="chip on" title="Signed package; every file matches the signature">✓ @s.Publisher</span> } else if (s.Signature == "UntrustedPublisher") { <span class="chip" title="Signed by a publisher this server does not trust">signed · @s.Publisher</span> }</td>
                         <td class="small-text">@(s.NeedsShell ? "shell " : "")@(s.NeedsNetwork ? "network " : "")@(s.HasScripts ? "scripts" : "")@(!s.NeedsShell && !s.NeedsNetwork && !s.HasScripts ? "—" : "")</td>
                         <td class="small-text">@s.Version</td>
                         <td class="small-text">@if (Eval(s) is { } ev) { <Verdict Evaluation="ev" /> }</td>

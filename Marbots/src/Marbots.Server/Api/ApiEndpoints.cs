@@ -182,7 +182,26 @@ public static class ApiEndpoints
 
         // ---------- skills ----------
         api.MapGet("/skills", (SkillRegistry s) => s.All);
-        api.MapPost("/skills/install", async (InstallSkillRequest req, SkillRegistry s, CancellationToken ct) => await s.InstallAsync(req.Source, ct));
+        api.MapPost("/skills/install", async (InstallSkillRequest req, SkillRegistry s, CancellationToken ct) =>
+        {
+            try { return Results.Ok(await s.InstallAsync(req.Source, ct)); }
+            catch (InvalidOperationException ex) { return Results.Problem(ex.Message, statusCode: 422); }
+        });
+        // Signed skill packages: publishers whose signatures are trusted.
+        api.MapGet("/skills/publishers", (SkillRegistry s) => s.TrustedPublishers().Select(p =>
+        {
+            using var key = System.Security.Cryptography.ECDsa.Create();
+            key.ImportFromPem(p.PublicKeyPem);
+            return new SkillPublisherInfo(p.Name, SkillSigning.KeyId(key));
+        }).ToList());
+        api.MapPost("/skills/publishers", (TrustedSkillPublisher req, SkillRegistry s) =>
+        {
+            try { s.TrustPublisher(req.Name, req.PublicKeyPem); return Results.NoContent(); }
+            catch (Exception ex) when (ex is ArgumentException or System.Security.Cryptography.CryptographicException)
+            {
+                return Results.Problem("Invalid publisher: " + ex.Message, statusCode: 400);
+            }
+        });
         api.MapPost("/skills", async (CreateSkillRequest req, SkillRegistry s, CancellationToken ct) => await s.CreateAsync(req.Name, req.Description, req.Body, false, ct));
         api.MapDelete("/skills/{name}", (string name, SkillRegistry s) => s.Uninstall(name) ? Results.NoContent() : Results.NotFound());
         api.MapPost("/skills/{name}/approve", (string name, SkillRegistry s) => s.ApprovePending(name) ? Results.NoContent() : Results.NotFound());
