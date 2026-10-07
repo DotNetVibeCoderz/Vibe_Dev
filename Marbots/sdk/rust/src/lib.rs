@@ -36,6 +36,6 @@ mod types;
 
 pub use client::{
     AgentHosts, Approvals, Bots, Client, Error, EventStream, Events, Mcp, Memory, Models, Result,
-    Schedules, Skills, Tasks, Templates, Threads,
+    Schedules, Skills, Tasks, Templates, Tenancy, Threads,
 };
 pub use types::*;

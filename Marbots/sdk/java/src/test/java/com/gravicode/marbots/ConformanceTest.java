@@ -50,6 +50,8 @@ public final class ConformanceTest {
     }
 
     private static void run(MarbotsClient mb) throws Exception {
+        WhoAmI me = mb.tenancy().whoami();
+        check(me.tenant().equals("default") && me.role() == TenantRole.OWNER && !me.multiTenant(), "whoami single-tenant");
         SystemInfo sys = mb.system();
         check("Marbots".equals(sys.product()) && sys.creditsEn().contains("Gravicode"), "system info");
         check(mb.bots().list().stream().anyMatch(b -> "boss-man".equals(b.id()) && b.isSystem()), "boss man exists");

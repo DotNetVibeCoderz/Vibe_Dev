@@ -11,7 +11,8 @@ from typing import Any, Dict, Iterator, List, Optional
 from .types import (
     AgentEvent, ApprovalRequest, ApprovalScope, BootstrapResult, Bot, BotModelInfo, BotSpec, BotTemplate, ChatMessage,
     ChatThread, EnrollmentToken, HostInfo, McpServer, MemoryKind, MemoryRecord, ModelCatalog, ScheduleJob, ScheduleSpec,
-    SendResult, SkillEvaluation, SkillInfo, SystemInfo, TaskRecord, WorkspaceFile,
+    SendResult, SkillEvaluation, SkillInfo, SystemInfo, TaskRecord, WorkspaceFile, TenantInfo, ApiKeyInfo, NewApiKey,
+    TenantMember, TenantRole, WhoAmI,
 )
 
 
@@ -29,10 +30,11 @@ def _q(s: str) -> str:
 
 
 class _Http:
-    def __init__(self, base_url: str, api_key: Optional[str], timeout: float) -> None:
+    def __init__(self, base_url: str, api_key: Optional[str], timeout: float, tenant: Optional[str] = None) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.timeout = timeout
+        self.tenant = tenant
 
     def request(self, method: str, path: str, body: Optional[bytes] = None, content_type: str = "application/json",
                 accept: Optional[str] = None) -> urllib.request.Request:
@@ -42,7 +44,13 @@ class _Http:
         if accept:
             req.add_header("Accept", accept)
         if self.api_key:
-            req.add_header("X-Api-Key", self.api_key)
+            # OIDC access tokens (JWT) go in Authorization; Marbots keys in X-Api-Key.
+            if self.api_key.count(".") == 2 and not self.api_key.startswith("mbk_"):
+                req.add_header("Authorization", "Bearer " + self.api_key)
+            else:
+                req.add_header("X-Api-Key", self.api_key)
+        if self.tenant:
+            req.add_header("X-Marbots-Tenant", self.tenant)
         return req
 
     def raw(self, method: str, path: str, body: Optional[bytes] = None, content_type: str = "application/json",
@@ -329,6 +337,49 @@ class EventsApi:
                         yield AgentEvent.from_wire(doc)
 
 
+class TenancyApi:
+    """Who am I, tenants (platform admins), and this tenant's API keys and members (owners). See docs/en/multi-tenant.md."""
+
+    def __init__(self, h: _Http) -> None:
+        self._h = h
+
+    def whoami(self) -> WhoAmI:
+        return WhoAmI.from_wire(_obj(self._h.json("GET", "/api/v1/whoami")))
+
+    def list_tenants(self) -> List[TenantInfo]:
+        return [TenantInfo.from_wire(d) for d in _objs(self._h.json("GET", "/api/v1/tenants"))]
+
+    def create_tenant(self, tenant_id: str, name: Optional[str] = None) -> TenantInfo:
+        return TenantInfo.from_wire(_obj(self._h.json("POST", "/api/v1/tenants", {"id": tenant_id, "name": name})))
+
+    def disable_tenant(self, tenant_id: str) -> TenantInfo:
+        return TenantInfo.from_wire(_obj(self._h.json("POST", f"/api/v1/tenants/{_q(tenant_id)}/disable")))
+
+    def enable_tenant(self, tenant_id: str) -> TenantInfo:
+        return TenantInfo.from_wire(_obj(self._h.json("POST", f"/api/v1/tenants/{_q(tenant_id)}/enable")))
+
+    def create_tenant_key(self, tenant_id: str, name: str, role: TenantRole = "Owner") -> NewApiKey:
+        return NewApiKey.from_wire(_obj(self._h.json("POST", f"/api/v1/tenants/{_q(tenant_id)}/keys", {"name": name, "role": role})))
+
+    def list_keys(self) -> List[ApiKeyInfo]:
+        return [ApiKeyInfo.from_wire(d) for d in _objs(self._h.json("GET", "/api/v1/tenant/keys"))]
+
+    def create_key(self, name: str, role: TenantRole = "Operator") -> NewApiKey:
+        return NewApiKey.from_wire(_obj(self._h.json("POST", "/api/v1/tenant/keys", {"name": name, "role": role})))
+
+    def revoke_key(self, key_id: str) -> None:
+        self._h.json("DELETE", f"/api/v1/tenant/keys/{_q(key_id)}")
+
+    def list_members(self) -> List[TenantMember]:
+        return [TenantMember.from_wire(d) for d in _objs(self._h.json("GET", "/api/v1/tenant/members"))]
+
+    def set_member(self, subject: str, role: TenantRole) -> TenantMember:
+        return TenantMember.from_wire(_obj(self._h.json("PUT", "/api/v1/tenant/members", {"subject": subject, "role": role})))
+
+    def remove_member(self, subject: str) -> None:
+        self._h.json("DELETE", f"/api/v1/tenant/members/{_q(subject)}")
+
+
 class MarbotsClient:
     """Client for a Marbots server.
 
@@ -338,8 +389,11 @@ class MarbotsClient:
     >>> print(mb.chat("boss-man", "Plan a product launch"))
     """
 
-    def __init__(self, base_url: str = "http://localhost:5170", api_key: Optional[str] = None, timeout: float = 120) -> None:
-        self._h = _Http(base_url, api_key, timeout)
+    def __init__(self, base_url: str = "http://localhost:5170", api_key: Optional[str] = None, timeout: float = 120,
+                 tenant: Optional[str] = None) -> None:
+        """``base_url`` may end in ``/t/<tenant>``; ``api_key`` is a tenant key (mbk_...), the platform key or an OIDC
+        token; ``tenant`` picks the tenant for the platform key or a token."""
+        self._h = _Http(base_url, api_key, timeout, tenant)
         self.bots = BotsApi(self._h)
         self.templates = TemplatesApi(self._h)
         self.models = ModelsApi(self._h)
@@ -352,6 +406,7 @@ class MarbotsClient:
         self.memory = MemoryApi(self._h)
         self.events = EventsApi(self._h)
         self.agent_hosts = AgentHostsApi(self._h)
+        self.tenancy = TenancyApi(self._h)
 
     @property
     def base_url(self) -> str:

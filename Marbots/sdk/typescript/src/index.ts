@@ -21,6 +21,7 @@ import type {
   AgentEvent, ApprovalRequest, ApprovalScope, BootstrapOptions, BootstrapResult, Bot, BotModelInfo, BotSpec, BotTemplate,
   ChatMessage, ChatThread, ClientOptions, EnrollmentToken, HostInfo, SkillEvaluation, McpServer, MemoryKind, MemoryRecord, ModelCatalog, ModelSetting, ScheduleJob, ScheduleSpec,
   SendOptions, SendResult, SkillInfo, SystemInfo, TaskRecord, WorkspaceFile,
+  ApiKeyInfo, NewApiKey, TenantInfo, TenantMember, TenantRole, WhoAmI,
 } from "./types.js";
 import { TERMINAL_STATES } from "./types.js";
 
@@ -55,16 +56,26 @@ function botBody(spec: BotSpec, id = ""): Record<string, unknown> {
 export class MarbotsClient {
   readonly baseUrl: string;
   private readonly apiKey?: string;
+  private readonly tenant?: string;
   private readonly f: typeof fetch;
 
   constructor(options: ClientOptions = {}) {
     this.baseUrl = (options.baseUrl ?? "http://localhost:5170").replace(/\/$/, "");
     this.apiKey = options.apiKey;
+    this.tenant = options.tenant;
     this.f = options.fetch ?? globalThis.fetch.bind(globalThis);
   }
 
   private headers(extra?: Record<string, string>): Record<string, string> {
-    return { ...(this.apiKey ? { "X-Api-Key": this.apiKey } : {}), ...extra };
+    const h: Record<string, string> = {};
+    if (this.apiKey) {
+      // OIDC access tokens (JWT) go in Authorization; Marbots keys in X-Api-Key.
+      const jwt = this.apiKey.split(".").length === 3 && !this.apiKey.startsWith("mbk_");
+      if (jwt) h["Authorization"] = `Bearer ${this.apiKey}`;
+      else h["X-Api-Key"] = this.apiKey;
+    }
+    if (this.tenant) h["X-Marbots-Tenant"] = this.tenant;
+    return { ...h, ...extra };
   }
 
   private async raw(method: string, path: string, body?: BodyInit, contentType = "application/json"): Promise<Response> {
@@ -193,6 +204,24 @@ export class MarbotsClient {
     disable: (id: string): Promise<void> => this.json("POST", `/api/v1/hosts/${q(id)}/disable`),
     enable: (id: string): Promise<void> => this.json("POST", `/api/v1/hosts/${q(id)}/enable`),
     remove: (id: string): Promise<void> => this.json("DELETE", `/api/v1/hosts/${q(id)}`),
+  };
+
+  /** Who am I, tenants (platform admins), this tenant's API keys and members (owners). See docs/en/multi-tenant.md. */
+  readonly tenancy = {
+    whoami: (): Promise<WhoAmI> => this.json("GET", "/api/v1/whoami"),
+    listTenants: (): Promise<TenantInfo[]> => this.json("GET", "/api/v1/tenants"),
+    createTenant: (id: string, name?: string): Promise<TenantInfo> => this.json("POST", "/api/v1/tenants", { id, name: name ?? null }),
+    disableTenant: (id: string): Promise<TenantInfo> => this.json("POST", `/api/v1/tenants/${q(id)}/disable`),
+    enableTenant: (id: string): Promise<TenantInfo> => this.json("POST", `/api/v1/tenants/${q(id)}/enable`),
+    /** Key in any tenant (platform admins); the plaintext key is returned once. */
+    createTenantKey: (tenant: string, name: string, role: TenantRole = "Owner"): Promise<NewApiKey> =>
+      this.json("POST", `/api/v1/tenants/${q(tenant)}/keys`, { name, role }),
+    listKeys: (): Promise<ApiKeyInfo[]> => this.json("GET", "/api/v1/tenant/keys"),
+    createKey: (name: string, role: TenantRole = "Operator"): Promise<NewApiKey> => this.json("POST", "/api/v1/tenant/keys", { name, role }),
+    revokeKey: (id: string): Promise<void> => this.json("DELETE", `/api/v1/tenant/keys/${q(id)}`),
+    listMembers: (): Promise<TenantMember[]> => this.json("GET", "/api/v1/tenant/members"),
+    setMember: (subject: string, role: TenantRole): Promise<TenantMember> => this.json("PUT", "/api/v1/tenant/members", { subject, role }),
+    removeMember: (subject: string): Promise<void> => this.json("DELETE", `/api/v1/tenant/members/${q(subject)}`),
   };
 
   readonly mcp = {

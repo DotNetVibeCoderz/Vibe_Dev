@@ -74,6 +74,12 @@ fn conformance() {
     let Some(server) = start() else { return };
     let mb = &server.client;
 
+    let me = mb.tenancy().whoami().unwrap();
+    assert_eq!(
+        (me.tenant.as_str(), me.role, me.multi_tenant),
+        ("default", TenantRole::Owner, false)
+    );
+
     let sys = mb.system().unwrap();
     assert_eq!(sys.product, "Marbots");
     assert!(sys.credits_en.contains("Gravicode"));

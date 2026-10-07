@@ -78,12 +78,23 @@ public sealed class MarbotsClient : IDisposable
     private readonly bool _ownsHttp;
     internal static readonly JsonSerializerOptions Json = CreateOptions();
 
-    public MarbotsClient(Uri baseAddress, string? apiKey = null, HttpClient? http = null)
+    /// <param name="baseAddress">Server URL; in multi-tenant mode it may include the tenant, e.g. https://srv/t/acme.</param>
+    /// <param name="apiKey">A tenant key (mbk_…, already bound to its tenant), the platform key, or an OIDC access token.</param>
+    /// <param name="tenant">Tenant to act in when using the platform key or a token (sent as X-Marbots-Tenant).</param>
+    public MarbotsClient(Uri baseAddress, string? apiKey = null, HttpClient? http = null, string? tenant = null)
     {
         _ownsHttp = http is null;
         _http = http ?? new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-        _http.BaseAddress = baseAddress;
-        if (!string.IsNullOrEmpty(apiKey)) _http.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
+        // Relative API paths must resolve under a base path such as /t/acme/.
+        _http.BaseAddress = baseAddress.AbsoluteUri.EndsWith('/') ? baseAddress : new Uri(baseAddress.AbsoluteUri + "/");
+        if (!string.IsNullOrEmpty(apiKey))
+        {
+            // JWTs go in Authorization; keys in X-Api-Key.
+            if (apiKey.Count(ch => ch == '.') == 2 && !apiKey.StartsWith("mbk_", StringComparison.Ordinal))
+                _http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+            else _http.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
+        }
+        if (!string.IsNullOrEmpty(tenant)) _http.DefaultRequestHeaders.Add("X-Marbots-Tenant", tenant);
         Bots = new BotsClient(this);
         Templates = new TemplatesClient(this);
         Threads = new ThreadsClient(this);
@@ -98,7 +109,11 @@ public sealed class MarbotsClient : IDisposable
         Channels = new ChannelsClient(this);
         Triggers = new TriggersClient(this);
         Hosts = new HostsClient(this);
+        Tenancy = new TenancyClient(this);
     }
+
+    /// <summary>Who am I, tenants (platform admins), this tenant's API keys and members (owners).</summary>
+    public TenancyClient Tenancy { get; }
 
     public BotsClient Bots { get; }
     public TemplatesClient Templates { get; }
@@ -412,4 +427,32 @@ public sealed class EventsClient(MarbotsClient c)
             if (evt is not null) yield return evt;
         }
     }
+}
+
+public sealed class TenancyClient(MarbotsClient c)
+{
+    public Task<WhoAmI> WhoAmIAsync(CancellationToken ct = default) => c.GetAsync<WhoAmI>("api/v1/whoami", ct);
+
+    // Platform administration.
+    public Task<List<TenantRecord>> ListTenantsAsync(CancellationToken ct = default) => c.GetAsync<List<TenantRecord>>("api/v1/tenants", ct);
+    public Task<TenantRecord> CreateTenantAsync(string id, string? name = null, CancellationToken ct = default) =>
+        c.SendAsync<TenantRecord>(HttpMethod.Post, "api/v1/tenants", new CreateTenantRequest(id, name), ct);
+    public Task<TenantRecord> DisableTenantAsync(string id, CancellationToken ct = default) =>
+        c.SendAsync<TenantRecord>(HttpMethod.Post, $"api/v1/tenants/{MarbotsClient.E(id)}/disable", null, ct);
+    public Task<TenantRecord> EnableTenantAsync(string id, CancellationToken ct = default) =>
+        c.SendAsync<TenantRecord>(HttpMethod.Post, $"api/v1/tenants/{MarbotsClient.E(id)}/enable", null, ct);
+    /// <summary>Creates a key in any tenant (platform admins). The plaintext key is returned once.</summary>
+    public Task<CreateApiKeyResult> CreateTenantKeyAsync(string tenant, string name, TenantRole role, CancellationToken ct = default) =>
+        c.SendAsync<CreateApiKeyResult>(HttpMethod.Post, $"api/v1/tenants/{MarbotsClient.E(tenant)}/keys", new CreateApiKeyRequest(name, role), ct);
+
+    // The caller's tenant.
+    public Task<List<TenantApiKey>> ListKeysAsync(CancellationToken ct = default) => c.GetAsync<List<TenantApiKey>>("api/v1/tenant/keys", ct);
+    public Task<CreateApiKeyResult> CreateKeyAsync(string name, TenantRole role = TenantRole.Operator, CancellationToken ct = default) =>
+        c.SendAsync<CreateApiKeyResult>(HttpMethod.Post, "api/v1/tenant/keys", new CreateApiKeyRequest(name, role), ct);
+    public Task RevokeKeyAsync(string id, CancellationToken ct = default) => c.SendAsync(HttpMethod.Delete, $"api/v1/tenant/keys/{MarbotsClient.E(id)}", null, ct);
+    public Task<List<TenantMember>> ListMembersAsync(CancellationToken ct = default) => c.GetAsync<List<TenantMember>>("api/v1/tenant/members", ct);
+    public Task<TenantMember> SetMemberAsync(string subject, TenantRole role, CancellationToken ct = default) =>
+        c.SendAsync<TenantMember>(HttpMethod.Put, "api/v1/tenant/members", new SetMemberRequest(subject, role), ct);
+    public Task RemoveMemberAsync(string subject, CancellationToken ct = default) =>
+        c.SendAsync(HttpMethod.Delete, $"api/v1/tenant/members/{MarbotsClient.E(subject)}", null, ct);
 }

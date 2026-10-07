@@ -15,7 +15,7 @@ public static class Program
         var key = Environment.GetEnvironmentVariable("MARBOTS_API_KEY");
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
-        using var client = new MarbotsClient(new Uri(url), key);
+        using var client = new MarbotsClient(new Uri(url), key, tenant: Environment.GetEnvironmentVariable("MARBOTS_TENANT"));
         var ui = new Ui(theme);
         var cmd = new Commands(client, ui);
         try
@@ -91,6 +91,10 @@ internal sealed class Commands(MarbotsClient client, Ui ui)
             case "mcp": return await McpAsync(a, ct);
             case "schedules": return await SchedulesAsync(ct);
             case "hosts": return await HostsAsync(a, Opt, ct);
+            case "whoami": return await WhoAmIAsync(ct);
+            case "tenants": return await TenantsAsync(a, Opt, ct);
+            case "keys": return await KeysAsync(a, Opt, ct);
+            case "members": return await MembersAsync(a, Opt, ct);
             case "models": return await ModelsAsync(a, ct);
             case "channels":
                 foreach (var v in await client.Channels.ListAsync(ct))
@@ -153,8 +157,15 @@ internal sealed class Commands(MarbotsClient client, Ui ui)
           bot container <bot> [<image>|off] [--cpus 1] [--memory 1024] [--no-network]
           logs [--thread <id>]           Follow the live event stream
           theme | theme set <name>       CLI colours (default, aurora, matrix, mono, high-contrast)
+          whoami                         Tenant, role and accessible tenants of this key/token
+          tenants                        All tenants (platform admins)
+          tenants create <id> [--name N] | tenants disable|enable <id>
+          tenants key <tenant> <name> [--role Viewer|Operator|Admin|Owner]   Key in any tenant (shown once)
+          keys | keys create <name> [--role R] | keys revoke <id>          This tenant's API keys (owners)
+          members | members add <email> [--role R] | members remove <email>  OIDC members of this tenant
 
-        Environment: MARBOTS_URL (default http://localhost:5170), MARBOTS_API_KEY
+        Environment: MARBOTS_URL (default http://localhost:5170; may end in /t/<tenant>), MARBOTS_API_KEY,
+                     MARBOTS_TENANT (tenant to act in with the platform key or an OIDC token)
         """);
         ui.Dim(WellKnown.CreditsEn);
     }
@@ -370,6 +381,68 @@ internal sealed class Commands(MarbotsClient client, Ui ui)
         foreach (var p in catalog.Profiles.Where(p => p.Name != "default")) ui.Row($"  {p.Name}", $"{p.Provider}/{p.Model}", "profile");
         var bots = await client.Bots.ListAsync(ct);
         ui.Dim($"{bots.Count(b => b.ModelProfile == ModelRef.Default)} of {bots.Count} bots follow the default.");
+        return 0;
+    }
+
+    private static TenantRole RoleOpt(Func<string, string?> opt, TenantRole fallback) =>
+        opt("--role") is { } r ? Enum.TryParse<TenantRole>(r, true, out var role) ? role : throw new ArgumentException("--role must be Viewer, Operator, Admin or Owner.") : fallback;
+
+    private async Task<int> WhoAmIAsync(CancellationToken ct)
+    {
+        var w = await client.Tenancy.WhoAmIAsync(ct);
+        ui.Title($"{w.Tenant}  ·  {w.Role}{(w.PlatformAdmin ? "  ·  platform admin" : "")}");
+        ui.Dim($"user: {w.User ?? "-"}   multi-tenant: {(w.MultiTenant ? "on" : "off")}   tenants: {string.Join(", ", w.Tenants)}");
+        return 0;
+    }
+
+    private async Task<int> TenantsAsync(List<string> a, Func<string, string?> opt, CancellationToken ct)
+    {
+        switch (a.Count > 1 ? a[1] : null)
+        {
+            case "create" when a.Count > 2:
+                var t = await client.Tenancy.CreateTenantAsync(a[2], opt("--name"), ct);
+                ui.Ok($"Tenant {t.Id} created. Give it an owner: marbots tenants key {t.Id} owner --role Owner");
+                return 0;
+            case "disable" when a.Count > 2: await client.Tenancy.DisableTenantAsync(a[2], ct); ui.Ok("Disabled."); return 0;
+            case "enable" when a.Count > 2: await client.Tenancy.EnableTenantAsync(a[2], ct); ui.Ok("Enabled."); return 0;
+            case "key" when a.Count > 3:
+                var k = await client.Tenancy.CreateTenantKeyAsync(a[2], a[3], RoleOpt(opt, TenantRole.Owner), ct);
+                ui.Ok($"{k.Role} key for {k.Tenant} (shown once):");
+                ui.Line("  " + k.Key);
+                return 0;
+        }
+        foreach (var t in await client.Tenancy.ListTenantsAsync(ct))
+            ui.Row(t.Disabled ? $"{t.Id} (disabled)" : t.Id, t.Name, t.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd"));
+        return 0;
+    }
+
+    private async Task<int> KeysAsync(List<string> a, Func<string, string?> opt, CancellationToken ct)
+    {
+        switch (a.Count > 1 ? a[1] : null)
+        {
+            case "create" when a.Count > 2:
+                var k = await client.Tenancy.CreateKeyAsync(a[2], RoleOpt(opt, TenantRole.Operator), ct);
+                ui.Ok($"{k.Role} key (shown once):");
+                ui.Line("  " + k.Key);
+                return 0;
+            case "revoke" when a.Count > 2: await client.Tenancy.RevokeKeyAsync(a[2], ct); ui.Ok("Revoked."); return 0;
+        }
+        foreach (var k in await client.Tenancy.ListKeysAsync(ct))
+            ui.Row($"{k.Name} ({k.Prefix}…)", k.Role.ToString(), k.LastUsedAt?.ToLocalTime().ToString("g") ?? "never", k.Id[..12]);
+        return 0;
+    }
+
+    private async Task<int> MembersAsync(List<string> a, Func<string, string?> opt, CancellationToken ct)
+    {
+        switch (a.Count > 1 ? a[1] : null)
+        {
+            case "add" when a.Count > 2:
+                var m = await client.Tenancy.SetMemberAsync(a[2], RoleOpt(opt, TenantRole.Viewer), ct);
+                ui.Ok($"{m.Subject} → {m.Role}");
+                return 0;
+            case "remove" when a.Count > 2: await client.Tenancy.RemoveMemberAsync(a[2], ct); ui.Ok("Removed."); return 0;
+        }
+        foreach (var m in await client.Tenancy.ListMembersAsync(ct)) ui.Row(m.Subject, m.Role.ToString());
         return 0;
     }
 

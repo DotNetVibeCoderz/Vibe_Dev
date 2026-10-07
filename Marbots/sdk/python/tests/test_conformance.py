@@ -64,6 +64,11 @@ class ConformanceTest(unittest.TestCase):
             cls.proc.wait(10)
         shutil.rmtree(cls.data, ignore_errors=True)
 
+    def test_whoami_single_tenant(self) -> None:
+        me = self.mb.tenancy.whoami()
+        self.assertEqual(("default", "Owner", False), (me.tenant, me.role, me.multi_tenant))
+        self.assertIn("default", me.tenants)
+
     def test_system_and_team(self) -> None:
         sys_info = self.mb.system()
         self.assertEqual("Marbots", sys_info.product)

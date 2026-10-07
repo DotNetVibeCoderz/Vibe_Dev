@@ -35,6 +35,7 @@ import java.util.function.Consumer;
 public final class MarbotsClient {
     private final String baseUrl;
     private final String apiKey;
+    private final String tenant;
     private final HttpClient http;
     private final Duration timeout;
 
@@ -50,19 +51,27 @@ public final class MarbotsClient {
     private final Memory memory = new Memory();
     private final Events events = new Events();
     private final AgentHosts agentHosts = new AgentHosts();
+    private final Tenancy tenancy = new Tenancy();
 
-    private MarbotsClient(String baseUrl, String apiKey, Duration timeout) {
+    private MarbotsClient(String baseUrl, String apiKey, String tenant, Duration timeout) {
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.apiKey = apiKey;
+        this.tenant = tenant;
         this.timeout = timeout;
         this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
     }
 
     /** A client for {@code baseUrl} (e.g. {@code http://localhost:5170}). */
-    public static MarbotsClient create(String baseUrl) { return new MarbotsClient(baseUrl, null, Duration.ofMinutes(30)); }
+    public static MarbotsClient create(String baseUrl) { return new MarbotsClient(baseUrl, null, null, Duration.ofMinutes(30)); }
 
-    /** A client that sends {@code X-Api-Key} (needed when the server sets Marbots:ApiKey). */
-    public static MarbotsClient create(String baseUrl, String apiKey) { return new MarbotsClient(baseUrl, apiKey, Duration.ofMinutes(30)); }
+    /**
+     * A client with a credential: a tenant key ({@code mbk_…}), the platform key (Marbots:ApiKey) or an OIDC access token.
+     * In multi-tenant mode {@code baseUrl} may end in {@code /t/<tenant>}.
+     */
+    public static MarbotsClient create(String baseUrl, String apiKey) { return new MarbotsClient(baseUrl, apiKey, null, Duration.ofMinutes(30)); }
+
+    /** Like {@link #create(String, String)}, acting in {@code tenant} (for the platform key or a token). */
+    public static MarbotsClient create(String baseUrl, String apiKey, String tenant) { return new MarbotsClient(baseUrl, apiKey, tenant, Duration.ofMinutes(30)); }
 
     public String baseUrl() { return baseUrl; }
     public Bots bots() { return bots; }
@@ -78,6 +87,8 @@ public final class MarbotsClient {
     public Events events() { return events; }
     /** Computers that run bots' tools (see docs/en/computers.md). */
     public AgentHosts agentHosts() { return agentHosts; }
+    /** Who am I, tenants (platform admins), this tenant's API keys and members (owners). */
+    public Tenancy tenancy() { return tenancy; }
 
     public SystemInfo system() { return SystemInfo.from(W.obj(getJson("/api/v1/system"))); }
 
@@ -92,8 +103,17 @@ public final class MarbotsClient {
     // ---------------------------------------------------------------- transport
 
     private HttpRequest.Builder request(String path) {
-        HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(baseUrl + path)).timeout(timeout);
-        if (apiKey != null && !apiKey.isEmpty()) b.header("X-Api-Key", apiKey);
+        return auth(HttpRequest.newBuilder(URI.create(baseUrl + path)).timeout(timeout));
+    }
+
+    /** OIDC access tokens (JWT) go in Authorization, keys in X-Api-Key; plus the tenant header when set. */
+    private HttpRequest.Builder auth(HttpRequest.Builder b) {
+        if (apiKey != null && !apiKey.isEmpty()) {
+            boolean jwt = apiKey.chars().filter(ch -> ch == '.').count() == 2 && !apiKey.startsWith("mbk_");
+            if (jwt) b.header("Authorization", "Bearer " + apiKey);
+            else b.header("X-Api-Key", apiKey);
+        }
+        if (tenant != null && !tenant.isEmpty()) b.header("X-Marbots-Tenant", tenant);
         return b;
     }
 
@@ -282,6 +302,31 @@ public final class MarbotsClient {
         public void remove(String id) { call("DELETE", "/api/v1/hosts/" + e(id), null); }
     }
 
+    /** Who am I, tenants and this tenant's keys and members (see docs/en/multi-tenant.md). */
+    public final class Tenancy {
+        private Tenancy() {}
+
+        public WhoAmI whoami() { return WhoAmI.from(W.obj(getJson("/api/v1/whoami"))); }
+        public List<Tenant> listTenants() { return MarbotsClient.list(getJson("/api/v1/tenants"), Tenant::from); }
+        public Tenant createTenant(String id, String name) { return Tenant.from(W.obj(call("POST", "/api/v1/tenants", map("id", id, "name", name)))); }
+        public Tenant disableTenant(String id) { return Tenant.from(W.obj(call("POST", "/api/v1/tenants/" + e(id) + "/disable", null))); }
+        public Tenant enableTenant(String id) { return Tenant.from(W.obj(call("POST", "/api/v1/tenants/" + e(id) + "/enable", null))); }
+        /** A key in any tenant (platform admins); the plaintext key is returned once. */
+        public NewApiKey createTenantKey(String tenant, String name, TenantRole role) {
+            return NewApiKey.from(W.obj(call("POST", "/api/v1/tenants/" + e(tenant) + "/keys", map("name", name, "role", role.wire()))));
+        }
+        public List<ApiKeyInfo> listKeys() { return MarbotsClient.list(getJson("/api/v1/tenant/keys"), ApiKeyInfo::from); }
+        public NewApiKey createKey(String name, TenantRole role) {
+            return NewApiKey.from(W.obj(call("POST", "/api/v1/tenant/keys", map("name", name, "role", role.wire()))));
+        }
+        public void revokeKey(String id) { call("DELETE", "/api/v1/tenant/keys/" + e(id), null); }
+        public List<TenantMember> listMembers() { return MarbotsClient.list(getJson("/api/v1/tenant/members"), TenantMember::from); }
+        public TenantMember setMember(String subject, TenantRole role) {
+            return TenantMember.from(W.obj(call("PUT", "/api/v1/tenant/members", map("subject", subject, "role", role.wire()))));
+        }
+        public void removeMember(String subject) { call("DELETE", "/api/v1/tenant/members/" + e(subject), null); }
+    }
+
     public final class Mcp {
         private Mcp() {}
 
@@ -318,8 +363,7 @@ public final class MarbotsClient {
          */
         public AutoCloseable subscribe(String threadId, Consumer<AgentEvent> handler) {
             String path = threadId == null ? "/api/v1/events" : "/api/v1/threads/" + e(threadId) + "/events";
-            HttpRequest req = HttpRequest.newBuilder(URI.create(baseUrl + path)).header("Accept", "text/event-stream")
-                .headers(apiKey == null || apiKey.isEmpty() ? new String[] {"X-Marbots-Sdk", "java"} : new String[] {"X-Api-Key", apiKey}).GET().build();
+            HttpRequest req = auth(HttpRequest.newBuilder(URI.create(baseUrl + path)).header("Accept", "text/event-stream")).GET().build();
             var body = new java.util.concurrent.atomic.AtomicReference<java.util.stream.Stream<String>>();
             CompletableFuture<HttpResponse<java.util.stream.Stream<String>>> future = http.sendAsync(req, HttpResponse.BodyHandlers.ofLines());
             future.thenAcceptAsync(resp -> {

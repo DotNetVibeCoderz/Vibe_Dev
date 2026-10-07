@@ -68,6 +68,14 @@ public static class Tenants
 
     private static bool HttpMethodsSafe(string m) => m is "GET" or "HEAD" or "OPTIONS";
 
+    /// <summary>The server URL an agent host of <paramref name="tenant"/> should use (…/t/&lt;tenant&gt; outside the default tenant).</summary>
+    public static string ServerUrlFor(string server, string tenant)
+    {
+        server = server.TrimEnd('/');
+        if (tenant == Default || server.EndsWith("/t/" + tenant, StringComparison.Ordinal)) return server;
+        return server + "/t/" + tenant;
+    }
+
     public static string HashKey(string key) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
 
     public static TenantRole? ParseRole(string? s) => Enum.TryParse<TenantRole>(s, true, out var r) && Enum.IsDefined(r) ? r : null;

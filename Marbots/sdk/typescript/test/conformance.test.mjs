@@ -36,6 +36,11 @@ after(() => {
   if (data) setTimeout(() => rmSync(data, { recursive: true, force: true }), 500);
 });
 
+test("whoami in single-tenant mode", { skip }, async () => {
+  const me = await mb.tenancy.whoami();
+  assert.deepEqual([me.tenant, me.role, me.multiTenant], ["default", "Owner", false]);
+});
+
 test("system and team", { skip }, async () => {
   const sys = await mb.system();
   assert.equal(sys.product, "Marbots");

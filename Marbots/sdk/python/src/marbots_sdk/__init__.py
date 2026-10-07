@@ -22,7 +22,7 @@ Example::
 
 from .client import (
     AgentHostsApi, ApprovalsApi, BotsApi, EventsApi, MarbotsClient, MarbotsError, McpApi, MemoryApi, ModelsApi, SchedulesApi,
-    SkillsApi, TasksApi, TemplatesApi, ThreadsApi,
+    SkillsApi, TasksApi, TemplatesApi, ThreadsApi, TenancyApi,
 )
 from .types import (
     AUTO_HOST, BOSS_MAN, LOCAL_HOST, TERMINAL_STATES, AgentEvent, BootstrapResult, ContainerProfile, EnrollmentToken,
@@ -30,6 +30,7 @@ from .types import (
     BotModelInfo, BotSpec, BotStatus, BotTemplate, ChatMessage, ChatThread, EventType, HostInfo, KernelPack,
     McpServer, MemoryKind, MemoryRecord, ModelCatalog, ModelProfileInfo, ModelRef, PermissionProfile, ScheduleJob,
     ScheduleSpec, SendResult, SkillInfo, SystemInfo, TaskRecord, TaskState, ToolCall, WorkspaceFile,
+    ApiKeyInfo, NewApiKey, TenantInfo, TenantMember, TenantRole, WhoAmI,
 )
 
 __all__ = [
@@ -42,5 +43,6 @@ __all__ = [
     "Bot", "BotSpec", "BotTemplate", "BotModelInfo", "ModelCatalog", "ModelProfileInfo", "ChatThread", "ChatMessage",
     "ToolCall", "TaskRecord", "SendResult", "WorkspaceFile", "ApprovalRequest", "AgentEvent", "MemoryRecord",
     "SkillInfo", "McpServer", "ScheduleSpec", "ScheduleJob", "HostInfo", "SystemInfo",
+    "TenancyApi", "TenantRole", "TenantInfo", "ApiKeyInfo", "NewApiKey", "TenantMember", "WhoAmI",
 ]
 __version__ = "0.2.0"

@@ -71,6 +71,14 @@ func need(t *testing.T) context.Context {
 	return ctx
 }
 
+func TestWhoAmISingleTenant(t *testing.T) {
+	ctx := need(t)
+	me, err := client.Tenancy.WhoAmI(ctx)
+	if err != nil || me.Tenant != "default" || me.Role != marbots.RoleOwner || me.MultiTenant {
+		t.Fatalf("whoami: %+v %v", me, err)
+	}
+}
+
 func TestSystemAndTeam(t *testing.T) {
 	ctx := need(t)
 	info, err := client.System(ctx)

@@ -11,10 +11,10 @@ public static class HostEndpoints
         var api = app.MapGroup("/api/v1/hosts");
 
         // One-time token for a manual install: marbots-host enroll --server <url> --token <token>
-        api.MapPost("/enrollments", async (CreateEnrollmentRequest req, HostRegistry hosts, HttpContext ctx, CancellationToken ct) =>
+        api.MapPost("/enrollments", async (CreateEnrollmentRequest req, HostRegistry hosts, MarbotsOptions options, HttpContext ctx, CancellationToken ct) =>
         {
             var (token, expires) = await hosts.CreateEnrollmentAsync(req.Name, TimeSpan.FromMinutes(Math.Clamp(req.ValidMinutes ?? 60, 5, 24 * 60)), "api", ct);
-            var server = $"{ctx.Request.Scheme}://{ctx.Request.Host}";
+            var server = Tenants.ServerUrlFor($"{ctx.Request.Scheme}://{ctx.Request.Host}", options.TenantId);
             return new CreateEnrollmentResult(token, expires, $"marbots-host enroll --server {server} --token {token} --name \"{req.Name}\"");
         });
 

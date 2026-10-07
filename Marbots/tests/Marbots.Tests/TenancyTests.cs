@@ -215,6 +215,44 @@ public sealed class TenancyTests : IClassFixture<TenancyTests.Fixture>
     }
 
     [Fact]
+    public async Task Sdk_manages_tenants_and_works_under_a_tenant_base_path()
+    {
+        using var admin = new Marbots.Sdk.MarbotsClient(_fx.Server.BaseAddress, PlatformKey, _fx.CreateClient());
+        var id = "s" + Guid.NewGuid().ToString("N")[..8];
+        await admin.Tenancy.CreateTenantAsync(id, "SDK tenant");
+        Assert.Contains(await admin.Tenancy.ListTenantsAsync(), t => t.Id == id);
+        var owner = await admin.Tenancy.CreateTenantKeyAsync(id, "owner", TenantRole.Owner);
+
+        using var tenant = new Marbots.Sdk.MarbotsClient(new Uri(_fx.Server.BaseAddress, $"t/{id}"), owner.Key, _fx.CreateClient());
+        Assert.Equal((id, TenantRole.Owner), ((await tenant.Tenancy.WhoAmIAsync()).Tenant, (await tenant.Tenancy.WhoAmIAsync()).Role));
+        var op = await tenant.Tenancy.CreateKeyAsync("ci", TenantRole.Operator);
+        await tenant.Tenancy.SetMemberAsync("dev@example.com", TenantRole.Admin);
+        Assert.Contains(await tenant.Tenancy.ListMembersAsync(), m => m.Subject == "dev@example.com" && m.Role == TenantRole.Admin);
+        await tenant.Tenancy.RevokeKeyAsync(op.Id);
+        Assert.DoesNotContain(await tenant.Tenancy.ListKeysAsync(), k => k.Id == op.Id);
+
+        using var asTenant = new Marbots.Sdk.MarbotsClient(_fx.Server.BaseAddress, PlatformKey, _fx.CreateClient(), tenant: id);
+        Assert.Equal(id, (await asTenant.Tenancy.WhoAmIAsync()).Tenant);
+    }
+
+    [Fact]
+    public async Task Agent_hosts_enroll_into_their_tenant()
+    {
+        var acme = await NewTenantAsync();
+        var admin = await KeyAsync(acme, TenantRole.Admin);
+        var enrollment = await (await Client(admin).PostAsJsonAsync("/api/v1/hosts/enrollments", new CreateEnrollmentRequest("lab", 10))).Content.ReadFromJsonAsync<CreateEnrollmentResult>(Json);
+        Assert.Contains($"/t/{acme} ", enrollment!.EnrollCommand);
+        var hello = new HostHello { Name = "lab", Os = "TestOS", Capabilities = ["shell"] };
+        // The token only exists in its tenant.
+        Assert.Equal(HttpStatusCode.Unauthorized, (await Client(null).PostAsJsonAsync("/api/v1/hosts/enroll", new HostEnrollmentRequest(enrollment.Token, hello))).StatusCode);
+        var enrolled = await Client(null).PostAsJsonAsync($"/t/{acme}/api/v1/hosts/enroll", new HostEnrollmentRequest(enrollment.Token, hello));
+        Assert.Equal(HttpStatusCode.OK, enrolled.StatusCode);
+        var hostId = (await enrolled.Content.ReadFromJsonAsync<HostEnrollmentResult>(Json))!.HostId;
+        Assert.Contains((await Client(admin).GetFromJsonAsync<List<HostInfo>>("/api/v1/hosts", Json))!, h => h.Id == hostId);
+        Assert.DoesNotContain((await Client(PlatformKey).GetFromJsonAsync<List<HostInfo>>("/api/v1/hosts", Json))!, h => h.Id == hostId);
+    }
+
+    [Fact]
     public void Required_roles_follow_the_route_table()
     {
         Assert.Equal(TenantRole.Viewer, Tenants.RequiredRole("GET", "/api/v1/bots"));

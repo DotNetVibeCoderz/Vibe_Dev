@@ -24,6 +24,9 @@ BOSS_MAN = "boss-man"
 LOCAL_HOST = "local-default"
 AUTO_HOST = "auto"
 
+#: Roles inside a tenant, weakest first.
+TenantRole = Literal["Viewer", "Operator", "Admin", "Owner"]
+
 SkillVerdict = Literal["CollectingEvidence", "Healthy", "Underperforming", "RollbackRecommended", "ReadyToPromote", "DiscardRecommended"]
 
 
@@ -660,3 +663,76 @@ class SystemInfo:
     @staticmethod
     def from_wire(d: Json) -> "SystemInfo":
         return SystemInfo(_s(d, "product"), _s(d, "version"), _s(d, "credits"), _s(d, "creditsEn"), _b(d, "modelConfigured"))
+
+
+@dataclass(frozen=True)
+class TenantInfo:
+    """A tenant (multi-tenant mode). ``default`` always exists."""
+
+    id: str
+    name: str
+    disabled: bool = False
+    created_at: str = ""
+
+    @staticmethod
+    def from_wire(d: Json) -> "TenantInfo":
+        return TenantInfo(_s(d, "id"), _s(d, "name"), _b(d, "disabled"), _s(d, "createdAt"))
+
+
+@dataclass(frozen=True)
+class ApiKeyInfo:
+    """A tenant API key as listed (the key itself is never returned again)."""
+
+    id: str
+    tenant: str
+    name: str
+    role: TenantRole
+    prefix: str
+    last_used_at: Optional[str] = None
+
+    @staticmethod
+    def from_wire(d: Json) -> "ApiKeyInfo":
+        return ApiKeyInfo(_s(d, "id"), _s(d, "tenant"), _s(d, "name"), cast(TenantRole, _s(d, "role", "Viewer")), _s(d, "prefix"),
+                          _os(d, "lastUsedAt"))
+
+
+@dataclass(frozen=True)
+class NewApiKey:
+    """A freshly created key; ``key`` is shown only this once."""
+
+    id: str
+    key: str
+    tenant: str
+    role: TenantRole
+
+    @staticmethod
+    def from_wire(d: Json) -> "NewApiKey":
+        return NewApiKey(_s(d, "id"), _s(d, "key"), _s(d, "tenant"), cast(TenantRole, _s(d, "role", "Viewer")))
+
+
+@dataclass(frozen=True)
+class TenantMember:
+    """An OIDC user's role in a tenant (matched by e-mail or subject)."""
+
+    tenant: str
+    subject: str
+    role: TenantRole
+
+    @staticmethod
+    def from_wire(d: Json) -> "TenantMember":
+        return TenantMember(_s(d, "tenant"), _s(d, "subject"), cast(TenantRole, _s(d, "role", "Viewer")))
+
+
+@dataclass(frozen=True)
+class WhoAmI:
+    tenant: str
+    role: TenantRole
+    user: Optional[str]
+    platform_admin: bool
+    multi_tenant: bool
+    tenants: List[str] = field(default_factory=list)
+
+    @staticmethod
+    def from_wire(d: Json) -> "WhoAmI":
+        return WhoAmI(_s(d, "tenant"), cast(TenantRole, _s(d, "role", "Viewer")), _os(d, "user"), _b(d, "platformAdmin"),
+                      _b(d, "multiTenant"), _ls(d, "tenants"))

@@ -30,8 +30,11 @@ func (e *Error) Error() string { return fmt.Sprintf("marbots: HTTP %d: %s", e.St
 // Option configures a Client.
 type Option func(*Client)
 
-// WithAPIKey sets the X-Api-Key header (needed when the server sets Marbots:ApiKey).
+// WithAPIKey sets the credential: a tenant key (mbk_...), the platform key (Marbots:ApiKey) or an OIDC access token.
 func WithAPIKey(key string) Option { return func(c *Client) { c.apiKey = key } }
+
+// WithTenant picks the tenant to act in with the platform key or a token (or end the base URL in /t/<tenant>).
+func WithTenant(tenant string) Option { return func(c *Client) { c.tenant = tenant } }
 
 // WithHTTPClient replaces the HTTP client (timeouts, proxies, tests).
 func WithHTTPClient(h *http.Client) Option { return func(c *Client) { c.http = h } }
@@ -40,6 +43,7 @@ func WithHTTPClient(h *http.Client) Option { return func(c *Client) { c.http = h
 type Client struct {
 	baseURL string
 	apiKey  string
+	tenant  string
 	http    *http.Client
 
 	Bots      *BotsAPI
@@ -55,6 +59,8 @@ type Client struct {
 	Events    *EventsAPI
 	// AgentHosts manages the computers that run bots' tools.
 	AgentHosts *AgentHostsAPI
+	// Tenancy covers who-am-I, tenants, and this tenant's API keys and members.
+	Tenancy *TenancyAPI
 }
 
 // New creates a client for baseURL (e.g. "http://localhost:5170").
@@ -75,6 +81,7 @@ func New(baseURL string, opts ...Option) *Client {
 	c.Memory = &MemoryAPI{c}
 	c.Events = &EventsAPI{c}
 	c.AgentHosts = &AgentHostsAPI{c}
+	c.Tenancy = &TenancyAPI{c}
 	return c
 }
 
@@ -90,7 +97,15 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body io.Re
 		req.Header.Set("Content-Type", contentType)
 	}
 	if c.apiKey != "" {
-		req.Header.Set("X-Api-Key", c.apiKey)
+		// OIDC access tokens (JWT) go in Authorization; Marbots keys in X-Api-Key.
+		if strings.Count(c.apiKey, ".") == 2 && !strings.HasPrefix(c.apiKey, "mbk_") {
+			req.Header.Set("Authorization", "Bearer "+c.apiKey)
+		} else {
+			req.Header.Set("X-Api-Key", c.apiKey)
+		}
+	}
+	if c.tenant != "" {
+		req.Header.Set("X-Marbots-Tenant", c.tenant)
 	}
 	return req, nil
 }

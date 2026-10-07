@@ -819,3 +819,68 @@ pub struct SystemInfo {
     pub credits_en: String,
     pub model_configured: bool,
 }
+
+/// A role inside a tenant, weakest first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum TenantRole {
+    Viewer,
+    Operator,
+    Admin,
+    Owner,
+}
+
+/// A tenant in multi-tenant mode; `default` always exists.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Tenant {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub disabled: bool,
+    #[serde(default, deserialize_with = "null_default")]
+    pub created_at: String,
+}
+
+/// A tenant API key as listed; the key itself is only returned when created.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiKeyInfo {
+    pub id: String,
+    pub tenant: String,
+    pub name: String,
+    pub role: TenantRole,
+    pub prefix: String,
+    pub last_used_at: Option<String>,
+}
+
+/// A freshly created key; `key` is shown only this once.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewApiKey {
+    pub id: String,
+    pub key: String,
+    pub tenant: String,
+    pub role: TenantRole,
+}
+
+/// An OIDC user's role in a tenant (matched by e-mail or subject).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TenantMember {
+    pub tenant: String,
+    pub subject: String,
+    pub role: TenantRole,
+}
+
+/// Who the caller is.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhoAmI {
+    pub tenant: String,
+    pub role: TenantRole,
+    pub user: Option<String>,
+    pub platform_admin: bool,
+    pub multi_tenant: bool,
+    #[serde(default, deserialize_with = "null_default")]
+    pub tenants: Vec<String>,
+}

@@ -70,6 +70,7 @@ fn esc(s: &str) -> String {
 pub struct Client {
     base: String,
     api_key: Option<String>,
+    tenant: Option<String>,
     agent: Agent,
 }
 
@@ -84,14 +85,36 @@ impl Client {
         Self {
             base: base_url.into().trim_end_matches('/').to_string(),
             api_key: None,
+            tenant: None,
             agent,
         }
     }
 
-    /// Sends `X-Api-Key` (needed when the server sets Marbots:ApiKey).
+    /// The credential: a tenant key (`mbk_…`), the platform key (Marbots:ApiKey) or an OIDC access token.
     pub fn with_api_key(mut self, key: impl Into<String>) -> Self {
         self.api_key = Some(key.into());
         self
+    }
+
+    /// Tenant to act in with the platform key or a token (or end the base URL in `/t/<tenant>`).
+    pub fn with_tenant(mut self, tenant: impl Into<String>) -> Self {
+        self.tenant = Some(tenant.into());
+        self
+    }
+
+    /// Adds the credential and tenant headers. OIDC tokens (JWT) go in `Authorization`, keys in `X-Api-Key`.
+    pub(crate) fn auth<B>(&self, mut req: ureq::RequestBuilder<B>) -> ureq::RequestBuilder<B> {
+        if let Some(k) = &self.api_key {
+            req = if k.matches('.').count() == 2 && !k.starts_with("mbk_") {
+                req.header("Authorization", format!("Bearer {k}"))
+            } else {
+                req.header("X-Api-Key", k)
+            };
+        }
+        if let Some(t) = &self.tenant {
+            req = req.header("X-Marbots-Tenant", t);
+        }
+        req
     }
 
     pub fn base_url(&self) -> &str {
@@ -131,9 +154,7 @@ impl Client {
 
     pub(crate) fn get_raw(&self, path: &str) -> Result<Vec<u8>> {
         let mut req = self.agent.get(format!("{}{}", self.base, path));
-        if let Some(k) = &self.api_key {
-            req = req.header("X-Api-Key", k);
-        }
+        req = self.auth(req);
         Self::finish(req.call()?)
     }
 
@@ -147,9 +168,7 @@ impl Client {
         let resp = match method {
             "DELETE" => {
                 let mut req = self.agent.delete(url);
-                if let Some(k) = &self.api_key {
-                    req = req.header("X-Api-Key", k);
-                }
+                req = self.auth(req);
                 req.call()?
             }
             _ => {
@@ -157,9 +176,7 @@ impl Client {
                     "PUT" => self.agent.put(url),
                     _ => self.agent.post(url),
                 };
-                if let Some(k) = &self.api_key {
-                    req = req.header("X-Api-Key", k);
-                }
+                req = self.auth(req);
                 match body {
                     Some(b) => req.send_json(b)?,
                     None => req
@@ -181,9 +198,7 @@ impl Client {
             .agent
             .post(format!("{}{}", self.base, path))
             .header("Content-Type", content_type);
-        if let Some(k) = &self.api_key {
-            req = req.header("X-Api-Key", k);
-        }
+        req = self.auth(req);
         Self::finish(req.send(body)?)
     }
 
@@ -240,6 +255,10 @@ impl Client {
     /// Computers that run bots' tools.
     pub fn agent_hosts(&self) -> AgentHosts<'_> {
         AgentHosts(self)
+    }
+    /// Who am I, tenants (platform admins), this tenant's API keys and members (owners).
+    pub fn tenancy(&self) -> Tenancy<'_> {
+        Tenancy(self)
     }
     pub fn events(&self) -> Events<'_> {
         Events(self)
@@ -582,6 +601,83 @@ impl AgentHosts<'_> {
     }
 }
 
+/// Who am I, tenants and this tenant's keys and members (see docs/en/multi-tenant.md).
+pub struct Tenancy<'a>(&'a Client);
+
+impl Tenancy<'_> {
+    pub fn whoami(&self) -> Result<WhoAmI> {
+        self.0.get("/api/v1/whoami")
+    }
+    pub fn list_tenants(&self) -> Result<Vec<Tenant>> {
+        self.0.get("/api/v1/tenants")
+    }
+    pub fn create_tenant(&self, id: &str, name: Option<&str>) -> Result<Tenant> {
+        self.0.send(
+            "POST",
+            "/api/v1/tenants",
+            Some(&json!({ "id": id, "name": name })),
+        )
+    }
+    pub fn disable_tenant(&self, id: &str) -> Result<Tenant> {
+        self.0.send::<Value, _>(
+            "POST",
+            &format!("/api/v1/tenants/{}/disable", esc(id)),
+            NONE,
+        )
+    }
+    pub fn enable_tenant(&self, id: &str) -> Result<Tenant> {
+        self.0
+            .send::<Value, _>("POST", &format!("/api/v1/tenants/{}/enable", esc(id)), NONE)
+    }
+    /// A key in any tenant (platform admins); the plaintext key is returned once.
+    pub fn create_tenant_key(
+        &self,
+        tenant: &str,
+        name: &str,
+        role: TenantRole,
+    ) -> Result<NewApiKey> {
+        self.0.send(
+            "POST",
+            &format!("/api/v1/tenants/{}/keys", esc(tenant)),
+            Some(&json!({ "name": name, "role": role })),
+        )
+    }
+    pub fn list_keys(&self) -> Result<Vec<ApiKeyInfo>> {
+        self.0.get("/api/v1/tenant/keys")
+    }
+    pub fn create_key(&self, name: &str, role: TenantRole) -> Result<NewApiKey> {
+        self.0.send(
+            "POST",
+            "/api/v1/tenant/keys",
+            Some(&json!({ "name": name, "role": role })),
+        )
+    }
+    pub fn revoke_key(&self, id: &str) -> Result<()> {
+        self.0
+            .send::<Value, Value>("DELETE", &format!("/api/v1/tenant/keys/{}", esc(id)), NONE)
+            .map(|_| ())
+    }
+    pub fn list_members(&self) -> Result<Vec<TenantMember>> {
+        self.0.get("/api/v1/tenant/members")
+    }
+    pub fn set_member(&self, subject: &str, role: TenantRole) -> Result<TenantMember> {
+        self.0.send(
+            "PUT",
+            "/api/v1/tenant/members",
+            Some(&json!({ "subject": subject, "role": role })),
+        )
+    }
+    pub fn remove_member(&self, subject: &str) -> Result<()> {
+        self.0
+            .send::<Value, Value>(
+                "DELETE",
+                &format!("/api/v1/tenant/members/{}", esc(subject)),
+                NONE,
+            )
+            .map(|_| ())
+    }
+}
+
 /// MCP servers.
 pub struct Mcp<'a>(&'a Client);
 
@@ -643,9 +739,7 @@ impl Events<'_> {
         let mut req = agent
             .get(format!("{}{}", self.0.base, path))
             .header("Accept", "text/event-stream");
-        if let Some(k) = &self.0.api_key {
-            req = req.header("X-Api-Key", k);
-        }
+        req = self.0.auth(req);
         let resp = req.call()?;
         if resp.status().as_u16() >= 300 {
             return Err(Error::Api {

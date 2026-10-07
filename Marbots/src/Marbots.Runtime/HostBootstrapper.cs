@@ -32,7 +32,9 @@ public sealed class HostBootstrapper(MarbotsOptions options, HostRegistry regist
         try
         {
             if (string.IsNullOrWhiteSpace(req.Host) || string.IsNullOrWhiteSpace(req.User)) throw new ArgumentException("Host and user are required.");
-            if (!Uri.TryCreate(req.ServerUrl, UriKind.Absolute, out var server)) throw new ArgumentException("ServerUrl must be the address the new host uses to reach this server, e.g. http://192.168.1.10:5170");
+            if (!Uri.TryCreate(req.ServerUrl, UriKind.Absolute, out var given)) throw new ArgumentException("ServerUrl must be the address the new host uses to reach this server, e.g. http://192.168.1.10:5170");
+            // A tenant's hosts talk to /t/<tenant>/…; the trailing slash keeps relative paths under it.
+            var server = new Uri(Tenants.ServerUrlFor(given.AbsoluteUri, options.TenantId) + "/");
             var auth = new List<AuthenticationMethod>();
             if (!string.IsNullOrEmpty(req.Password)) auth.Add(new PasswordAuthenticationMethod(req.User, req.Password));
             if (!string.IsNullOrEmpty(req.PrivateKey))

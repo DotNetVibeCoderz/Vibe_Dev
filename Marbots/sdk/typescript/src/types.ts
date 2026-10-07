@@ -440,8 +440,55 @@ export interface SystemInfo {
 export interface ClientOptions {
   /** Server URL (default http://localhost:5170). */
   baseUrl?: string;
-  /** Required when the server sets Marbots:ApiKey. */
+  /** A tenant key (mbk_…), the platform key (Marbots:ApiKey) or an OIDC access token. */
   apiKey?: string;
+  /** Tenant to act in with the platform key or a token (or end baseUrl in /t/<tenant>). */
+  tenant?: string;
   /** Custom fetch (tests, proxies). */
   fetch?: typeof fetch;
+}
+
+/** Roles inside a tenant, weakest first. */
+export type TenantRole = "Viewer" | "Operator" | "Admin" | "Owner";
+
+export interface TenantInfo {
+  id: string;
+  name: string;
+  disabled: boolean;
+  createdAt: string;
+}
+
+/** A tenant API key as listed; the key itself is only returned when created. */
+export interface ApiKeyInfo {
+  id: string;
+  tenant: string;
+  name: string;
+  role: TenantRole;
+  prefix: string;
+  createdAt: string;
+  lastUsedAt?: string;
+}
+
+/** A freshly created key — `key` is shown only this once. */
+export interface NewApiKey {
+  id: string;
+  key: string;
+  tenant: string;
+  role: TenantRole;
+}
+
+/** An OIDC user's role in a tenant (matched by e-mail or subject). */
+export interface TenantMember {
+  tenant: string;
+  subject: string;
+  role: TenantRole;
+}
+
+export interface WhoAmI {
+  tenant: string;
+  role: TenantRole;
+  user?: string;
+  platformAdmin: boolean;
+  multiTenant: boolean;
+  tenants: string[];
 }
