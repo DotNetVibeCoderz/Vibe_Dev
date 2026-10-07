@@ -1,6 +1,17 @@
 <Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                @if (context.User.Identity?.IsAuthenticated == true)
+                {
+                    <div class="page"><h1>@T["access.denied"]</h1><p class="muted">@T["access.deniedBody"]</p></div>
+                }
+                else
+                {
+                    <RedirectToLogin />
+                }
+            </NotAuthorized>
+        </AuthorizeRouteView>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
     <NotFound>
@@ -9,3 +20,7 @@
         </LayoutView>
     </NotFound>
 </Router>
+
+@code {
+    [Inject] private UiText T { get; set; } = default!;
+}

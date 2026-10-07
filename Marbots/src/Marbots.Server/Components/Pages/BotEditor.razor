@@ -1,4 +1,5 @@
 @page "/team/new"
+@attribute [Authorize(Policy = "Admin")]
 @page "/team/{Id}"
 @inherits LiveComponent
 @inject BotRegistry Registry

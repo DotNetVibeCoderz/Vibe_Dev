@@ -5,6 +5,8 @@
   <ItemGroup>
     <PackageReference Include="Markdig" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Marbots.Runtime\Marbots.Runtime.csproj" />

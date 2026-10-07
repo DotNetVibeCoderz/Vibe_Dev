@@ -1,0 +1,15 @@
+@* Picks a tenant role (Viewer → Owner). *@
+<select class="input" style="width:auto" aria-label="Role" value="@Value" @onchange="OnChange">
+    @foreach (var r in Enum.GetValues<TenantRole>())
+    {
+        <option value="@r">@r</option>
+    }
+</select>
+
+@code {
+    [Parameter] public TenantRole Value { get; set; }
+    [Parameter] public EventCallback<TenantRole> ValueChanged { get; set; }
+
+    private Task OnChange(ChangeEventArgs e) =>
+        Enum.TryParse<TenantRole>(e.Value?.ToString(), out var r) ? ValueChanged.InvokeAsync(r) : Task.CompletedTask;
+}

@@ -181,8 +181,27 @@ public sealed class CronExpression
 }
 
 /// <summary>Persistent scheduler: cron and one-shot jobs that send a prompt to a bot. Misfires run once on startup.</summary>
-public sealed class SchedulerService(IDocumentStore<ScheduleJob> store, IServiceProvider services, IEventBus bus, ILogger<SchedulerService> log) : BackgroundService
+public sealed class SchedulerService(IDocumentStore<ScheduleJob> store, IServiceProvider services, IEventBus bus, ILogger<SchedulerService> log) : IHostedService
 {
+    // A plain IHostedService rather than BackgroundService (which is IDisposable): request scopes in multi-tenant mode
+    // resolve this tenant singleton and would dispose — and so cancel — it.
+    private readonly CancellationTokenSource _stopping = new();
+    private Task? _loop;
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        _loop = Task.Run(() => ExecuteAsync(_stopping.Token), CancellationToken.None);
+        return Task.CompletedTask;
+    }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        if (_loop is null) return;
+        await _stopping.CancelAsync();
+        try { await _loop.WaitAsync(cancellationToken); }
+        catch (OperationCanceledException) { }
+    }
+
     private MarbotsEngine Engine => (MarbotsEngine)services.GetService(typeof(MarbotsEngine))!;
 
     public static TimeZoneInfo Zone(string id)
@@ -239,7 +258,7 @@ public sealed class SchedulerService(IDocumentStore<ScheduleJob> store, IService
         return task;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    private async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
         do

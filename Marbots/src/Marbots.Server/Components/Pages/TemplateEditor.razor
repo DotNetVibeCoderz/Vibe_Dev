@@ -1,4 +1,5 @@
 @page "/templates/new"
+@attribute [Authorize(Policy = "Admin")]
 @page "/templates/{Id}/edit"
 @inherits LiveComponent
 @inject TemplateService Templates

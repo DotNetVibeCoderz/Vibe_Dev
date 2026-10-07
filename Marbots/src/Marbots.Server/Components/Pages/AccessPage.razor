@@ -1,0 +1,197 @@
+@page "/access"
+@attribute [Authorize(Policy = "Admin")]
+@inject UiText T
+@inject TenantAccessor Tenant
+@inject PlatformStore Platform
+@inject TenantRuntimeManager Runtimes
+@inject AuthSettings AuthMode
+
+<PageTitle>@T["access.title"] · Marbots</PageTitle>
+<div class="page">
+    <div class="page-head">
+        <div>
+            <h1>@T["access.title"] <span class="chip">@Tenant.TenantId</span></h1>
+            <p>@T["access.subtitle"]</p>
+        </div>
+    </div>
+    @if (_message is not null) { <div class="@(_isError ? "error-box" : "ok-box")" role="status">@_message</div> }
+    @if (_newKey is not null)
+    {
+        <div class="panel panel-pad" style="margin-bottom:16px">
+            <p style="margin:0 0 6px"><b>@T["access.newKey"]</b></p>
+            <div class="secret-once">@_newKey</div>
+        </div>
+    }
+    @if (!_owner) { <p class="muted small-text">@T["access.ownerOnly"]</p> }
+
+    <div class="split" style="align-items:start">
+        <section class="panel panel-pad">
+            <h2 style="margin:0 0 4px">@T["access.keys"]</h2>
+            <p class="small-text muted">@T["access.keys.hint"]</p>
+            <table class="table">
+                <thead><tr><th>@T["access.name"]</th><th>@T["access.role"]</th><th>@T["access.lastUsed"]</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var k in _keys)
+                    {
+                        <tr>
+                            <td>@k.Name <div class="muted small-text"><code>@k.Prefix…</code></div></td>
+                            <td><span class="chip">@k.Role</span></td>
+                            <td class="small-text">@(k.LastUsedAt?.ToLocalTime().ToString("g") ?? T["access.never"])</td>
+                            <td>@if (_owner) { <button class="btn small danger" @onclick="() => Revoke(k)">@T["access.revoke"]</button> }</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (_owner)
+            {
+                <div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">
+                    <input class="input" style="flex:1;min-width:140px" @bind="_keyName" @bind:event="oninput" placeholder="@T["access.name"]" aria-label="@T["access.name"]" />
+                    <RolePicker @bind-Value="_keyRole" />
+                    <button class="btn primary" @onclick="CreateKey" disabled="@string.IsNullOrWhiteSpace(_keyName)">@T["access.create"]</button>
+                </div>
+            }
+        </section>
+
+        <section class="panel panel-pad">
+            <h2 style="margin:0 0 4px">@T["access.members"]</h2>
+            <p class="small-text muted">@T["access.members.hint"]@(AuthMode.Oidc ? "" : " (Marbots:Auth:Mode = oidc)")</p>
+            <table class="table">
+                <thead><tr><th>@T["access.subject"]</th><th>@T["access.role"]</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var m in _members)
+                    {
+                        <tr>
+                            <td>@m.Subject</td>
+                            <td><span class="chip">@m.Role</span></td>
+                            <td>@if (_owner) { <button class="btn small danger" @onclick="() => RemoveMember(m)">@T["access.remove"]</button> }</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (_owner)
+            {
+                <div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">
+                    <input class="input" style="flex:1;min-width:160px" type="email" @bind="_subject" @bind:event="oninput" placeholder="ana@example.com" aria-label="@T["access.subject"]" />
+                    <RolePicker @bind-Value="_memberRole" />
+                    <button class="btn primary" @onclick="AddMember" disabled="@string.IsNullOrWhiteSpace(_subject)">@T["access.add"]</button>
+                </div>
+            }
+        </section>
+    </div>
+
+    @if (Tenant.PlatformAdmin && Runtimes.MultiTenant)
+    {
+        <h2 style="margin:26px 0 4px">@T["access.tenants"]</h2>
+        <p class="small-text muted">@T["access.tenants.hint"]</p>
+        <div class="panel panel-pad">
+            <table class="table">
+                <thead><tr><th>Id</th><th>@T["access.name"]</th><th></th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var t in _tenants)
+                    {
+                        <tr class="@(t.Disabled ? "muted" : "")">
+                            <td><code>@t.Id</code></td>
+                            <td>@t.Name</td>
+                            <td>@if (Runtimes.Running.Contains(t.Id)) { <span class="chip on">running</span> }</td>
+                            <td>
+                                @if (t.Id != Tenants.Default)
+                                {
+                                    <button class="btn small" @onclick="() => Toggle(t)">@(t.Disabled ? T["access.enable"] : T["access.disable"])</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">
+                <input class="input" style="width:200px" @bind="_tenantId" @bind:event="oninput" placeholder="acme" aria-label="@T["access.tenantId"]" />
+                <input class="input" style="flex:1;min-width:160px" @bind="_tenantName" placeholder="Acme Corp" aria-label="@T["access.name"]" />
+                <button class="btn primary" @onclick="CreateTenant" disabled="@string.IsNullOrWhiteSpace(_tenantId)">@T["access.create"]</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<TenantApiKey> _keys = [];
+    private IReadOnlyList<TenantMember> _members = [];
+    private IReadOnlyList<TenantRecord> _tenants = [];
+    private string? _message, _newKey;
+    private bool _isError;
+    private bool _owner => Tenant.Can(TenantRole.Owner);
+    private string _keyName = "", _subject = "", _tenantId = "", _tenantName = "";
+    private TenantRole _keyRole = TenantRole.Operator, _memberRole = TenantRole.Viewer;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _keys = await Platform.ListKeysAsync(Tenant.TenantId);
+        _members = await Platform.ListMembersAsync(Tenant.TenantId);
+        if (Tenant.PlatformAdmin) _tenants = await Platform.ListTenantsAsync();
+    }
+
+    private async Task Run(Func<Task<string?>> action)
+    {
+        try
+        {
+            _message = await action();
+            _isError = false;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or UnknownTenantException)
+        {
+            _message = ex.Message;
+            _isError = true;
+        }
+        await LoadAsync();
+    }
+
+    private Task CreateKey() => Run(async () =>
+    {
+        if (!_owner) return null;
+        var r = await Platform.CreateKeyAsync(Tenant.TenantId, _keyName, _keyRole);
+        _newKey = r.Key;
+        _keyName = "";
+        return null;
+    });
+
+    private Task Revoke(TenantApiKey k) => Run(async () =>
+    {
+        if (!_owner) return null;
+        await Platform.RevokeKeyAsync(Tenant.TenantId, k.Id);
+        _newKey = null;
+        return $"{k.Name}: {T["access.revoke"]} ✓";
+    });
+
+    private Task AddMember() => Run(async () =>
+    {
+        if (!_owner) return null;
+        var m = await Platform.SetMemberAsync(Tenant.TenantId, _subject, _memberRole);
+        _subject = "";
+        return $"{m.Subject} → {m.Role}";
+    });
+
+    private Task RemoveMember(TenantMember m) => Run(async () =>
+    {
+        if (!_owner) return null;
+        await Platform.RemoveMemberAsync(Tenant.TenantId, m.Subject);
+        return null;
+    });
+
+    private Task CreateTenant() => Run(async () =>
+    {
+        if (!Tenant.PlatformAdmin) return null;
+        var t = await Platform.CreateTenantAsync(_tenantId, _tenantName);
+        await Runtimes.GetAsync(t.Id);
+        _tenantId = _tenantName = "";
+        return $"{t.Id} ✓";
+    });
+
+    private Task Toggle(TenantRecord t) => Run(async () =>
+    {
+        if (!Tenant.PlatformAdmin) return null;
+        await Platform.SetDisabledAsync(t.Id, !t.Disabled);
+        if (!t.Disabled) await Runtimes.StopTenantAsync(t.Id);
+        return null;
+    });
+}

@@ -1,4 +1,5 @@
 @page "/team"
+@attribute [Authorize(Policy = "Admin")]
 @inherits LiveComponent
 @inject BotRegistry Registry
 @inject BotPackageService Packages

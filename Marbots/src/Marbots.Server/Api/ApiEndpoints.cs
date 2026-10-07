@@ -141,6 +141,7 @@ public static class ApiEndpoints
         api.MapGet("/threads/{id}/messages", (string id, long? after, IMessageStore m) => m.ListAsync(id, after ?? 0, 1000));
         api.MapPost("/threads/{id}/messages", async (string id, SendMessageRequest req, MarbotsEngine e, IMessageStore m, CancellationToken ct) =>
         {
+            if (string.IsNullOrWhiteSpace(req.Text)) return Results.Problem("'text' is required.", statusCode: 400);
             var task = await e.SendAsync(id, req.Text, ct);
             if (!req.Wait) return Results.Accepted($"/api/v1/tasks/{task.Id}", new SendMessageResponse(task, null));
             task = await e.WaitAsync(task.Id, TimeSpan.FromSeconds(Math.Clamp(req.TimeoutSeconds, 1, 3600)), ct);
@@ -379,40 +380,5 @@ public static class WorkspaceFiles
             _ => "application/octet-stream",
         };
         return Results.File(full, type, enableRangeProcessing: true);
-    }
-}
-
-/// <summary>Optional API key protection for /api and /a2a (set Marbots:ApiKey). The in-process Blazor UI is unaffected.</summary>
-public sealed class ApiKeyMiddleware(RequestDelegate next, IConfiguration config)
-{
-    /// <summary>Webhook and channel inbound endpoints authenticate with their own secret or signature.</summary>
-    private static bool IsSelfAuthenticated(PathString path)
-    {
-        var p = path.Value ?? "";
-        if (p.StartsWith("/api/v1/hooks/", StringComparison.Ordinal)) return true;
-        // Agent hosts authenticate with their enrollment token / host secret.
-        if (p is "/api/v1/hosts/enroll" or "/api/v1/hosts/connect") return true;
-        return p.StartsWith("/api/v1/channels/", StringComparison.Ordinal) &&
-               (p.EndsWith("/inbound", StringComparison.Ordinal) || p.EndsWith("/slack", StringComparison.Ordinal) ||
-                p.EndsWith("/whatsapp", StringComparison.Ordinal) || p.EndsWith("/telegram", StringComparison.Ordinal));
-    }
-
-    public async Task InvokeAsync(HttpContext ctx)
-    {
-        var key = config["Marbots:ApiKey"];
-        var path = ctx.Request.Path;
-        if (!string.IsNullOrEmpty(key) && (path.StartsWithSegments("/api") || path.StartsWithSegments("/a2a")) && !IsSelfAuthenticated(path))
-        {
-            var supplied = ctx.Request.Headers["X-Api-Key"].ToString();
-            if (string.IsNullOrEmpty(supplied) && ctx.Request.Headers.Authorization.ToString() is { } auth && auth.StartsWith("Bearer ", StringComparison.Ordinal))
-                supplied = auth[7..];
-            if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(System.Text.Encoding.UTF8.GetBytes(supplied), System.Text.Encoding.UTF8.GetBytes(key)))
-            {
-                ctx.Response.StatusCode = 401;
-                await ctx.Response.WriteAsJsonAsync(new ProblemDetails { Title = "Missing or invalid API key", Status = 401 });
-                return;
-            }
-        }
-        await next(ctx);
     }
 }

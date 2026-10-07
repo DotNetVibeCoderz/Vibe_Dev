@@ -28,17 +28,10 @@ public sealed class MarbotsEngine(
     AutoLearnService autoLearn,
     IEventBus bus,
     MarbotsOptions options,
-    ILogger<MarbotsEngine> log) : IDisposable
+    ILogger<MarbotsEngine> log)
 {
-    private int _disposed;
-
-    public void Dispose()
-    {
-        if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
-        Shutdown();
-        _shutdown.Dispose();
-        _rootSlots.Dispose();
-    }
+    // Not IDisposable on purpose: in multi-tenant mode request scopes resolve this tenant singleton and would dispose
+    // it. Shutdown() (called when the runtime stops) cancels running work; nothing here holds unmanaged resources.
 
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _running = new();
     private readonly ConcurrentDictionary<string, TaskCompletionSource<TaskRecord>> _completions = new();
@@ -52,6 +45,7 @@ public sealed class MarbotsEngine(
 
     public async Task<ChatThread> CreateThreadAsync(string botId, string? title = null, CancellationToken ct = default)
     {
+        if (string.IsNullOrWhiteSpace(botId)) botId = WellKnown.BossManId;
         var bot = await registry.ResolveAsync(botId, ct) ?? throw new BotValidationException($"Bot '{botId}' not found.");
         var thread = new ChatThread { Id = Ids.New("thr"), BotId = bot.Id, Title = string.IsNullOrWhiteSpace(title) ? $"Chat with {bot.Name}" : title };
         await threads.UpsertAsync(thread, ct);
@@ -321,7 +315,7 @@ public sealed class MarbotsEngine(
 
     public void Shutdown()
     {
-        if (Volatile.Read(ref _disposed) == 1 && _shutdown.IsCancellationRequested) return;
+        if (_shutdown.IsCancellationRequested) return;
         try { _shutdown.Cancel(); }
         catch (ObjectDisposedException) { }
     }

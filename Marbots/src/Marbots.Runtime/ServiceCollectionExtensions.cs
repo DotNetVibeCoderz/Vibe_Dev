@@ -124,7 +124,7 @@ public sealed class MarbotsBootstrapper(
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         engine.Shutdown();
-        await mcpManager.DisposeAsync();
+        await mcpManager.ShutdownAsync();
     }
 }
 

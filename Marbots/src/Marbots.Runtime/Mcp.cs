@@ -267,7 +267,7 @@ public sealed record McpServerStatus(string ServerId, string Workspace, bool Con
 /// Starts MCP servers lazily and caches their tool lists. Servers whose arguments reference
 /// <c>{workspace}</c> get one process per project workspace so file access stays scoped.
 /// </summary>
-public sealed class McpManager(IDocumentStore<McpServerConfig> store, ISecretProvider secrets, IHttpClientFactory httpFactory, ILogger<McpManager> log) : IAsyncDisposable
+public sealed class McpManager(IDocumentStore<McpServerConfig> store, ISecretProvider secrets, IHttpClientFactory httpFactory, ILogger<McpManager> log)
 {
     private sealed class Connection
     {
@@ -372,7 +372,11 @@ public sealed class McpManager(IDocumentStore<McpServerConfig> store, ISecretPro
         foreach (var key in _errors.Keys.Where(k => k.StartsWith(serverId + "|", StringComparison.Ordinal)).ToList()) _errors.TryRemove(key, out _);
     }
 
-    public async ValueTask DisposeAsync()
+    /// <summary>
+    /// Closes every MCP connection (server shutdown). Deliberately not IAsyncDisposable: in multi-tenant mode a request
+    /// scope that resolves this tenant singleton would otherwise dispose it.
+    /// </summary>
+    public async ValueTask ShutdownAsync()
     {
         foreach (var lazy in _connections.Values)
             if (lazy.IsValueCreated && lazy.Value.IsCompletedSuccessfully) await lazy.Value.Result.Client.DisposeAsync();

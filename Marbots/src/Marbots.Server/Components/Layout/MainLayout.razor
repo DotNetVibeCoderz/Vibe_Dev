@@ -4,6 +4,9 @@
 @inject ApprovalService Approvals
 @inject IEventBus Bus
 @inject IJSRuntime JS
+@inject TenantAccessor Tenant
+@inject AuthSettings AuthMode
+@inject PlatformStore Platform
 
 <div class="shell">
     <nav class="rail" aria-label="Main">
@@ -12,14 +15,32 @@
             <span class="brand-name">Marbots<span class="brand-sub">Marvelous Bots</span></span>
         </a>
 
+        @if (AuthMode.MultiTenant || _tenants.Count > 1)
+        {
+            <details class="tenant-switch">
+                <summary title="@T["tenant.switch"]"><span class="tenant-dot" aria-hidden="true"></span><span class="tenant-name">@Tenant.TenantId</span><span class="tenant-role">@Tenant.Role</span></summary>
+                <div class="tenant-menu" role="menu">
+                    @foreach (var t in _tenants)
+                    {
+                        <a role="menuitem" class="@(t == Tenant.TenantId ? "on" : "")" href="/account/tenant/@t" data-enhance-nav="false">@t</a>
+                    }
+                </div>
+            </details>
+        }
+
         <div class="nav-group">@T["nav.group.work"]</div>
         <NavLink class="nav-link" href="/" Match="NavLinkMatch.All"><Icon Name="chat" />@T["nav.chat"]</NavLink>
         <NavLink class="nav-link" href="/office"><Icon Name="office" />@T["nav.office"]</NavLink>
         <NavLink class="nav-link" href="/tasks"><Icon Name="tasks" />@T["nav.tasks"]</NavLink>
+        @if (Tenant.Can(TenantRole.Operator))
+        {
         <NavLink class="nav-link" href="/approvals"><Icon Name="approvals" />@T["nav.approvals"]
             @if (_pending > 0) { <span class="nav-badge" aria-label="@_pending pending">@_pending</span> }
         </NavLink>
+        }
 
+        @if (Tenant.Can(TenantRole.Admin))
+        {
         <div class="nav-group">@T["nav.group.build"]</div>
         <NavLink class="nav-link" href="/team"><Icon Name="team" />@T["nav.team"]</NavLink>
         <NavLink class="nav-link" href="/templates"><Icon Name="templates" />@T["nav.templates"]</NavLink>
@@ -27,12 +48,17 @@
         <NavLink class="nav-link" href="/mcp"><Icon Name="mcp" />@T["nav.mcp"]</NavLink>
         <NavLink class="nav-link" href="/channels"><Icon Name="channels" />@T["nav.channels"]</NavLink>
         <NavLink class="nav-link" href="/schedules"><Icon Name="schedules" />@T["nav.schedules"]</NavLink>
+        }
 
         <div class="nav-group">@T["nav.group.observe"]</div>
         <NavLink class="nav-link" href="/dashboard"><Icon Name="dashboard" />@T["nav.dashboard"]</NavLink>
+        @if (Tenant.Can(TenantRole.Admin))
+        {
         <NavLink class="nav-link" href="/hosts"><Icon Name="hosts" />@T["nav.hosts"]</NavLink>
         <NavLink class="nav-link" href="/memory"><Icon Name="memory" />@T["nav.memory"]</NavLink>
+        <NavLink class="nav-link" href="/access"><Icon Name="access" />@T["nav.access"]</NavLink>
         <NavLink class="nav-link" href="/settings"><Icon Name="settings" />@T["nav.settings"]</NavLink>
+        }
         <NavLink class="nav-link" href="/about"><Icon Name="about" />@T["nav.about"]</NavLink>
 
         <div class="rail-foot">
@@ -43,6 +69,10 @@
                 </div>
                 <button class="btn ghost small" @onclick="ToggleTheme" title="Toggle light/dark">◐</button>
             </div>
+            @if (AuthMode.RequireUiLogin)
+            {
+                <span class="signed-in">@(Tenant.User ?? "") · <a href="/logout" data-enhance-nav="false">@T["auth.signOut"]</a></span>
+            }
             <span>@T["credits"]</span>
         </div>
     </nav>
@@ -60,13 +90,18 @@
 </div>
 
 @code {
+    [CascadingParameter] private Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState>? _auth { get; set; }
     private int _pending;
     private IDisposable? _sub;
     private string _theme = "";
+    private IReadOnlyList<string> _tenants = [];
 
     protected override async Task OnInitializedAsync()
     {
         _pending = (await Approvals.PendingAsync()).Count;
+        _tenants = Tenant.PlatformAdmin
+            ? [.. (await Platform.ListTenantsAsync()).Where(t => !t.Disabled).Select(t => t.Id)]
+            : _auth is null ? [Tenant.TenantId] : await AuthSetup.AccessibleTenantsAsync((await _auth).User, Platform, default);
         T.Changed += OnLang;
         _sub = Bus.Subscribe(e =>
         {

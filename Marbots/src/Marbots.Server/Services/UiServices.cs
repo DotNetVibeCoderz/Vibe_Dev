@@ -51,6 +51,16 @@ public sealed class UiText
 
     private static readonly Dictionary<string, string> En = new()
     {
+        ["nav.access"] = "Access", ["tenant.switch"] = "Switch tenant", ["auth.signOut"] = "Sign out",
+        ["access.denied"] = "No access", ["access.deniedBody"] = "Your role in this tenant does not include this page. Ask a tenant owner for access.",
+        ["access.title"] = "Access", ["access.subtitle"] = "API keys and members of this tenant, and — for platform admins — every tenant.",
+        ["access.keys"] = "API keys", ["access.keys.hint"] = "Keys are shown once. Only a hash is stored; revoke a key to lock it out immediately.",
+        ["access.members"] = "Members (single sign-on)", ["access.members.hint"] = "OIDC users are matched by e-mail or subject. Their role here applies when they sign in.",
+        ["access.tenants"] = "Tenants", ["access.tenants.hint"] = "Each tenant has its own bots, chats, memory, skills, secrets, hosts and workspace folder.",
+        ["access.name"] = "Name", ["access.role"] = "Role", ["access.create"] = "Create", ["access.revoke"] = "Revoke", ["access.remove"] = "Remove",
+        ["access.add"] = "Add", ["access.subject"] = "E-mail or subject", ["access.lastUsed"] = "Last used", ["access.never"] = "never",
+        ["access.newKey"] = "Copy this key now — it will not be shown again:", ["access.disable"] = "Disable", ["access.enable"] = "Enable",
+        ["access.tenantId"] = "Tenant id (a-z, 0-9, -)", ["access.ownerOnly"] = "Only owners can change keys and members.",
         ["nav.chat"] = "Chat", ["nav.team"] = "Team", ["nav.templates"] = "Templates", ["nav.tasks"] = "Tasks", ["nav.office"] = "Office",
         ["nav.approvals"] = "Approvals", ["nav.skills"] = "Skills", ["nav.mcp"] = "MCP servers", ["nav.schedules"] = "Schedules",
         ["nav.memory"] = "Memory", ["nav.channels"] = "Channels", ["nav.dashboard"] = "Dashboard", ["nav.hosts"] = "Computers", ["nav.settings"] = "Settings", ["nav.about"] = "About",
@@ -80,6 +90,16 @@ public sealed class UiText
 
     private static readonly Dictionary<string, string> Id = new()
     {
+        ["nav.access"] = "Akses", ["tenant.switch"] = "Ganti tenant", ["auth.signOut"] = "Keluar",
+        ["access.denied"] = "Tidak ada akses", ["access.deniedBody"] = "Peran Anda di tenant ini tidak mencakup halaman ini. Minta akses ke pemilik tenant.",
+        ["access.title"] = "Akses", ["access.subtitle"] = "Kunci API dan anggota tenant ini, dan — untuk admin platform — semua tenant.",
+        ["access.keys"] = "Kunci API", ["access.keys.hint"] = "Kunci hanya ditampilkan sekali. Yang disimpan hanya hash; cabut kunci untuk langsung memblokirnya.",
+        ["access.members"] = "Anggota (single sign-on)", ["access.members.hint"] = "Pengguna OIDC dicocokkan lewat e-mail atau subject. Peran di sini berlaku saat mereka masuk.",
+        ["access.tenants"] = "Tenant", ["access.tenants.hint"] = "Setiap tenant punya bot, chat, memori, skill, secret, host, dan folder workspace sendiri.",
+        ["access.name"] = "Nama", ["access.role"] = "Peran", ["access.create"] = "Buat", ["access.revoke"] = "Cabut", ["access.remove"] = "Hapus",
+        ["access.add"] = "Tambah", ["access.subject"] = "E-mail atau subject", ["access.lastUsed"] = "Terakhir dipakai", ["access.never"] = "belum pernah",
+        ["access.newKey"] = "Salin kunci ini sekarang — tidak akan ditampilkan lagi:", ["access.disable"] = "Nonaktifkan", ["access.enable"] = "Aktifkan",
+        ["access.tenantId"] = "Id tenant (a-z, 0-9, -)", ["access.ownerOnly"] = "Hanya pemilik yang bisa mengubah kunci dan anggota.",
         ["nav.chat"] = "Obrolan", ["nav.team"] = "Tim", ["nav.templates"] = "Templat", ["nav.tasks"] = "Tugas", ["nav.office"] = "Kantor",
         ["nav.approvals"] = "Persetujuan", ["nav.skills"] = "Skill", ["nav.mcp"] = "Server MCP", ["nav.schedules"] = "Jadwal",
         ["nav.memory"] = "Memori", ["nav.channels"] = "Kanal", ["nav.dashboard"] = "Dasbor", ["nav.hosts"] = "Komputer", ["nav.settings"] = "Pengaturan", ["nav.about"] = "Tentang",

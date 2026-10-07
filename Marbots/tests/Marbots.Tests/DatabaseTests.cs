@@ -55,7 +55,7 @@ public sealed class DatabaseTests : IDisposable
     public async Task Messages_get_sequential_numbers_per_thread(string provider)
     {
         var db = Open(provider, NewTenant());
-        using var store = new MessageStore(db);
+        var store = new MessageStore(db);
         var thread = "thr-" + Guid.NewGuid().ToString("N")[..8];
         await Task.WhenAll(Enumerable.Range(0, 20).Select(i => store.AppendAsync(new ChatMessage { ThreadId = thread, Content = i.ToString() })));
         var list = await store.ListAsync(thread);

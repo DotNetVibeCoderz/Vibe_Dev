@@ -38,7 +38,23 @@ public sealed class MarbotsOptions
     /// <summary>Start with approvals skipped (server flag <c>--dangerously-skip-approvals</c>). Can be turned off at runtime.</summary>
     public bool DangerouslySkipApprovals { get; set; }
 
+    /// <summary>Run one isolated runtime per tenant (see docs: multi-tenant).</summary>
+    public bool MultiTenant { get; set; }
+
+    /// <summary>Sign-in: API keys (global and per tenant), optionally OIDC with roles.</summary>
+    public MarbotsAuthOptions Auth { get; set; } = new();
+
     public string DataPath(params string[] parts) => Path.GetFullPath(Path.Combine([DataDirectory, .. parts]));
+
+    /// <summary>A copy whose lists can be changed independently (used for per-tenant runtimes).</summary>
+    public MarbotsOptions Clone()
+    {
+        var o = (MarbotsOptions)MemberwiseClone();
+        o.Providers = [.. Providers];
+        o.ModelProfiles = [.. ModelProfiles];
+        o.SkillDirectories = [.. SkillDirectories];
+        return o;
+    }
 }
 
 /// <summary>

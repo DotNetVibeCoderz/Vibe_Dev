@@ -20,7 +20,8 @@ var dp = builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(options.DataDirectory, "keys")));
 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) dp.ProtectKeysWithDpapi();
 
-builder.Services.AddMarbotsRuntime(options);
+builder.Services.AddMarbotsTenancy(options);
+builder.Services.AddMarbotsAuth(options);
 builder.Services.AddOpenApi();
 builder.Services.ConfigureHttpJsonOptions(o =>
 {
@@ -31,7 +32,7 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddScoped<UiText>();
 builder.Services.AddSingleton<MarkdownRenderer>();
-builder.Services.AddSingleton<UsageService>();
+builder.Services.AddScoped<UsageService>();
 
 var app = builder.Build();
 
@@ -40,7 +41,11 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/error", createScopeForErrors: true);
 }
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
-app.UseMiddleware<ApiKeyMiddleware>();
+app.UseMiddleware<TenantPathMiddleware>();
+app.UseRouting();
+app.UseAuthentication();
+app.UseMiddleware<TenantMiddleware>();
+app.UseAuthorization();
 app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapOpenApi();
@@ -48,6 +53,7 @@ app.MapMarbotsApi();
 app.MapA2a();
 app.MapIntegrations();
 app.MapHosts();
+app.MapTenancy();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 app.Run();

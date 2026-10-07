@@ -79,6 +79,19 @@ code, pre, kbd { font-family: var(--font-mono); font-size: .86em; }
 .nav-link.active { background: var(--indigo-soft); color: var(--indigo); font-weight: 650; }
 .nav-link svg { width: 18px; height: 18px; flex: none; opacity: .85; }
 .nav-badge { margin-left: auto; background: var(--marigold); color: #fff; border-radius: 999px; font-size: .72rem; padding: 0 7px; font-weight: 700; }
+/* Tenant switcher: a small marble-dot pill at the top of the rail. */
+.tenant-switch { margin: 0 4px 6px; position: relative; }
+.tenant-switch summary { list-style: none; display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); font-size: .82rem; }
+.tenant-switch summary::-webkit-details-marker { display: none; }
+.tenant-dot { width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff 0 18%, var(--marigold) 45%, color-mix(in srgb, var(--marigold) 55%, #000) 100%); flex: none; }
+.tenant-name { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tenant-role { margin-left: auto; color: var(--muted); font-size: .72rem; }
+.tenant-menu { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px); background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-m); box-shadow: var(--shadow); padding: 4px; display: grid; max-height: 280px; overflow: auto; }
+.tenant-menu a { padding: 6px 10px; border-radius: var(--radius-s); color: var(--ink); font-size: .85rem; }
+.tenant-menu a:hover { background: var(--indigo-soft); text-decoration: none; }
+.tenant-menu a.on { font-weight: 700; color: var(--indigo); }
+.signed-in { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.secret-once { font-family: var(--font-mono); background: var(--marigold-soft); border: 1px dashed var(--marigold); border-radius: var(--radius-s); padding: 8px 10px; word-break: break-all; }
 .rail-foot { margin-top: auto; padding: 12px 8px 0; border-top: 1px solid var(--line); font-size: .76rem; color: var(--muted); display: grid; gap: 8px; }
 .lang-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; width: fit-content; }
 .lang-toggle button { border: 0; background: transparent; color: var(--muted); padding: 3px 10px; font: inherit; cursor: pointer; }

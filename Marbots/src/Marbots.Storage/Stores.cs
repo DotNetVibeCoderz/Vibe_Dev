@@ -79,12 +79,11 @@ public sealed class DocumentStore<T>(MarbotsDatabase db, string kind, JsonTypeIn
     }
 }
 
-public sealed class MessageStore(MarbotsDatabase db) : IMessageStore, IDisposable
+public sealed class MessageStore(MarbotsDatabase db) : IMessageStore
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly string _t = db.Dialect.Messages;
 
-    public void Dispose() => _gate.Dispose();
 
     public async Task<ChatMessage> AppendAsync(ChatMessage message, CancellationToken cancellationToken = default)
     {

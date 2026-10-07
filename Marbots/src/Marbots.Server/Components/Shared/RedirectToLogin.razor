@@ -1,0 +1,7 @@
+@* Anonymous visitors are sent to the sign-in page (API key form or the OIDC provider). *@
+@inject NavigationManager Nav
+
+@code {
+    protected override void OnInitialized() =>
+        Nav.NavigateTo("/login?returnUrl=" + Uri.EscapeDataString("/" + Nav.ToBaseRelativePath(Nav.Uri)), forceLoad: true);
+}
