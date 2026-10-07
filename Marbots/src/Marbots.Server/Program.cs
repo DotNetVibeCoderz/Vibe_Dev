@@ -20,6 +20,13 @@ var dp = builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(options.DataDirectory, "keys")));
 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) dp.ProtectKeysWithDpapi();
 
+// Agent hosts may present client certificates (mutual TLS) on HTTPS endpoints; Marbots validates them itself.
+if (options.HostSecurity.AcceptTlsClientCertificates ?? options.HostSecurity.RequireClientCertificate)
+    builder.WebHost.ConfigureKestrel(k => k.ConfigureHttpsDefaults(h =>
+    {
+        h.ClientCertificateMode = Microsoft.AspNetCore.Server.Kestrel.Https.ClientCertificateMode.AllowCertificate;
+        h.AllowAnyClientCertificate();
+    }));
 builder.Services.AddMarbotsTenancy(options);
 builder.AddMarbotsTelemetry(options);
 builder.Services.AddMarbotsAuth(options);

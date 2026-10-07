@@ -77,6 +77,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<MarbotsEngine>();
         services.AddSingleton<BotPackageService>();
         services.AddSingleton<HostService>();
+        services.AddSingleton<HostCertificateAuthority>();
         services.AddSingleton<HostRegistry>();
         services.AddSingleton<HostConnectionManager>();
         services.AddSingleton<PlacementService>();

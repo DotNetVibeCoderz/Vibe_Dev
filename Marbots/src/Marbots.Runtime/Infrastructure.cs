@@ -38,6 +38,9 @@ public sealed class MarbotsOptions
     /// <summary>Start with approvals skipped (server flag <c>--dangerously-skip-approvals</c>). Can be turned off at runtime.</summary>
     public bool DangerouslySkipApprovals { get; set; }
 
+    /// <summary>Agent-host mutual TLS.</summary>
+    public HostSecurityOptions HostSecurity { get; set; } = new();
+
     /// <summary>Remote push notifications (FCM, APNs, ntfy).</summary>
     public MarbotsPushOptions Push { get; set; } = new();
 

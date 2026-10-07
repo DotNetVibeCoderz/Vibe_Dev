@@ -265,7 +265,7 @@ public sealed class TenantMiddleware(RequestDelegate next, AuthSettings settings
     {
         var p = path.Value ?? "";
         if (p.StartsWith("/api/v1/hooks/", StringComparison.Ordinal)) return true;
-        if (p is "/api/v1/hosts/enroll" or "/api/v1/hosts/connect") return true;
+        if (p is "/api/v1/hosts/enroll" or "/api/v1/hosts/connect" or "/api/v1/hosts/renew") return true;
         return p.StartsWith("/api/v1/channels/", StringComparison.Ordinal) &&
                (p.EndsWith("/inbound", StringComparison.Ordinal) || p.EndsWith("/slack", StringComparison.Ordinal) ||
                 p.EndsWith("/whatsapp", StringComparison.Ordinal) || p.EndsWith("/telegram", StringComparison.Ordinal));

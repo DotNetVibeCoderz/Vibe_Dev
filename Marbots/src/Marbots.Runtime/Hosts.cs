@@ -9,8 +9,10 @@ using Microsoft.Extensions.Logging;
 namespace Marbots.Runtime;
 
 /// <summary>Registered remote hosts and one-time enrollment tokens. Secrets and tokens are stored as SHA-256 hashes.</summary>
-public sealed class HostRegistry(IDocumentStore<HostRecord> hosts, IDocumentStore<HostEnrollment> enrollments)
+public sealed class HostRegistry(IDocumentStore<HostRecord> hosts, IDocumentStore<HostEnrollment> enrollments, HostCertificateAuthority ca)
 {
+    public HostCertificateAuthority Authority => ca;
+
     public Task<IReadOnlyList<HostRecord>> ListAsync(CancellationToken ct = default) => hosts.ListAsync(ct);
     public Task<HostRecord?> GetAsync(string id, CancellationToken ct = default) => hosts.GetAsync(id, ct);
     public Task SaveAsync(HostRecord host, CancellationToken ct = default) => hosts.UpsertAsync(host, ct);
@@ -43,11 +45,26 @@ public sealed class HostRegistry(IDocumentStore<HostRecord> hosts, IDocumentStor
         var name = string.IsNullOrWhiteSpace(match.Name) ? request.Hello.Name : match.Name;
         var id = "host-" + (Ids.Slug(name) is { Length: > 0 } slug ? slug : "remote") + "-" + Guid.NewGuid().ToString("N")[..4];
         var secret = "mbh_" + NewSecret(32);
-        await hosts.UpsertAsync(new HostRecord
+        var record = new HostRecord { Id = id, Name = name, SecretHash = Hash(secret), LastHello = request.Hello, InstalledVia = installedVia };
+        string? certPem = null;
+        if (!string.IsNullOrWhiteSpace(request.Csr))
         {
-            Id = id, Name = name, SecretHash = Hash(secret), LastHello = request.Hello, InstalledVia = installedVia,
-        }, ct);
-        return new HostEnrollmentResult(id, secret, typeof(HostRegistry).Assembly.GetName().Version?.ToString(3) ?? "0.1.0");
+            using var cert = ca.Issue(request.Csr, id);
+            (record.CertificateThumbprint, record.CertificateExpiresAt, certPem) = (cert.Thumbprint, cert.NotAfter.ToUniversalTime(), cert.ExportCertificatePem());
+        }
+        await hosts.UpsertAsync(record, ct);
+        return new HostEnrollmentResult(id, secret, typeof(HostRegistry).Assembly.GetName().Version?.ToString(3) ?? "0.1.0",
+            certPem, certPem is null ? null : ca.CertificatePem);
+    }
+
+    /// <summary>Issues a new client certificate for an authenticated host; the previous one stops working.</summary>
+    public async Task<HostCertificateResult> RenewCertificateAsync(HostRecord host, string csr, CancellationToken ct = default)
+    {
+        using var cert = ca.Issue(csr, host.Id);
+        host.CertificateThumbprint = cert.Thumbprint;
+        host.CertificateExpiresAt = cert.NotAfter.ToUniversalTime();
+        await hosts.UpsertAsync(host, ct);
+        return new HostCertificateResult(cert.ExportCertificatePem(), ca.CertificatePem, host.CertificateExpiresAt.Value);
     }
 
     public async Task<HostRecord?> AuthenticateAsync(string hostId, string secret, CancellationToken ct = default)

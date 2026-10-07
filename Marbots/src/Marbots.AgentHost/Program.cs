@@ -28,7 +28,15 @@ internal static class Program
             switch (command)
             {
                 case "enroll":
-                    return await EnrollAsync(Opt("--server") ?? throw new ArgumentException("--server is required"), Opt("--token") ?? throw new ArgumentException("--token is required"), Opt("--name"));
+                    return await EnrollAsync(Opt("--server") ?? throw new ArgumentException("--server is required"), Opt("--token") ?? throw new ArgumentException("--token is required"), Opt("--name"),
+                        Opt("--server-ca") is { } caFile ? File.ReadAllText(caFile) : null);
+                case "renew":
+                    {
+                        var config = HostConfig.Load() ?? throw new InvalidOperationException("Not enrolled.");
+                        await HostTls.RenewIfDueAsync(config, force: true, CancellationToken.None);
+                        HostConsole.Step(true, $"New client certificate, valid until {HostTls.Expires(config):yyyy-MM-dd}");
+                        return 0;
+                    }
                 case "run":
                     using (var cts = new CancellationTokenSource())
                     {
@@ -59,18 +67,24 @@ internal static class Program
         }
     }
 
-    private static async Task<int> EnrollAsync(string server, string token, string? name)
+    private static async Task<int> EnrollAsync(string server, string token, string? name, string? serverCaPem)
     {
         var baseUri = new Uri(server.TrimEnd('/') + "/");
-        using var http = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromSeconds(30) };
+        var config = new HostConfig { Server = baseUri.ToString(), ServerCaPem = serverCaPem };
+        using var http = HostTls.Http(config, baseUri);
         var hello = Capabilities.Hello(name ?? Environment.MachineName);
         HostConsole.Banner($"joining {baseUri.Authority}");
         HostConsole.Step(true, $"This computer can do: {string.Join(", ", hello.Capabilities)}");
-        using var resp = await http.PostAsJsonAsync("api/v1/hosts/enroll", new HostEnrollmentRequest(token, hello), MarbotsJsonContext.Default.HostEnrollmentRequest);
+        // The key is made here and never leaves this computer; the server signs a client certificate for mutual TLS.
+        var (keyPem, csr) = HostTls.NewKeyAndCsr(name ?? Environment.MachineName);
+        using var resp = await http.PostAsJsonAsync("api/v1/hosts/enroll", new HostEnrollmentRequest(token, hello, csr), MarbotsJsonContext.Default.HostEnrollmentRequest);
         if (!resp.IsSuccessStatusCode) throw new InvalidOperationException($"Enrollment failed: HTTP {(int)resp.StatusCode} {await resp.Content.ReadAsStringAsync()}");
         var result = (await resp.Content.ReadFromJsonAsync(MarbotsJsonContext.Default.HostEnrollmentResult))!;
-        new HostConfig { Server = baseUri.ToString(), HostId = result.HostId, Secret = result.Secret }.Save();
+        (config.HostId, config.Secret) = (result.HostId, result.Secret);
+        if (result.Certificate is not null) (config.CertificatePem, config.KeyPem, config.HostCaPem) = (result.Certificate, keyPem, result.CaCertificate);
+        config.Save();
         HostConsole.Step(true, $"Enrolled as {result.HostId} with {baseUri} (server {result.ServerVersion})");
+        if (result.Certificate is not null) HostConsole.Step(true, $"Client certificate for mutual TLS, valid until {HostTls.Expires(config):yyyy-MM-dd}");
         HostConsole.Step(true, "The secret is stored for this user only. Start with: marbots-host run");
         return 0;
     }
@@ -82,15 +96,24 @@ internal sealed class HostConfig
     public string Server { get; set; } = "";
     public string HostId { get; set; } = "";
     public string Secret { get; set; } = "";
+    /// <summary>Client certificate (PEM) and its private key (PEM, protected like the secret).</summary>
+    public string? CertificatePem { get; set; }
+    public string? KeyPem { get; set; }
+    /// <summary>The server's host CA (informational).</summary>
+    public string? HostCaPem { get; set; }
+    /// <summary>A private CA trusted for the server's TLS certificate (enroll --server-ca).</summary>
+    public string? ServerCaPem { get; set; }
 
-    public static string Dir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), OperatingSystem.IsWindows() ? "Marbots" : "marbots", OperatingSystem.IsWindows() ? "Host" : "host");
+    /// <summary>MARBOTS_HOST_HOME overrides the folder (several hosts on one machine, tests).</summary>
+    public static string Dir => Environment.GetEnvironmentVariable("MARBOTS_HOST_HOME") is { Length: > 0 } home ? home
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), OperatingSystem.IsWindows() ? "Marbots" : "marbots", OperatingSystem.IsWindows() ? "Host" : "host");
     public static string WorkspacesDir => Path.Combine(Dir, "workspaces");
     private static string FilePath => Path.Combine(Dir, "host.json");
 
     public void Save()
     {
         Directory.CreateDirectory(Dir);
-        var stored = new StoredConfig(Server, HostId, Protect(Secret));
+        var stored = new StoredConfig(Server, HostId, Protect(Secret), CertificatePem, KeyPem is null ? null : Protect(KeyPem), HostCaPem, ServerCaPem);
         File.WriteAllText(FilePath, JsonSerializer.Serialize(stored, HostJson.Default.StoredConfig));
         if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(FilePath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
     }
@@ -99,7 +122,11 @@ internal sealed class HostConfig
     {
         if (!File.Exists(FilePath)) return null;
         var s = JsonSerializer.Deserialize(File.ReadAllText(FilePath), HostJson.Default.StoredConfig);
-        return s is null ? null : new HostConfig { Server = s.Server, HostId = s.HostId, Secret = Unprotect(s.Secret) };
+        return s is null ? null : new HostConfig
+        {
+            Server = s.Server, HostId = s.HostId, Secret = Unprotect(s.Secret),
+            CertificatePem = s.Certificate, KeyPem = s.Key is null ? null : Unprotect(s.Key), HostCaPem = s.HostCa, ServerCaPem = s.ServerCa,
+        };
     }
 
     private static string Protect(string secret) => OperatingSystem.IsWindows()
@@ -111,7 +138,7 @@ internal sealed class HostConfig
         : stored;
 }
 
-internal sealed record StoredConfig(string Server, string HostId, string Secret);
+internal sealed record StoredConfig(string Server, string HostId, string Secret, string? Certificate = null, string? Key = null, string? HostCa = null, string? ServerCa = null);
 
 [System.Text.Json.Serialization.JsonSerializable(typeof(StoredConfig))]
 internal sealed partial class HostJson : System.Text.Json.Serialization.JsonSerializerContext;
@@ -191,6 +218,11 @@ internal sealed class HostAgent(HostConfig config, HostConsole ui)
     {
         var delay = TimeSpan.FromSeconds(1);
         Log($"marbots-host {Capabilities.Version} → {config.Server} as {config.HostId}");
+        try
+        {
+            if (await HostTls.RenewIfDueAsync(config, force: false, ct)) Log($"client certificate renewed, valid until {HostTls.Expires(config):yyyy-MM-dd}");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException) { Log("certificate renewal failed: " + ex.Message); }
         while (!ct.IsCancellationRequested)
         {
             try
@@ -217,6 +249,7 @@ internal sealed class HostAgent(HostConfig config, HostConsole ui)
         socket.Options.SetRequestHeader(HostProtocol.HostIdHeader, config.HostId);
         socket.Options.SetRequestHeader(HostProtocol.HostSecretHeader, config.Secret);
         socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
+        HostTls.Configure(socket.Options, config);
         var uri = new UriBuilder(new Uri(new Uri(config.Server), "api/v1/hosts/connect")) { Scheme = config.Server.StartsWith("https", StringComparison.OrdinalIgnoreCase) ? "wss" : "ws" }.Uri;
         await socket.ConnectAsync(uri, ct);
         _socket = socket;

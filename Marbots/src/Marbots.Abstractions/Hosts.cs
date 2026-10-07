@@ -123,6 +123,9 @@ public sealed class HostRecord
     /// <summary>remote | vm | docker</summary>
     public string Kind { get; set; } = "remote";
     public string SecretHash { get; set; } = "";
+    /// <summary>Thumbprint of the only client certificate accepted for this host (mutual TLS).</summary>
+    public string? CertificateThumbprint { get; set; }
+    public DateTimeOffset? CertificateExpiresAt { get; set; }
     public HostHello? LastHello { get; set; }
     public HostMetrics? LastMetrics { get; set; }
     public List<string> Labels { get; set; } = [];
@@ -157,8 +160,14 @@ public sealed record HostFileEntry(string Path, long Size, DateTimeOffset Modifi
 
 public sealed record HostFilePayload(string Path, string Data);
 
-public sealed record HostEnrollmentRequest(string Token, HostHello Hello);
-public sealed record HostEnrollmentResult(string HostId, string Secret, string ServerVersion);
+/// <param name="Csr">Optional PEM certificate signing request; the server returns a client certificate for mutual TLS.</param>
+public sealed record HostEnrollmentRequest(string Token, HostHello Hello, string? Csr = null);
+/// <param name="Certificate">The host's client certificate (PEM) when a CSR was sent.</param>
+/// <param name="CaCertificate">The tenant's host CA (PEM).</param>
+public sealed record HostEnrollmentResult(string HostId, string Secret, string ServerVersion, string? Certificate = null, string? CaCertificate = null);
+/// <summary>Renewal of a host's client certificate (authenticated with the host id + secret headers).</summary>
+public sealed record HostCertificateRenewal(string Csr);
+public sealed record HostCertificateResult(string Certificate, string CaCertificate, DateTimeOffset ExpiresAt);
 public sealed record CreateEnrollmentRequest(string Name, int? ValidMinutes);
 public sealed record CreateEnrollmentResult(string Token, DateTimeOffset ExpiresAt, string EnrollCommand);
 

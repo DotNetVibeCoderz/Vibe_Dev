@@ -23,14 +23,33 @@ public static class HostEndpoints
             await hosts.EnrollAsync(req, $"token from {ctx.Connection.RemoteIpAddress}", ct) is { } r ? Results.Ok(r) : Results.Json(new { detail = "Invalid or expired enrollment token." }, statusCode: 401));
 
         // The host's long-lived connection (authenticated by host id + secret headers).
-        api.Map("/connect", async (HttpContext ctx, HostRegistry hosts, HostConnectionManager connections) =>
+        api.Map("/connect", async (HttpContext ctx, HostRegistry hosts, HostConnectionManager connections, MarbotsOptions options, ILoggerFactory logs) =>
         {
             if (!ctx.WebSockets.IsWebSocketRequest) return Results.BadRequest(new { detail = "WebSocket expected." });
             var host = await hosts.AuthenticateAsync(ctx.Request.Headers[HostProtocol.HostIdHeader].ToString(), ctx.Request.Headers[HostProtocol.HostSecretHeader].ToString(), ctx.RequestAborted);
             if (host is null) return Results.Unauthorized();
+            if (await CertificateProblemAsync(ctx, host, hosts, options.HostSecurity) is { } problem)
+            {
+                logs.CreateLogger("Marbots.Hosts").LogWarning("Host {Host} refused: {Reason}", host.Id, problem);
+                return Results.Json(new { detail = problem }, statusCode: 401);
+            }
             using var socket = await ctx.WebSockets.AcceptWebSocketAsync();
             await connections.RunAsync(host, socket, ctx.RequestAborted);
             return Results.Empty;
+        });
+
+        // Client-certificate renewal (host id + secret headers; the current certificate too when one is required).
+        api.MapPost("/renew", async (HostCertificateRenewal req, HttpContext ctx, HostRegistry hosts, MarbotsOptions options, CancellationToken ct) =>
+        {
+            var host = await hosts.AuthenticateAsync(ctx.Request.Headers[HostProtocol.HostIdHeader].ToString(), ctx.Request.Headers[HostProtocol.HostSecretHeader].ToString(), ct);
+            if (host is null) return Results.Unauthorized();
+            if (host.CertificateThumbprint is not null && await CertificateProblemAsync(ctx, host, hosts, options.HostSecurity) is { } problem)
+                return Results.Json(new { detail = problem }, statusCode: 401);
+            try { return Results.Ok(await hosts.RenewCertificateAsync(host, req.Csr, ct)); }
+            catch (Exception ex) when (ex is System.Security.Cryptography.CryptographicException or ArgumentException)
+            {
+                return Results.Problem("Invalid certificate signing request: " + ex.Message, statusCode: 400);
+            }
         });
 
         // SSH bootstrap: credentials are used for this request only.
@@ -45,6 +64,20 @@ public static class HostEndpoints
         api.MapPost("/{id}/disable", async (string id, HostRegistry hosts, CancellationToken ct) => await SetDisabled(hosts, id, true, ct));
         api.MapPost("/{id}/enable", async (string id, HostRegistry hosts, CancellationToken ct) => await SetDisabled(hosts, id, false, ct));
         api.MapDelete("/{id}", async (string id, HostRegistry hosts, CancellationToken ct) => await hosts.RemoveAsync(id, ct) ? Results.NoContent() : Results.NotFound());
+    }
+
+    /// <summary>
+    /// Null when the connection's client certificate is acceptable: valid for this host, or absent while not required.
+    /// The certificate comes from the TLS handshake, or from a trusted proxy header when configured.
+    /// </summary>
+    private static async Task<string?> CertificateProblemAsync(HttpContext ctx, HostRecord host, HostRegistry hosts, HostSecurityOptions security)
+    {
+        var cert = await ctx.Connection.GetClientCertificateAsync(ctx.RequestAborted);
+        if (cert is null && security.ClientCertificateHeader is { Length: > 0 } header)
+            cert = HostCertificateAuthority.FromHeader(ctx.Request.Headers[header].ToString());
+        if (cert is null)
+            return security.RequireClientCertificate ? "a client certificate is required (re-enroll the host, or renew with marbots-host renew)" : null;
+        return hosts.Authority.Validate(cert, host.Id, host.CertificateThumbprint);
     }
 
     private static async Task<IResult> SetDisabled(HostRegistry hosts, string id, bool disabled, CancellationToken ct)

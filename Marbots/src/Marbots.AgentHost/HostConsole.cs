@@ -292,6 +292,8 @@ internal sealed class HostConsole
         t.AddColumn(new TableColumn("").PadRight(4).NoWrap());
         t.AddColumn("");
         t.AddRow(new Markup("[bold]enroll[/] --server <url> --token <t> [[--name <n>]]"), new Markup($"[{Hex(Slate)}]join a Marbots server with a one-time token[/]"));
+        t.AddRow(new Markup("[bold]  [/][[--server-ca <pem>]]"), new Markup($"[{Hex(Slate)}]trust a private CA for the server's TLS certificate[/]"));
+        t.AddRow(new Markup("[bold]renew[/]"), new Markup($"[{Hex(Slate)}]get a new client certificate (mutual TLS)[/]"));
         t.AddRow(new Markup("[bold]run[/]"), new Markup($"[{Hex(Slate)}]connect and work; reconnects by itself[/]"));
         t.AddRow(new Markup("[bold]status[/]"), new Markup($"[{Hex(Slate)}]where this host connects and what it can do[/]"));
         AnsiConsole.Write(t);
