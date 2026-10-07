@@ -55,6 +55,7 @@ app.MapA2a();
 app.MapIntegrations();
 app.MapHosts();
 app.MapTenancy();
+app.MapPush();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 app.Run();

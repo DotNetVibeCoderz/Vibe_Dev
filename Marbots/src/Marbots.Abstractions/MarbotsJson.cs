@@ -71,6 +71,11 @@ namespace Marbots.Abstractions;
 [JsonSerializable(typeof(CreateApiKeyResult))]
 [JsonSerializable(typeof(SetMemberRequest))]
 [JsonSerializable(typeof(WhoAmI))]
+[JsonSerializable(typeof(PushDevice))]
+[JsonSerializable(typeof(List<PushDevice>))]
+[JsonSerializable(typeof(RegisterPushDeviceRequest))]
+[JsonSerializable(typeof(PushTestResult))]
+[JsonSerializable(typeof(PushConfig))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 [JsonSerializable(typeof(List<string>))]
 public sealed partial class MarbotsJsonContext : JsonSerializerContext

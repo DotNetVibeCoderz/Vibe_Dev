@@ -110,7 +110,11 @@ public sealed class MarbotsClient : IDisposable
         Triggers = new TriggersClient(this);
         Hosts = new HostsClient(this);
         Tenancy = new TenancyClient(this);
+        Push = new PushClient(this);
     }
+
+    /// <summary>Remote push: register FCM/APNs tokens or ntfy topics for approvals and finished tasks.</summary>
+    public PushClient Push { get; }
 
     /// <summary>Who am I, tenants (platform admins), this tenant's API keys and members (owners).</summary>
     public TenancyClient Tenancy { get; }
@@ -455,4 +459,15 @@ public sealed class TenancyClient(MarbotsClient c)
         c.SendAsync<TenantMember>(HttpMethod.Put, "api/v1/tenant/members", new SetMemberRequest(subject, role), ct);
     public Task RemoveMemberAsync(string subject, CancellationToken ct = default) =>
         c.SendAsync(HttpMethod.Delete, $"api/v1/tenant/members/{MarbotsClient.E(subject)}", null, ct);
+}
+
+public sealed class PushClient(MarbotsClient c)
+{
+    public Task<PushConfig> ConfigAsync(CancellationToken ct = default) => c.GetAsync<PushConfig>("api/v1/push/config", ct);
+    public Task<List<PushDevice>> ListAsync(CancellationToken ct = default) => c.GetAsync<List<PushDevice>>("api/v1/push/devices", ct);
+    /// <summary>Registers (or updates) a device: platform fcm | apns | ntfy, with its token or topic.</summary>
+    public Task<PushDevice> RegisterAsync(string platform, string token, string? name = null, IEnumerable<string>? topics = null, CancellationToken ct = default) =>
+        c.SendAsync<PushDevice>(HttpMethod.Post, "api/v1/push/devices", new RegisterPushDeviceRequest(platform, token, name, topics?.ToList()), ct);
+    public Task RemoveAsync(string id, CancellationToken ct = default) => c.SendAsync(HttpMethod.Delete, $"api/v1/push/devices/{MarbotsClient.E(id)}", null, ct);
+    public Task<PushTestResult> TestAsync(CancellationToken ct = default) => c.SendAsync<PushTestResult>(HttpMethod.Post, "api/v1/push/test", null, ct);
 }

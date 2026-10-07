@@ -32,6 +32,7 @@ public static class ServiceCollectionExtensions
         AddDocs(services, "host", ctx.HostRecord, h => h.Id);
         AddDocs(services, "hostenroll", ctx.HostEnrollment, e => e.Id);
         AddDocs(services, "threadhost", ctx.ThreadHost, t => t.Id);
+        AddDocs(services, "pushdevice", ctx.PushDevice, d => d.Id);
         services.AddSingleton<IMessageStore, MessageStore>();
         services.AddSingleton<IEventStore, EventStore>();
         services.AddSingleton<IMemoryStore>(sp => new MemoryStore(sp.GetRequiredService<MarbotsDatabase>(), sp.GetRequiredService<IEmbeddingProvider>()));
@@ -39,6 +40,7 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient("marbots-llm", c => c.Timeout = TimeSpan.FromMinutes(6));
         services.AddHttpClient("marbots-mcp", c => c.Timeout = TimeSpan.FromMinutes(5));
         services.AddHttpClient(ChannelContext.HttpClientName, c => c.Timeout = TimeSpan.FromMinutes(2));
+        services.AddHttpClient(PushService.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(30));
         services.AddSingleton<LocalSecretProvider>();
         services.AddSingleton<ISecretProvider>(sp => sp.GetRequiredService<LocalSecretProvider>());
         services.AddSingleton<ModelRouter>();
@@ -100,6 +102,8 @@ public static class ServiceCollectionExtensions
         services.AddHostedService(sp => sp.GetRequiredService<ChannelGateway>());
         services.AddHostedService<TelegramPoller>();
         services.AddHostedService<EmailPoller>();
+        services.AddSingleton<PushService>();
+        services.AddHostedService(sp => sp.GetRequiredService<PushService>());
         return services;
     }
 

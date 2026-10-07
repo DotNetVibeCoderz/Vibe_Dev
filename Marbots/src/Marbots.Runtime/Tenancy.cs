@@ -57,7 +57,7 @@ public static class Tenants
         // Working with chats, tasks, approvals and memory is operator work.
         string[] operatorPrefixes =
         [
-            "/api/v1/threads", "/api/v1/tasks", "/api/v1/approvals", "/api/v1/memory", "/api/v1/webchat", "/a2a",
+            "/api/v1/threads", "/api/v1/tasks", "/api/v1/approvals", "/api/v1/memory", "/api/v1/webchat", "/a2a", "/api/v1/push",
         ];
         foreach (var p in operatorPrefixes)
             if (path.StartsWith(p, StringComparison.OrdinalIgnoreCase)) return TenantRole.Operator;

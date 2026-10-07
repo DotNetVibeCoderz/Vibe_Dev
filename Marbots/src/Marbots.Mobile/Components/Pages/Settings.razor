@@ -15,6 +15,23 @@
     <label class="toggle"><input type="checkbox" checked="@Session.NotificationsEnabled" @onchange="ToggleNotify" /> Notify me about approvals and finished tasks</label>
 </div>
 
+<div class="card form">
+    <strong>When the app is closed</strong>
+    <p class="small muted">Get approvals and finished tasks as push notifications through <a href="https://ntfy.sh" target="_blank">ntfy</a> (free, no account). This phone gets its own private topic; install the ntfy app and subscribe to it.</p>
+    @if (_push is { } d)
+    {
+        <p class="small">Topic <code>@d.Token</code> · registered</p>
+        <a class="primary button" href="@($"{_ntfyServer}/{d.Token}")" target="_blank">Open in ntfy</a>
+        <button disabled="@_busy" @onclick="RemovePush">Turn off</button>
+        <button disabled="@_busy" @onclick="TestPush">Send a test</button>
+    }
+    else
+    {
+        <button class="primary" disabled="@(_busy || !Session.IsConnected)" @onclick="RegisterPush">Turn on push</button>
+    }
+    @if (_pushMessage is not null) { <p class="small">@_pushMessage</p> }
+</div>
+
 <div class="card small muted">
     @if (Session.Server is { } s) { <p>@s.Product @s.Version · @s.CreditsEn</p> }
     <p>Marbots mobile · Created by Gravicode Studios, led by Kang Fadhil · Dibuat oleh Gravicode Studios dipimpin oleh Kang Fadhil</p>
@@ -26,6 +43,10 @@
     private bool _busy;
     private bool _ok;
     private string? _message;
+    private PushDevice? _push;
+    private string _ntfyServer = "https://ntfy.sh";
+    private string? _pushMessage;
+    private const string TopicKey = "marbots.ntfy-topic";
 
     protected override async Task OnInitializedAsync()
     {
@@ -33,6 +54,53 @@
         _key = await Session.StoredApiKeyAsync();
         if (Session.IsConnected) (_ok, _message) = (true, $"Connected to {Session.Url}");
         else if (Session.Error is { } err) _message = err;
+        await LoadPushAsync();
+    }
+
+    private async Task LoadPushAsync()
+    {
+        if (Session.Client is not { } c || !Session.IsConnected) return;
+        try
+        {
+            _ntfyServer = (await c.Push.ConfigAsync()).NtfyServer;
+            var topic = Preferences.Default.Get<string?>(TopicKey, null);
+            _push = topic is null ? null : (await c.Push.ListAsync()).FirstOrDefault(d => d.Platform == PushPlatforms.Ntfy && d.Token == topic);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or MarbotsApiException) { _pushMessage = ex.Message; }
+    }
+
+    private async Task RegisterPush()
+    {
+        if (Session.Client is not { } c) return;
+        _busy = true;
+        try
+        {
+            // A long random topic: on public ntfy servers, anyone who knows the topic can read it.
+            var topic = Preferences.Default.Get<string?>(TopicKey, null) ?? "marbots-" + Convert.ToHexStringLower(System.Security.Cryptography.RandomNumberGenerator.GetBytes(12));
+            Preferences.Default.Set(TopicKey, topic);
+            _push = await c.Push.RegisterAsync(PushPlatforms.Ntfy, topic, DeviceInfo.Name);
+            _pushMessage = "Push is on. Subscribe to the topic in the ntfy app.";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or MarbotsApiException) { _pushMessage = ex.Message; }
+        _busy = false;
+    }
+
+    private async Task RemovePush()
+    {
+        if (Session.Client is not { } c || _push is null) return;
+        _busy = true;
+        try { await c.Push.RemoveAsync(_push.Id); _push = null; _pushMessage = "Push is off."; }
+        catch (Exception ex) when (ex is HttpRequestException or MarbotsApiException) { _pushMessage = ex.Message; }
+        _busy = false;
+    }
+
+    private async Task TestPush()
+    {
+        if (Session.Client is not { } c) return;
+        _busy = true;
+        try { var r = await c.Push.TestAsync(); _pushMessage = r.Failed == 0 ? $"Sent to {r.Sent} device(s)." : string.Join("; ", r.Errors); }
+        catch (Exception ex) when (ex is HttpRequestException or MarbotsApiException) { _pushMessage = ex.Message; }
+        _busy = false;
     }
 
     private async Task Connect()

@@ -38,6 +38,9 @@ public sealed class MarbotsOptions
     /// <summary>Start with approvals skipped (server flag <c>--dangerously-skip-approvals</c>). Can be turned off at runtime.</summary>
     public bool DangerouslySkipApprovals { get; set; }
 
+    /// <summary>Remote push notifications (FCM, APNs, ntfy).</summary>
+    public MarbotsPushOptions Push { get; set; } = new();
+
     /// <summary>OpenTelemetry export (traces, metrics, logs over OTLP).</summary>
     public MarbotsTelemetryOptions Telemetry { get; set; } = new();
 
