@@ -41,7 +41,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/DotNetVibeCoderz/Vibe_Dev.git",
+    "url": "git+https://github.com/DotNetVibeCoderz/Vibe_Dev.git",
     "directory": "Marbots/sdk/typescript"
   },
   "homepage": "https://github.com/DotNetVibeCoderz/Vibe_Dev/tree/main/Marbots",
