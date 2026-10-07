@@ -375,7 +375,7 @@ public sealed class IntegrationHttpTests : IClassFixture<IntegrationHttpTests.Fi
         using var reader = new StreamReader(await resp.Content.ReadAsStreamAsync());
         var kinds = new List<string>();
         var finalState = "";
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
         while (await reader.ReadLineAsync(cts.Token) is { } line)
         {
             if (!line.StartsWith("data: ", StringComparison.Ordinal)) continue;

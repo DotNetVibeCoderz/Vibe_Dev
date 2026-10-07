@@ -164,27 +164,63 @@ public sealed class GrepFunction : KernelFunctionBase
     {
         var dir = WorkspacePaths.Resolve(ctx.WorkspacePath, call.GetString("path"));
         if (!Directory.Exists(dir)) return FunctionResult.Ok("(no files)");
-        var regex = new Regex(call.Require("pattern"), RegexOptions.CultureInvariant, TimeSpan.FromSeconds(2));
+        var pattern = call.Require("pattern");
+        var regex = new Regex(pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(2));
+        // Whole-file pre-check, unless anchors or lookbehind could behave differently across line breaks.
+        var wholeFile = pattern.Contains('$') || pattern.Contains("(?<", StringComparison.Ordinal) || pattern.Contains(@"\A", StringComparison.Ordinal) || pattern.Contains(@"\z", StringComparison.OrdinalIgnoreCase)
+            ? null : new Regex(pattern, RegexOptions.CultureInvariant | RegexOptions.Multiline, TimeSpan.FromSeconds(5));
         var glob = call.GetString("glob") is { Length: > 0 } g ? ListFilesFunction.GlobToRegex(g) : null;
+        // A plain literal is searched as UTF-8 bytes first, so files without it are never decoded.
+        var literal = pattern.IndexOfAny(@"\^$.|?*+()[]{}".ToCharArray()) < 0 && pattern.Length > 0 ? Encoding.UTF8.GetBytes(pattern) : null;
+        var files = Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
+            .Select(f => (Path: f, Rel: WorkspacePaths.ToRelative(dir, f)))
+            .Where(f => !f.Rel.Contains("node_modules/", StringComparison.Ordinal) && !f.Rel.StartsWith(".git/", StringComparison.Ordinal)
+                        && (glob is null || glob.IsMatch(f.Rel)))
+            .ToList();
+
+        List<string> Search((string Path, string Rel) f)
+        {
+            var found = new List<string>();
+            try
+            {
+                if (new FileInfo(f.Path).Length > 2_000_000) return found;
+                var bytes = File.ReadAllBytes(f.Path);
+                if (bytes.AsSpan().IndexOf((byte)0) >= 0) return found; // binary
+                if (literal is not null && bytes.AsSpan().IndexOf(literal) < 0) return found;
+                var content = Encoding.UTF8.GetString(bytes);
+                // One scan of the whole file first: most files have no match (profiling: per-line matching dominated).
+                if (wholeFile is not null && !wholeFile.IsMatch(content)) return found;
+                var lineNo = 0;
+                using var reader = new StringReader(content);
+                while (reader.ReadLine() is { } line)
+                {
+                    lineNo++;
+                    if (regex.IsMatch(line)) found.Add($"{f.Rel}:{lineNo}: {(line.Length > 300 ? line[..300] : line)}");
+                    if (found.Count >= 200) break;
+                }
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+            return found;
+        }
+
+        // Files are searched in parallel chunks; output keeps file order and stops at 200 matches.
         var sb = new StringBuilder();
         var hits = 0;
-        foreach (var file in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
+        const int chunk = 64;
+        for (var start = 0; start < files.Count; start += chunk)
         {
             ct.ThrowIfCancellationRequested();
-            var rel = WorkspacePaths.ToRelative(dir, file);
-            if (rel.Contains("node_modules/", StringComparison.Ordinal) || rel.StartsWith(".git/", StringComparison.Ordinal)) continue;
-            if (glob is not null && !glob.IsMatch(rel)) continue;
-            if (new FileInfo(file).Length > 2_000_000) continue;
-            var lineNo = 0;
-            using var reader = new StreamReader(file);
-            while (await reader.ReadLineAsync(ct) is { } line)
-            {
-                lineNo++;
-                if (line.Contains('\0')) break; // binary
-                if (!regex.IsMatch(line)) continue;
-                sb.Append(rel).Append(':').Append(lineNo).Append(": ").AppendLine(line.Length > 300 ? line[..300] : line);
-                if (++hits >= 200) return FunctionResult.Ok(sb.Append("…[truncated at 200 matches]").ToString());
-            }
+            var part = files.GetRange(start, Math.Min(chunk, files.Count - start));
+            var results = new List<string>[part.Count];
+            await Parallel.ForAsync(0, part.Count, new ParallelOptions { CancellationToken = ct, MaxDegreeOfParallelism = Environment.ProcessorCount },
+                (i, _) => { results[i] = Search(part[i]); return ValueTask.CompletedTask; });
+            foreach (var r in results)
+                foreach (var line in r)
+                {
+                    sb.AppendLine(line);
+                    if (++hits >= 200) return FunctionResult.Ok(sb.Append("…[truncated at 200 matches]").ToString());
+                }
         }
         return FunctionResult.Ok(hits == 0 ? "No matches." : sb.ToString());
     }

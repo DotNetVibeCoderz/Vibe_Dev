@@ -89,7 +89,8 @@ public class MarbotsDatabase
         {
             using var cmd = c.CreateCommand();
             cmd.CommandText = statement;
-            cmd.ExecuteNonQuery();
+            try { cmd.ExecuteNonQuery(); }
+            catch (DbException ex) when (Dialect.IsAlreadyExists(ex)) { }
         }
     }
 }
@@ -172,6 +173,9 @@ public abstract class SqlDialect
 
     public abstract IEnumerable<string> Schema();
 
+    /// <summary>A schema statement failed only because the object already exists (MySQL: duplicate index name).</summary>
+    public virtual bool IsAlreadyExists(DbException ex) => false;
+
     /// <summary>Insert or replace a document row (@tenant, @kind, @id, @json, @updated).</summary>
     public abstract string UpsertDocument { get; }
 
@@ -220,6 +224,7 @@ internal sealed class SqliteDialect : SqlDialect
         CREATE TABLE IF NOT EXISTS memories(rid INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, tenant TEXT NOT NULL DEFAULT 'default',
             owner TEXT NOT NULL, content TEXT, json TEXT NOT NULL, created_at INTEGER NOT NULL, embedding BLOB);
         CREATE INDEX IF NOT EXISTS ix_memories_owner ON memories(tenant, owner);
+        CREATE INDEX IF NOT EXISTS ix_memories_recent ON memories(tenant, owner, created_at);
         CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(content, tags, tokenize='unicode61 remove_diacritics 2');
         """,
     ];
@@ -253,6 +258,8 @@ internal sealed class PostgreSqlDialect : SqlDialect
         "CREATE INDEX IF NOT EXISTS ix_mb_events_tenant ON mb_events(tenant, id)",
         "CREATE TABLE IF NOT EXISTS mb_memories(rid BIGSERIAL PRIMARY KEY, id VARCHAR(100) NOT NULL UNIQUE, tenant VARCHAR(64) NOT NULL, owner VARCHAR(100) NOT NULL, content TEXT, json TEXT NOT NULL, created_at BIGINT NOT NULL, embedding BYTEA)",
         "CREATE INDEX IF NOT EXISTS ix_mb_memories_owner ON mb_memories(tenant, owner)",
+        // Recency scans of the vector search read the index instead of sorting rows with their vectors.
+        "CREATE INDEX IF NOT EXISTS ix_mb_memories_recent ON mb_memories(tenant, owner, created_at)",
     ];
 
     public override string UpsertDocument => """
@@ -307,6 +314,7 @@ internal sealed class SqlServerDialect : SqlDialect
             CREATE INDEX ix_mb_memories_owner ON mb_memories(tenant, owner);
         END
         """,
+        "IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'ix_mb_memories_recent') CREATE INDEX ix_mb_memories_recent ON mb_memories(tenant, owner, created_at)",
     ];
 
     public override string UpsertDocument => """
@@ -353,7 +361,11 @@ internal sealed class MySqlDialect : SqlDialect
             owner VARCHAR(100) NOT NULL, content LONGTEXT NULL, json LONGTEXT NOT NULL, created_at BIGINT NOT NULL, embedding LONGBLOB NULL,
             INDEX ix_mb_memories_owner(tenant, owner)) CHARACTER SET utf8mb4
         """,
+        "CREATE INDEX ix_mb_memories_recent ON mb_memories(tenant, owner, created_at)",
     ];
+
+    // ER_DUP_KEYNAME
+    public override bool IsAlreadyExists(DbException ex) => ex is MySqlConnector.MySqlException { Number: 1061 };
 
     public override string UpsertDocument => """
         INSERT INTO mb_documents(tenant,kind,id,json,updated_at) VALUES(@tenant,@kind,@id,@json,@updated) AS n

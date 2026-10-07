@@ -345,18 +345,41 @@ public sealed class MemoryStore(MarbotsDatabase db, IEmbeddingProvider? embedder
         if (q is null) return [];
         await using var cmd = c.CreateCommand();
         var owners = OwnerList(cmd, query.Owners);
-        cmd.CommandText = $"SELECT json, embedding FROM {_t} WHERE tenant=@tenant AND owner IN ({owners}) AND embedding IS NOT NULL ORDER BY created_at DESC" + db.Dialect.Limit("@limit");
+        // Score on id + vector only; JSON is read just for the winners (profiling: deserialising every row dominated).
+        cmd.CommandText = $"SELECT id, embedding FROM {_t} WHERE tenant=@tenant AND owner IN ({owners}) AND embedding IS NOT NULL ORDER BY created_at DESC" + db.Dialect.Limit("@limit");
         cmd.Add("@tenant", db.Tenant);
         cmd.Add("@limit", 5000);
-        var scored = new List<(MemoryRecord, double)>();
-        await using var r = await cmd.ExecuteReaderAsync(ct);
-        while (await r.ReadAsync(ct))
+        var take = query.Limit * 4;
+        var min = Vectors.MinSimilarity(embedder.Model);
+        var top = new PriorityQueue<string, double>(take + 1);
+        await using (var r = await cmd.ExecuteReaderAsync(ct))
         {
-            if (Vectors.Decode((byte[])r.GetValue(1), embedder.Model) is not { } v || v.Length != q.Length) continue;
-            var sim = Vectors.Cosine(q, v);
-            if (sim >= Vectors.MinSimilarity(embedder.Model)) scored.Add((JsonSerializer.Deserialize(r.GetString(0), MarbotsJsonContext.Default.MemoryRecord)!, sim));
+            while (await r.ReadAsync(ct))
+            {
+                if (Vectors.CosineEncoded((byte[])r.GetValue(1), embedder.Model, q) is not { } sim || sim < min) continue;
+                top.Enqueue(r.GetString(0), sim);
+                if (top.Count > take) top.Dequeue();
+            }
         }
-        return scored.OrderByDescending(x => x.Item2).Take(query.Limit * 4).Select(x => x.Item1).ToList();
+        if (top.Count == 0) return [];
+        var ranked = new List<(string Id, double Sim)>(top.Count);
+        while (top.TryDequeue(out var id, out var sim)) ranked.Add((id, sim));
+        ranked.Reverse();
+
+        await using var get = c.CreateCommand();
+        var ids = new StringBuilder();
+        for (var i = 0; i < ranked.Count; i++)
+        {
+            if (i > 0) ids.Append(',');
+            ids.Append("@i").Append(i);
+            get.Add("@i" + i, ranked[i].Id);
+        }
+        get.CommandText = $"SELECT id, json FROM {_t} WHERE tenant=@tenant AND id IN ({ids})";
+        get.Add("@tenant", db.Tenant);
+        var byId = new Dictionary<string, MemoryRecord>(ranked.Count);
+        await using (var r = await get.ExecuteReaderAsync(ct))
+            while (await r.ReadAsync(ct)) byId[r.GetString(0)] = JsonSerializer.Deserialize(r.GetString(1), MarbotsJsonContext.Default.MemoryRecord)!;
+        return [.. ranked.Where(x => byId.ContainsKey(x.Id)).Select(x => byId[x.Id])];
     }
 
     private static async Task<List<MemoryRecord>> ReadRecordsAsync(DbCommand cmd, CancellationToken ct)
@@ -472,16 +495,41 @@ public static class Vectors
         return MemoryMarshal.Cast<byte, float>(bytes.AsSpan(1 + n)).ToArray();
     }
 
+    /// <summary>Cosine similarity (SIMD via Vector&lt;float&gt;).</summary>
     public static double Cosine(ReadOnlySpan<float> a, ReadOnlySpan<float> b)
     {
-        double dot = 0, na = 0, nb = 0;
-        for (var i = 0; i < a.Length; i++)
+        var n = Math.Min(a.Length, b.Length);
+        var vd = System.Numerics.Vector<float>.Zero;
+        var va = vd;
+        var vb = vd;
+        var w = System.Numerics.Vector<float>.Count;
+        var i = 0;
+        for (; i <= n - w; i += w)
+        {
+            var x = new System.Numerics.Vector<float>(a.Slice(i, w));
+            var y = new System.Numerics.Vector<float>(b.Slice(i, w));
+            vd += x * y;
+            va += x * x;
+            vb += y * y;
+        }
+        double dot = System.Numerics.Vector.Sum(vd), na = System.Numerics.Vector.Sum(va), nb = System.Numerics.Vector.Sum(vb);
+        for (; i < n; i++)
         {
             dot += a[i] * b[i];
             na += a[i] * a[i];
             nb += b[i] * b[i];
         }
         return na == 0 || nb == 0 ? 0 : dot / Math.Sqrt(na * nb);
+    }
+
+    /// <summary>Cosine against a stored vector without copying it; null when it is from another model.</summary>
+    public static double? CosineEncoded(byte[] bytes, string model, ReadOnlySpan<float> query)
+    {
+        if (bytes.Length < 1) return null;
+        var n = bytes[0];
+        if (bytes.Length < 1 + n || !bytes.AsSpan(1, n).SequenceEqual(Encoding.UTF8.GetBytes(model))) return null;
+        var v = MemoryMarshal.Cast<byte, float>(bytes.AsSpan(1 + n));
+        return v.Length == query.Length ? Cosine(query, v) : null;
     }
 }
 
