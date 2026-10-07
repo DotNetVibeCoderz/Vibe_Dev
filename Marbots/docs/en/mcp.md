@@ -51,5 +51,21 @@ Boss Man › Create "Mira" from the data-engineer template with MCP servers file
 
 Mira calls `mcp__time__get_current_time` twice and `mcp__filesystem__write_file` once. See [trials](trials.md).
 
+## Ask Boss Man to install one
+
+You can ask in chat, for example: "Atlas often needs the time in other time zones; find a fitting MCP server and give
+it to him." Boss Man works in four steps:
+
+1. `list_mcp_catalog` shows the curated gallery: what each server does, whether it is installed, and which secrets
+   are missing.
+2. `install_mcp` asks you first. The approval card shows the exact command, the trust level and which bots get the
+   server.
+3. After you approve, the server is installed and attached to the bots.
+4. It is started once as a health check (for example "2 tools: get_current_time, convert_time").
+
+Only gallery entries can be installed this way; custom servers are added by a person on the MCP page. Missing secrets
+such as `GITHUB_TOKEN` are reported back, and the server does not start until you add them in Settings.
+
+
 ---
 *Marbots — Created by Gravicode Studios, led by Kang Fadhil.*

@@ -398,6 +398,45 @@ public sealed class EngineTests : IAsyncLifetime
         Assert.Equal(AutoLearnMode.Off, clone.AutoLearn);
     }
 
+    [Fact]
+    public async Task Boss_man_installs_gallery_mcp_servers_after_approval()
+    {
+        var store = _sp.GetRequiredService<IDocumentStore<McpServerConfig>>();
+        var approvals = _sp.GetRequiredService<ApprovalService>();
+        Mock.EnqueueTool("list_mcp_catalog", """{"query":"github"}""");
+        Mock.EnqueueTool("install_mcp", """{"id":"github","bots":["atlas"],"reason":"Atlas tracks issues"}""");
+        Mock.Responder = req => new ModelResponse { Content = "ok: " + req.Messages[^1].Content };
+        var thread = await Engine.CreateThreadAsync(WellKnown.BossManId);
+        var task = await Engine.SendAsync(thread.Id, "install the GitHub MCP for Atlas");
+        ApprovalRequest? pending = null;
+        for (var i = 0; i < 300 && pending is null; i++)
+        {
+            await Task.Delay(50);
+            pending = (await approvals.PendingAsync()).FirstOrDefault(a => a.ThreadId == thread.Id && a.ToolName == "install_mcp");
+        }
+        Assert.NotNull(pending);
+        Assert.Contains("GitHub", pending.Summary);
+        Assert.True((await store.GetAsync("github"))!.IsCatalogEntry); // nothing installed before the human says yes
+        await approvals.ResolveAsync(pending.Id, true, ApprovalScope.Once, "test");
+        task = await Engine.WaitAsync(task.Id, TimeSpan.FromSeconds(30));
+        Assert.Equal(TaskState.Completed, task.State);
+        var github = (await store.GetAsync("github"))!;
+        Assert.False(github.IsCatalogEntry);
+        Assert.Contains("github", (await _sp.GetRequiredService<BotRegistry>().GetAsync("atlas"))!.McpServers);
+        Assert.Contains(Mock.Requests, r => r.Messages.Any(m => m.Role == "tool" && m.Content!.Contains("needs secret GITHUB_TOKEN")));
+    }
+
+    [Fact]
+    public async Task Install_mcp_only_accepts_the_curated_gallery()
+    {
+        var fn = _sp.GetServices<IKernelFunction>().First(f => f.Descriptor.Name == "install_mcp");
+        using var args = System.Text.Json.JsonDocument.Parse("""{"id":"my-own-server"}""");
+        var r = await fn.InvokeAsync(new FunctionCall("c1", "install_mcp", args.RootElement.Clone()),
+            new FunctionExecutionContext { Bot = new BotDefinition { Id = WellKnown.BossManId }, TaskId = "t", ThreadId = "th", WorkspacePath = _dir, Services = _sp }, default);
+        Assert.False(r.Success);
+        Assert.Contains("not in the curated gallery", r.Content);
+    }
+
     private static byte[] DecompressAll(byte[] zipBytes)
     {
         using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(zipBytes));

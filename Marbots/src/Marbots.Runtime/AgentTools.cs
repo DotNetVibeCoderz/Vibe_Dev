@@ -299,3 +299,117 @@ public sealed class SpawnSubagentsFunction : KernelFunctionBase
         catch (BotValidationException ex) { return FunctionResult.Fail(ex.Message); }
     }
 }
+
+/// <summary>Boss Man: the curated MCP gallery (installed or not), with what each server still needs.</summary>
+public sealed class ListMcpCatalogFunction : KernelFunctionBase
+{
+    public override FunctionDescriptor Descriptor { get; } = new(
+        "list_mcp_catalog", "List the curated MCP server gallery: id, what it does, whether it is installed, and secrets it still needs. Only these can be installed with install_mcp.",
+        """{"type":"object","properties":{"query":{"type":"string","description":"Optional filter, e.g. browser, github, docs"}}}""",
+        "management", PermissionCategory.ReadOnly, RiskLevel.Low);
+
+    protected override async ValueTask<FunctionResult> ExecuteAsync(FunctionCall call, FunctionExecutionContext ctx, CancellationToken ct)
+    {
+        var store = ctx.Services.GetRequiredService<IDocumentStore<McpServerConfig>>();
+        var secrets = ctx.Services.GetRequiredService<ISecretProvider>();
+        var q = call.GetString("query") ?? "";
+        var sb = new System.Text.StringBuilder();
+        foreach (var entry in McpCatalog.Entries.Where(e => q.Length == 0 || $"{e.Id} {e.Name} {e.Description}".Contains(q, StringComparison.OrdinalIgnoreCase)))
+        {
+            var current = await store.GetAsync(entry.Id, ct);
+            var installed = current is { IsCatalogEntry: false, Enabled: true };
+            sb.Append("- ").Append(entry.Id).Append(" — ").Append(entry.Name).Append(": ").Append(entry.Description)
+              .Append(" [").Append(installed ? "installed" : "not installed").Append(", trust ").Append(entry.Trust).Append(']');
+            var missing = McpTools.MissingSecrets(entry, secrets);
+            if (missing.Count > 0) sb.Append(" (needs secret ").Append(string.Join(", ", missing)).Append(" set by the user in Settings → Secrets)");
+            sb.AppendLine();
+        }
+        return FunctionResult.Ok(sb.Length == 0 ? "No gallery entry matches." : sb.ToString());
+    }
+}
+
+/// <summary>
+/// Boss Man: install a server from the curated MCP gallery (never arbitrary commands), optionally attach it to bots.
+/// Always asks a human first, then starts the server once to check it works.
+/// </summary>
+public sealed class InstallMcpFunction : KernelFunctionBase
+{
+    public override FunctionDescriptor Descriptor { get; } = new(
+        "install_mcp", "Install an MCP server from the curated gallery (see list_mcp_catalog) and optionally give it to bots. The user is asked to approve first. Custom servers can only be added by the user.",
+        """
+        {"type":"object","properties":{
+          "id":{"type":"string","description":"Gallery id from list_mcp_catalog"},
+          "bots":{"type":"array","items":{"type":"string"},"description":"Optional bot ids or names that should get this server"},
+          "reason":{"type":"string","description":"Why the team needs it (shown to the user)"}},
+          "required":["id"]}
+        """,
+        // The tool always asks a human itself (with a detailed summary), so policy treats the call like create_bot.
+        "management", PermissionCategory.AgentControl, RiskLevel.Medium, 3600);
+
+    protected override async ValueTask<FunctionResult> ExecuteAsync(FunctionCall call, FunctionExecutionContext ctx, CancellationToken ct)
+    {
+        var id = call.Require("id").Trim().ToLowerInvariant();
+        var entry = McpCatalog.Entries.FirstOrDefault(e => e.Id == id);
+        if (entry is null) return FunctionResult.Fail($"'{id}' is not in the curated gallery. Use list_mcp_catalog; other servers must be added by the user on the MCP page.");
+        var store = ctx.Services.GetRequiredService<IDocumentStore<McpServerConfig>>();
+        var registry = ctx.Services.GetRequiredService<BotRegistry>();
+        var botNames = call.Arguments.TryGetProperty("bots", out var arr) && arr.ValueKind == JsonValueKind.Array
+            ? arr.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).ToList() : [];
+        var bots = new List<BotDefinition>();
+        foreach (var name in botNames)
+            bots.Add(await registry.ResolveAsync(name, ct) ?? throw new ArgumentException($"No bot named '{name}'."));
+
+        var approvals = ctx.Services.GetRequiredService<ApprovalService>();
+        var approval = await approvals.RequestAsync(new ApprovalRequest
+        {
+            TaskId = ctx.TaskId, ThreadId = ctx.ThreadId, BotId = ctx.Bot.Id, ToolName = "install_mcp", Arguments = call.Arguments.GetRawText(),
+            Category = PermissionCategory.Admin, Risk = RiskLevel.High,
+            Reason = $"Install the MCP server '{entry.Name}' ({entry.Trust}) from the gallery" + (bots.Count > 0 ? $" for {string.Join(", ", bots.Select(b => b.Name))}" : "") + ".",
+            Summary = $"**Install MCP server: {entry.Name}**\n\n{entry.Description}\n\n- Runs: `{entry.Command} {string.Join(' ', entry.Args)}`\n- Trust: {entry.Trust}, permission profile `{entry.PermissionProfile}`" +
+                      (bots.Count > 0 ? $"\n- Give it to: {string.Join(", ", bots.Select(b => b.Name))}" : "") +
+                      (call.GetString("reason") is { Length: > 0 } why ? $"\n\nWhy: {why}" : ""),
+        }, ct);
+        if (approval.State != ApprovalState.Approved) return FunctionResult.Fail("The user did not approve installing this MCP server.");
+
+        var config = await store.GetAsync(id, ct) ?? new McpServerConfig
+        {
+            Id = entry.Id, Name = entry.Name, Description = entry.Description, Transport = entry.Transport, Command = entry.Command,
+            Args = [.. entry.Args], Env = new(entry.Env), Url = entry.Url, Trust = entry.Trust, PermissionProfile = entry.PermissionProfile,
+        };
+        config.IsCatalogEntry = false;
+        config.Enabled = true;
+        await store.UpsertAsync(config, ct);
+        foreach (var bot in bots.Where(b => !b.McpServers.Contains(id)))
+        {
+            bot.McpServers.Add(id);
+            await registry.UpdateAsync(bot, ct);
+        }
+
+        var report = new System.Text.StringBuilder($"Installed MCP server '{entry.Name}'");
+        if (bots.Count > 0) report.Append(" and gave it to ").Append(string.Join(", ", bots.Select(b => b.Name)));
+        report.Append('.');
+        var missing = McpTools.MissingSecrets(entry, ctx.Services.GetRequiredService<ISecretProvider>());
+        if (missing.Count > 0)
+        {
+            report.Append($" It needs the secret {string.Join(", ", missing)}: ask the user to add it in Settings → Secrets; it will not start before that.");
+            return FunctionResult.Ok(report.ToString());
+        }
+        try
+        {
+            var tools = await ctx.Services.GetRequiredService<McpManager>().GetToolsAsync(config, ctx.WorkspacePath, ct);
+            report.Append($" Health check: started and offers {tools.Count} tools ({string.Join(", ", tools.Take(8).Select(t => t.Name))}{(tools.Count > 8 ? ", …" : "")}).");
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or TimeoutException or System.ComponentModel.Win32Exception)
+        {
+            report.Append($" Health check failed: {ex.Message}. The runtime it needs (npx/uvx) may be missing on this server.");
+        }
+        return FunctionResult.Ok(report.ToString());
+    }
+}
+
+internal static class McpTools
+{
+    public static List<string> MissingSecrets(McpServerConfig entry, ISecretProvider secrets) =>
+        entry.Env.Values.Where(v => v.StartsWith("secret:", StringComparison.Ordinal)).Select(v => v[7..])
+            .Where(n => string.IsNullOrEmpty(secrets.Get(n))).Distinct().ToList();
+}

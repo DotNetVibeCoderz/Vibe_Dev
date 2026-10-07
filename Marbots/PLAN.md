@@ -78,6 +78,7 @@ Legend: ✅ done · 🟡 partial / preview · ⏳ planned
 - ✅ Learning evaluation: outcomes per skill version, verdicts, trials of auto-learned drafts, version history, manual/automatic rollback
 
 ## Cross-cutting
+- ✅ Boss Man installs MCP servers from the curated gallery via chat (`list_mcp_catalog`, `install_mcp` with approval + health check)
 - ✅ Optional sub-agents (`subagents` pack, `spawn_subagents`): parallel temporary copies of a bot with its persona, skills, model and host
 
 ## Cross-cutting backlog

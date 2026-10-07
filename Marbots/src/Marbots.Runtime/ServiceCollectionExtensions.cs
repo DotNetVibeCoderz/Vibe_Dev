@@ -57,6 +57,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IKernelFunction, ListTemplatesFunction>();
         services.AddSingleton<IKernelFunction, CreateBotFunction>();
         services.AddSingleton<IKernelFunction, ListHostsFunction>();
+        services.AddSingleton<IKernelFunction, ListMcpCatalogFunction>();
+        services.AddSingleton<IKernelFunction, InstallMcpFunction>();
         services.AddSingleton<IKernelFunction, SpawnSubagentsFunction>();
         services.AddSingleton<IKernelFunction, ScheduleTaskFunction>();
         services.AddSingleton<IKernelFunction, GetTaskFunction>();
