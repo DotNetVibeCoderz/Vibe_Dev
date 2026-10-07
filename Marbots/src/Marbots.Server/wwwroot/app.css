@@ -301,3 +301,23 @@ h1:focus, h1:focus-visible { outline: none; }
 .md.streaming > :last-child::after, .caret { content: ""; display: inline-block; width: .5em; height: 1em; margin-left: 2px; vertical-align: -2px; background: var(--indigo); animation: blink 1s steps(2, start) infinite; }
 @keyframes blink { to { visibility: hidden; } }
 .md.streaming > :is(ul, ol, pre, table, blockquote):last-child::after { display: none; }
+
+/* learning evaluation verdicts */
+.chip.verdict-healthy, .chip.verdict-readytopromote { background: color-mix(in srgb, var(--ok, #15A866) 16%, transparent); color: var(--ok, #15A866); }
+.chip.verdict-underperforming { background: color-mix(in srgb, #D98A00 18%, transparent); color: #B87500; }
+.chip.verdict-rollbackrecommended, .chip.verdict-discardrecommended { background: color-mix(in srgb, var(--danger, #D93848) 15%, transparent); color: var(--danger, #D93848); }
+
+/* computers (agent hosts) */
+.host-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.host-card { position: relative; }
+.host-card.online .host-status { background: color-mix(in srgb, #15A866 16%, transparent); color: #15A866; }
+.host-card.offline .host-status, .host-card.disabled .host-status { background: color-mix(in srgb, #D93848 14%, transparent); color: #D93848; }
+.host-card .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.host-card .chip.muted { opacity: .6; }
+.meters { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin-top: 10px; font-size: 12.5px; }
+.meters > div { display: flex; align-items: center; gap: 8px; }
+.meters span { color: var(--muted, #6B7193); min-width: 62px; }
+.meter { flex: 1; height: 6px; border-radius: 99px; background: color-mix(in srgb, currentColor 12%, transparent); overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--indigo, #3346D3); }
+
+.host-card .chip { white-space: nowrap; }

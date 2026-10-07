@@ -27,14 +27,17 @@ Anda juga bisa berbicara langsung dengan bot mana pun.
   pemasaran, layanan pelanggan, pendidikan, dan lainnya). Buat templat sendiri lengkap dengan nama, instruksi, MCP, dan skill.
 - **Skill**: paket `SKILL.md` (kompatibel dengan Claude/Agent Skills dan OpenClaw) dengan pengungkapan bertahap; 20 skill bawaan; bisa dipasang dari git.
 - **MCP**: klien stdio dan HTTP, galeri terkurasi, server terikat workspace, server kustom, referensi secret.
-- **Kernel function**: berkas, grep, shell (PowerShell/bash), pencarian/pengambilan web, memori, todo.
+- **Kernel function**: berkas, grep, shell (PowerShell/bash), `install_package` (winget/apt/brew/pip/npm…), pencarian/pengambilan web, memori, todo, dan computer use (screenshot, mouse, keyboard).
+- **Bot di komputer lain**: pasang agen `marbots-host` di PC mana pun lewat SSH dalam satu langkah; bot yang ditempatkan di sana menjalankan berkas, shell, container Docker, dan tool desktop di PC itu, sementara model, memori, dan persetujuan tetap di server. Placement otomatis, sambung ulang, pembaruan bergulir.
+- **Evaluasi pembelajaran**: hasil per versi skill, putusan, uji coba draf auto-learn, rollback sekali klik atau otomatis.
+- **Desktop dan mobile**: aplikasi Avalonia dengan **kantor 3D** langsung (model Rodin, robot beranimasi Blender) dan aplikasi .NET MAUI dengan persetujuan dan notifikasi.
 - **Aman sejak desain**: mesin kebijakan deterministik dengan profil izin, persetujuan manusia (sekali atau per utas),
   secret terenkripsi, *sandbox* path, dan batasan prompt injection. Tersedia mode berbahaya *lewati persetujuan* untuk
   sandbox (Pengaturan, `marbots approvals skip on`, atau `--dangerously-skip-approvals`).
 - **Penjadwal**: job cron dan sekali jalan dengan zona waktu.
 - **Observabilitas**: satu aliran event untuk aktivitas obrolan langsung, denah **Kantor**, dasbor, SSE, dan CLI.
 - **Interoperabilitas**: API REST + SSE, OpenAPI, Agent Card dan JSON-RPC **A2A**, ekspor/impor `.marbot` tanpa secret.
-- **SDK**: .NET, Python, TypeScript, dan Go, ditambah CLI `marbots` dengan tema.
+- **SDK**: .NET, Python, TypeScript, Go, Java, dan Rust, ditambah CLI `marbots` dengan tema.
 - **Dwibahasa**: UI dan dokumentasi dalam Bahasa Indonesia dan Inggris.
 
 ## Mulai cepat
@@ -65,6 +68,8 @@ Panduan lengkap: [Memulai](docs/id/getting-started.md).
 | ![Skill](docs/images/skills.png) **Galeri skill**: bawaan, terpasang, dan draf hasil auto-learn | ![MCP](docs/images/mcp.png) **Galeri MCP**: pasang, uji, dan lihat daftar tool |
 | ![Riset](docs/images/chat-research.png) **Riset web** dengan sumber yang dikutip | ![Mode gelap](docs/images/chat-webapp-dark.png) **Mode gelap** |
 | ![UI Bahasa Indonesia](docs/images/chat-id.png) **UI Bahasa Indonesia** (tombol EN/ID di kiri bawah) | ![Galeri templat ID](docs/images/templates-id.png) **Galeri templat** dalam Bahasa Indonesia |
+| ![Kantor 3D](docs/images/desktop-office.png) **Kantor 3D desktop**: robot berjalan ke stasiunnya saat event datang | ![Komputer](docs/images/hosts.png) **Komputer**: bot bekerja di PC lain, dipasang lewat SSH |
+| ![Mobile](docs/images/mobile-app.png) **Mobile**: tim, chat streaming, persetujuan, aktivitas | ![Streaming](docs/images/chat-streaming.png) Balasan **streaming langsung** di web, CLI, desktop, dan mobile |
 
 ## Dibangun oleh para bot (uji coba LLM sungguhan)
 

@@ -5,6 +5,8 @@ public static class WellKnown
 {
     public const string BossManId = "boss-man";
     public const string LocalHostId = "local-default";
+    /// <summary>HostRef value that lets placement choose a host.</summary>
+    public const string AutoHost = "auto";
     public const string UserAuthor = "user";
     public const string SharedMemoryOwner = "shared";
     public const string Credits = "Dibuat oleh Gravicode Studios dipimpin oleh Kang Fadhil";
@@ -64,7 +66,10 @@ public sealed class BotDefinition
     public List<string> McpServers { get; set; } = [];
     public List<string> KernelFunctions { get; set; } = [];
     public string PermissionProfile { get; set; } = "developer-safe";
+    /// <summary>Where the bot's tools run: "local-default", a registered host id, or "auto" (placement picks one).</summary>
     public string HostRef { get; set; } = WellKnown.LocalHostId;
+    /// <summary>Optional: run the bot's shell commands in this container (Docker) with CPU/RAM quotas.</summary>
+    public ContainerProfile? Container { get; set; }
     public int MaxSteps { get; set; } = 24;
     public int CompactionThresholdTokens { get; set; } = 24_000;
     public bool IsSystem { get; set; }
@@ -220,6 +225,8 @@ public sealed class SkillInfo
     public bool NeedsShell { get; set; }
     public bool HasScripts { get; set; }
     public bool Pending { get; set; }
+    /// <summary>Bot that drafted the skill (auto-learn). That bot may trial it before it is published.</summary>
+    public string? Author { get; set; }
 }
 
 public sealed class McpServerConfig
@@ -272,6 +279,9 @@ public sealed class HostInfo
     public long ProcessWorkingSetMb { get; set; }
     public string AgentVersion { get; set; } = "";
     public string Status { get; set; } = "Online";
+    public List<string> Capabilities { get; set; } = [];
+    public HostMetrics? Metrics { get; set; }
+    public string? InstalledVia { get; set; }
     public DateTimeOffset LastHeartbeat { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset StartedAt { get; set; } = DateTimeOffset.UtcNow;
 }
@@ -307,6 +317,8 @@ public sealed class WorkspaceSettings
     public bool DangerouslySkipApprovals { get; set; }
     /// <summary>Auto: Boss Man delegates on its own. Suggest: every delegation plan waits for the user's approval.</summary>
     public DelegationMode Delegation { get; set; } = DelegationMode.Auto;
+    /// <summary>Roll a skill back to its previous version automatically when the evaluation recommends it.</summary>
+    public bool AutoRollbackSkills { get; set; }
     public string? ChangedBy { get; set; }
     public DateTimeOffset? ChangedAt { get; set; }
 }
@@ -393,14 +405,36 @@ public sealed class TriggerConfig
 }
 
 /// <summary>Usage statistics of a skill, used to evaluate learned skills (promote / roll back).</summary>
+/// <summary>Outcomes of the tasks that loaded one version of a skill. Id is "name@version".</summary>
 public sealed class SkillStats
 {
     public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Version { get; set; } = "";
     public long Loads { get; set; }
     public long Successes { get; set; }
     public long Failures { get; set; }
     public DateTimeOffset? LastUsedAt { get; set; }
-    public double SuccessRate => Successes + Failures == 0 ? 0 : (double)Successes / (Successes + Failures);
+    public long Runs => Successes + Failures;
+    public double SuccessRate => Runs == 0 ? 0 : (double)Successes / Runs;
+
+    public static string Key(string name, string version) => $"{name.ToLowerInvariant()}@{version}";
+}
+
+public enum SkillVerdict { CollectingEvidence, Healthy, Underperforming, RollbackRecommended, ReadyToPromote, DiscardRecommended }
+
+/// <summary>What the learning evaluation concludes about a skill (current version vs the previous one).</summary>
+public sealed class SkillEvaluation
+{
+    public string Name { get; set; } = "";
+    public string Version { get; set; } = "";
+    public bool Pending { get; set; }
+    public SkillStats Current { get; set; } = new();
+    public string? PreviousVersion { get; set; }
+    public SkillStats? Previous { get; set; }
+    public SkillVerdict Verdict { get; set; }
+    public string Reason { get; set; } = "";
+    public bool CanRollback => PreviousVersion is not null;
 }
 
 /// <summary>A todo item maintained by a bot during a task.</summary>

@@ -11,10 +11,12 @@ memori, skill, tool MCP, dan batasan izin masing-masing.
 | [Memulai](getting-started.md) | Instalasi, menghubungkan model, tugas multi-bot pertama |
 | [Konsep inti](concepts.md) | Bot, Boss Man, utas, tugas, memori, pemadatan, auto-learn |
 | [Bot dan templat](bots-and-templates.md) | Galeri 58 templat, formulir bot, profil izin, ekspor/impor `.marbot` |
-| [Skill](skills.md) | Paket SKILL.md, pengungkapan bertahap, memasang skill dan skill hasil auto-learn |
+| [Skill](skills.md) | Paket SKILL.md, pengungkapan bertahap, skill hasil auto-learn, evaluasi pembelajaran dan rollback |
 | [Server MCP](mcp.md) | Galeri, server terikat workspace, server stdio/HTTP kustom |
 | [Keamanan](security.md) | Mesin kebijakan, persetujuan, secret, prompt injection, API key |
 | [Jadwal](scheduling.md) | Job cron dan sekali jalan |
+| [Komputer](computers.md) | Menjalankan bot di mesin lain: bootstrap SSH, agent host, placement, container, install_package, computer use |
+| [Aplikasi desktop dan mobile](apps.md) | Aplikasi Avalonia dengan kantor 3D (aset Rodin + Blender), aplikasi mobile MAUI dengan notifikasi |
 | [Kanal dan trigger](channels-and-triggers.md) | Web chat, webhook, Telegram, Slack, WhatsApp, Discord; trigger webhook dan event; mode suggest; streaming A2A |
 | [API, A2A, SDK, dan CLI](api-and-sdks.md) | REST + SSE, Agent2Agent, SDK .NET/Python/TypeScript/Go, CLI `marbots` |
 | [Arsitektur](architecture.md) | Modul, alur permintaan, performa, konfigurasi |

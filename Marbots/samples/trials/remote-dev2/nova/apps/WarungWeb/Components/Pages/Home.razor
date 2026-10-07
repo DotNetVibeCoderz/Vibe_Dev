@@ -1,0 +1,13 @@
+@page "/"
+@rendermode InteractiveServer
+@using System.Globalization
+
+<PageTitle>Warung Kopi Senja</PageTitle>
+<div class="site-shell">
+<header class="topbar"><a class="brand" href="/">SENJA<span>•</span></a><nav><a href="#menu">Menu</a><a href="/about">Cerita kami</a><a class="cart-link" href="#pesan">Pesanan <b>@cart.Count</b></a></nav></header>
+<main>
+<section class="hero"><div><p class="kicker">Kopi kecil, rasa yang tinggal</p><h1>Temui soremu<br/><em>di sini.</em></h1><p class="intro">Seduhan hangat dan obrolan pelan dari sudut kota. Dibuat segar setiap hari, untuk jeda yang kamu butuhkan.</p><a class="hero-button" href="#menu">Lihat menu <span>↓</span></a></div><div class="hero-art"><div class="sun"></div><div class="cup">☕</div><span class="stamp">EST. 2020<br/>JAKARTA</span></div></section>
+<section id="menu" class="menu-section"><div class="section-heading"><div><p class="kicker">Dari bar kami</p><h2>Menu hari ini</h2></div><span class="date">SELASA, 06 OKTOBER 2026</span></div><div class="menu-grid">@foreach (var item in Menu) { <article class="menu-card"><div class="drink-icon">@item.Icon</div><div class="card-copy"><h3>@item.Name</h3><p>@item.Description</p><strong>@item.Price.ToString("C0", new CultureInfo("id-ID"))</strong></div><button class="add" @onclick="() => Add(item)">Tambah <span>+</span></button></article> }</div></section>
+<section id="pesan" class="order-band"><div><p class="kicker">Pesananmu</p><h2>Siap untuk<br/><em>diseduh.</em></h2></div><div class="cart-panel">@if (cart.Count == 0) { <p class="empty">Belum ada yang dipilih.<br/>Tambahkan minuman favoritmu di atas.</p> } else { @foreach (var line in cart) { <div class="cart-line"><span>@line.Key.Name <small>× @line.Value</small></span><b>@((line.Key.Price * line.Value).ToString("C0", new CultureInfo("id-ID")))</b></div> } <div class="total"><span>Total</span><b>@Total.ToString("C0", new CultureInfo("id-ID"))</b></div><button class="order-button" @onclick="Clear">Pesan sekarang</button> }</div></section>
+</main><footer>Warung Kopi Senja <span>•</span> Buka setiap hari 07.00—21.00</footer></div>
+@code { record Drink(string Name, string Description, int Price, string Icon); List<Drink> Menu = new() { new("Es Kopi Senja","Kopi susu gula aren",24000,"◐"), new("Kopi Tubruk","Robusta lokal, pekat",18000,"◒"), new("Cappuccino","Espresso & susu lembut",28000,"◓"), new("Matcha Senja","Matcha, susu, madu",27000,"✳"), new("Teh Melati","Wangi melati pilihan",16000,"❋"), new("Cokelat Hangat","Cokelat Belgia, creamy",26000,"●") }; Dictionary<Drink,int> cart = new(); int Total => cart.Sum(x=>x.Key.Price*x.Value); void Add(Drink d) { cart[d] = cart.GetValueOrDefault(d)+1; } void Clear() => cart.Clear(); }

@@ -85,5 +85,58 @@ python samples/trials/run_trials.py --approve-delay 30
 node tools/screenshots/shoot.mjs http://localhost:5170 docs/images
 ```
 
+
+## Second PC: bots working on another computer (DEV2)
+
+October 7, 2026. The server ran on one Windows PC with Azure OpenAI and DeepSeek. A second Windows 11 PC on the same
+LAN ("DEV2") had Docker Desktop, the .NET 8 SDK, Node and Python, and no office suite. DEV2 was installed with one
+command over SSH (`marbots hosts bootstrap … --name DEV2`), updated twice with `--update`, and kept its enrollment
+throughout. Every result below was produced on DEV2 and downloaded through the server.
+
+![Host console on DEV2](../images/trial-dev2-host-console.png)
+
+*The `marbots-host` console on DEV2, captured by Rina's own `screenshot` tool. "At work now" shows Rina taking that
+screenshot; "Lately" shows Nova's file edits and one failed shell command.*
+
+### Four bots, created four ways
+
+| Bot | Created with | Setup |
+|---|---|---|
+| **Dara**, documents | CLI: `bot hire technical-writer`, `bot host`, `bot skills pptx,docx,xlsx,pdf`, `bot profile autonomous` | default model (gpt-5-mini) |
+| **Nova**, .NET engineer | .NET SDK, [`samples/remote-host/create-nova.cs`](../../samples/remote-host/create-nova.cs) (`dotnet run` file-based app) | azure/gpt-5.6-luna, skills frontend-design and webapp-testing |
+| **Rina**, computer-use QA | Web bot editor, driven by Playwright ([`tools/screenshots/create-bot-ui.mjs`](../../tools/screenshots/create-bot-ui.mjs)) | `desktop` pack, host picked in the Host dropdown |
+| **Dockie**, data engineer | Boss Man, in a chat message in Indonesian | `list_hosts`, then `create_bot` with `host: DEV2` and `container_image: python:3.12-slim`. Creating an autonomous bot asked for approval, and I approved it. |
+
+### What they did
+
+| Task | Result |
+|---|---|
+| Dockie: statistics script inside Docker | The script ran in `python:3.12-slim` on DEV2 (the image was pulled there): mean 143, median 142.5, sd 16.02, saved to `stats.json`. |
+| Dara: Tavily research, then PPTX, DOCX, XLSX and PDF with Anthropic's skills | Six facts with sources: AWS/Strand 2025, Microsoft Work Trend Index 2026, KADIN, Digital in Asia. Dara installed `python-pptx`, `python-docx`, `openpyxl`, `reportlab` and `pptxgenjs` herself and ran the xlsx skill's own `recalc.py` from `.skills/xlsx/`. Output: a 6-slide deck, a report (title, summary, findings, recommendations, sources), a workbook (Data and Summary sheets, 5 formulas, 1 chart) and a 2-page PDF. [Files](../../samples/trials/remote-dev2/dara/deliverables) |
+| Nova: Blazor web app, Avalonia desktop app, Spectre.Console CLI on .NET 10 | All three build with 0 warnings and 0 errors. The web app follows the frontend-design skill: Fraunces and DM Sans, a custom palette, rupiah prices. |
+| Nova: Playwright, Docker | Nova set up Playwright, which used Edge after the Chromium download timed out, and captured desktop and mobile screenshots. It wrote a multi-stage Dockerfile on `sdk:10.0` and `aspnet:10.0`, built `warungweb:latest` and ran it on :8090. Both the dev server and the container answered with HTTP 200. |
+| Rina: computer use | Rina screenshotted the desktop, built and started WarungDesk, clicked menu items, opened the Docker site in Edge, then closed both windows, looking at a screenshot before each step. |
+
+![WarungWeb in Docker, desktop and mobile](../images/trial-dev2-warungweb.png)
+![WarungDesk operated by Rina](../images/trial-dev2-warungdesk.png)
+
+### Honest notes
+
+- **Step limits.** The writer template's 24-step limit stopped Dara halfway. Raising it to 80 let her finish. The first
+  PDF was a single paragraph; a follow-up asked for a proper summary.
+- **Office rendering.** Neither PC has Office or LibreOffice, so the xlsx skill's recalculation step could not run, and
+  the formulas calculate when the file is opened. I checked the documents with python-pptx, python-docx, openpyxl and
+  PyMuPDF rather than by rendering slides.
+- **Nova's first pass** kept the default Blazor template chrome (purple sidebar). A follow-up removed it. Its "cart"
+  screenshot shows the menu, not the cart, so its claim of "two items visible" is overstated.
+- **Rina's run.** Her first attempt failed because I gave her a wrong workspace path (folders are slugs: `thr-…`, not
+  `thr_…`). Her second click replaced the first, because the list needs Ctrl+click to multi-select, so the total shows
+  one drink (Rp18,000).
+- **Dockie** tried to call `docker` from inside its container. The container note now says it is already inside one.
+- **Bugs found and fixed during the trial:**
+  - `create_bot` timed out while its approval was still pending; it now waits up to an hour.
+  - `install_package openpyxl` tried winget; `pip:`, `npm:` and `dotnet-tool:` packages are now supported.
+  - Skill scripts were not available on remote computers; they are now copied to `.skills/<name>/`.
+
 ---
 *Marbots — Created by Gravicode Studios, led by Kang Fadhil.*

@@ -371,6 +371,33 @@ public sealed class EngineTests : IAsyncLifetime
         Assert.DoesNotContain(stored, e => e.Type == EventTypes.AssistantDelta);
     }
 
+    [Fact]
+    public async Task Subagents_split_work_in_parallel_and_report_back()
+    {
+        var registry = _sp.GetRequiredService<BotRegistry>();
+        var nova = await registry.CreateAsync(new BotDefinition { Name = "Nova", Persona = "Engineer.", KernelFunctions = ["files", Packs.Subagents] });
+        Mock.EnqueueTool("spawn_subagents", """{"tasks":[{"key":"a","objective":"write part A"},{"key":"b","objective":"write part B"}]}""");
+        Mock.Responder = req => new ModelResponse { Content = "did: " + req.Messages[^1].Content?.Split('\n')[0] };
+        var thread = await Engine.CreateThreadAsync(nova.Id);
+        var root = await Engine.WaitAsync((await Engine.SendAsync(thread.Id, "build both parts")).Id, TimeSpan.FromSeconds(30));
+        Assert.Equal(TaskState.Completed, root.State);
+        var children = (await Engine.ListTasksAsync()).Where(t => t.ParentTaskId == root.Id).ToList();
+        Assert.Equal(2, children.Count);
+        Assert.All(children, c => Assert.Equal((nova.Id, nova.Id, TaskState.Completed), (c.BotId, c.AssignedBy, c.State)));
+        // Sub-agents saw the persona plus their part, and the parent got both reports.
+        Assert.Contains(Mock.Requests, r => r.Messages.Any(m => m.Content == "write part A") && r.Messages[0].Content!.Contains("temporary sub-agent"));
+        Assert.Contains(Mock.Requests, r => r.Messages.Any(m => m.Role == "tool" && m.Content!.Contains("## a (Completed)") && m.Content.Contains("## b (Completed)")));
+    }
+
+    [Fact]
+    public void Subagents_cannot_spawn_or_delegate_further()
+    {
+        var clone = MarbotsEngine.SubagentOf(new BotDefinition { Id = "nova", Name = "Nova", KernelFunctions = ["files", "shell", Packs.Subagents, "agents", "management"], AutoLearn = AutoLearnMode.SuggestSkills }, 2);
+        Assert.Equal(("nova", "Nova #2"), (clone.Id, clone.Name));
+        Assert.Equal(["files", "shell"], clone.KernelFunctions);
+        Assert.Equal(AutoLearnMode.Off, clone.AutoLearn);
+    }
+
     private static byte[] DecompressAll(byte[] zipBytes)
     {
         using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(zipBytes));

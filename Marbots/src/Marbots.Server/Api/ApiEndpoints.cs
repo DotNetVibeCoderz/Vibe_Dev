@@ -16,13 +16,16 @@ public sealed record ResolveApprovalRequest(string Scope = "Once");
 public sealed record InstallSkillRequest(string Source);
 public sealed record CreateSkillRequest(string Name, string Description, string Body);
 public sealed record FromTemplateRequest(string? Name);
-public sealed record WorkspaceFile(string Path, long Size, DateTimeOffset Modified);
+/// <summary>A workspace file; <see cref="Host"/> is set when it lives on a remote agent host.</summary>
+public sealed record WorkspaceFile(string Path, long Size, DateTimeOffset Modified, string? Host = null, string? HostName = null);
 public sealed record SystemInfo(string Product, string Version, string Credits, string CreditsEn, bool ModelConfigured, IReadOnlyList<string> Profiles, string DataDirectory);
 public sealed record ProviderRequest(string Name, string Kind, string Endpoint, string? ApiKey, string? Model, List<string>? Models = null);
 public sealed record ModelProfileInfo(string Name, string Provider, string Model, List<string> Fallbacks);
 public sealed record ModelCatalog(string Default, List<string> Choices, List<ModelProfileInfo> Profiles);
 public sealed record SetModelRequest(string Model);
 public sealed record ApprovalSettings(bool DangerouslySkipApprovals);
+public sealed record LearningSettings(bool AutoRollbackSkills);
+public sealed record SkillRollbackResult(string Name, string Version);
 public sealed record BotModelInfo(string BotId, string Setting, string Effective, bool UsesDefault, string? Warning);
 
 public static class ApiEndpoints
@@ -149,8 +152,15 @@ public static class ApiEndpoints
         api.MapGet("/threads/{id}/export", async (string id, MarbotsEngine e) => Results.Text(await e.ExportTranscriptAsync(id), "text/markdown"));
         api.MapGet("/threads/{id}/events", (string id, HttpContext ctx, IEventBus bus, IEventStore store, long? after) =>
             Sse.StreamAsync(ctx, bus, store, e => e.ThreadId == id || e.ThreadId == null && e.Type == EventTypes.ApprovalRequested, id, after));
-        api.MapGet("/threads/{id}/files", (string id, MarbotsEngine e) => WorkspaceFiles.List(e.WorkspaceFor(id)));
-        api.MapGet("/threads/{id}/files/{**path}", (string id, string path, MarbotsEngine e) => WorkspaceFiles.Download(e.WorkspaceFor(id), path));
+        api.MapGet("/threads/{id}/files", (string id, MarbotsEngine e, IServiceProvider sp, CancellationToken ct) => WorkspaceFiles.ListAllAsync(id, e, sp, ct));
+        api.MapGet("/threads/{id}/files/{**path}", async (string id, string path, string? host, MarbotsEngine e, HostConnectionManager hosts, CancellationToken ct) =>
+        {
+            if (string.IsNullOrEmpty(host)) return WorkspaceFiles.Download(e.WorkspaceFor(id), path);
+            byte[]? bytes;
+            try { bytes = await hosts.ReadFileAsync(host, Ids.Slug(id), path, ct); }
+            catch (HostOfflineException) { return Results.Problem($"Host '{host}' is offline.", statusCode: 503); }
+            return bytes is null ? Results.NotFound() : Results.File(bytes, WorkspaceFiles.ContentType(path), Path.GetFileName(path));
+        });
 
         // ---------- tasks ----------
         api.MapGet("/tasks", async (string? threadId, string? state, MarbotsEngine e) =>
@@ -176,6 +186,16 @@ public static class ApiEndpoints
         api.MapDelete("/skills/{name}", (string name, SkillRegistry s) => s.Uninstall(name) ? Results.NoContent() : Results.NotFound());
         api.MapPost("/skills/{name}/approve", (string name, SkillRegistry s) => s.ApprovePending(name) ? Results.NoContent() : Results.NotFound());
         api.MapPost("/skills/{name}/reject", (string name, SkillRegistry s) => s.RejectPending(name) ? Results.NoContent() : Results.NotFound());
+        // Learning evaluation: outcomes per skill version, verdicts, rollback.
+        api.MapGet("/skills/evaluations", (SkillEvaluator e, CancellationToken ct) => e.EvaluateAllAsync(ct));
+        api.MapPost("/skills/{name}/rollback", async (string name, SkillEvaluator e, CancellationToken ct) =>
+            await e.RollbackAsync(name, "api", ct) is { } v ? Results.Ok(new SkillRollbackResult(name, v)) : Results.NotFound(new { detail = $"No earlier version of '{name}' to roll back to." }));
+        api.MapGet("/system/learning", async (ApprovalService a, CancellationToken ct) => new LearningSettings((await a.GetSettingsAsync(ct)).AutoRollbackSkills));
+        api.MapPut("/system/learning", async (LearningSettings body, ApprovalService a, CancellationToken ct) =>
+        {
+            await a.SetAutoRollbackSkillsAsync(body.AutoRollbackSkills, "api", ct);
+            return new LearningSettings((await a.GetSettingsAsync(ct)).AutoRollbackSkills);
+        });
 
         // ---------- MCP ----------
         api.MapGet("/mcp", (IDocumentStore<McpServerConfig> s) => s.ListAsync());
@@ -237,7 +257,7 @@ public static class ApiEndpoints
         api.MapDelete("/memory/item/{id}", async (string id, IMemoryStore m) => await m.DeleteAsync(id) ? Results.NoContent() : Results.NotFound());
 
         // ---------- hosts, usage, events ----------
-        api.MapGet("/hosts", (HostService h) => h.List());
+        api.MapGet("/hosts", (HostService h, CancellationToken ct) => h.ListAsync(ct));
         api.MapGet("/usage", (UsageService u) => u.SummaryAsync());
         api.MapGet("/events/recent", (int? limit, IEventStore s) => s.RecentAsync(Math.Clamp(limit ?? 100, 1, 1000)));
         api.MapGet("/events", (HttpContext ctx, IEventBus bus, IEventStore store, long? after) => Sse.StreamAsync(ctx, bus, store, null, null, after));
@@ -287,6 +307,27 @@ public static class Sse
 
 public static class WorkspaceFiles
 {
+    /// <summary>Local workspace files plus the files on every remote host that worked on the thread.</summary>
+    public static async Task<IReadOnlyList<WorkspaceFile>> ListAllAsync(string threadId, MarbotsEngine engine, IServiceProvider sp, CancellationToken ct)
+    {
+        var files = List(engine.WorkspaceFor(threadId)).ToList();
+        var placement = sp.GetRequiredService<PlacementService>();
+        var hosts = sp.GetRequiredService<HostConnectionManager>();
+        var registry = sp.GetRequiredService<HostRegistry>();
+        foreach (var hostId in await placement.HostsOfThreadAsync(threadId, ct))
+        {
+            if (!hosts.IsOnline(hostId)) continue;
+            var name = (await registry.GetAsync(hostId, ct))?.Name ?? hostId;
+            try
+            {
+                files.AddRange((await hosts.ListFilesAsync(hostId, Ids.Slug(threadId), ct))
+                    .Where(f => !IsNoise(f.Path)).Select(f => new WorkspaceFile(f.Path, f.Size, f.Modified, hostId, name)));
+            }
+            catch (Exception ex) when (ex is HostOfflineException or InvalidOperationException) { }
+        }
+        return files;
+    }
+
     public static IReadOnlyList<WorkspaceFile> List(string root)
     {
         if (!Directory.Exists(root)) return [];
@@ -305,6 +346,16 @@ public static class WorkspaceFiles
             if (part is "node_modules" or "__pycache__" or ".git" or ".venv" or "venv" or ".pytest_cache" or "bin" or "obj") return true;
         return false;
     }
+
+    public static string ContentType(string path) => Path.GetExtension(path).ToLowerInvariant() switch
+    {
+        ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg", ".pdf" => "application/pdf", ".html" or ".htm" => "text/html",
+        ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        ".md" or ".txt" or ".py" or ".cs" or ".csv" or ".json" or ".log" => "text/plain; charset=utf-8",
+        _ => "application/octet-stream",
+    };
 
     public static IResult Download(string root, string path)
     {
@@ -339,6 +390,8 @@ public sealed class ApiKeyMiddleware(RequestDelegate next, IConfiguration config
     {
         var p = path.Value ?? "";
         if (p.StartsWith("/api/v1/hooks/", StringComparison.Ordinal)) return true;
+        // Agent hosts authenticate with their enrollment token / host secret.
+        if (p is "/api/v1/hosts/enroll" or "/api/v1/hosts/connect") return true;
         return p.StartsWith("/api/v1/channels/", StringComparison.Ordinal) &&
                (p.EndsWith("/inbound", StringComparison.Ordinal) || p.EndsWith("/slack", StringComparison.Ordinal) ||
                 p.EndsWith("/whatsapp", StringComparison.Ordinal) || p.EndsWith("/telegram", StringComparison.Ordinal));

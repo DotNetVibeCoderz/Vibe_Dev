@@ -1,0 +1,10 @@
+using Spectre.Console;
+var sales = new[] { (Name:"Es Kopi Senja", Qty:18, Price:24000), (Name:"Kopi Tubruk", Qty:12, Price:18000), (Name:"Cappuccino", Qty:9, Price:28000), (Name:"Matcha Senja", Qty:7, Price:27000), (Name:"Teh Melati", Qty:14, Price:16000), (Name:"Cokelat Hangat", Qty:6, Price:26000) };
+var totalItems = sales.Sum(x=>x.Qty); var total = sales.Sum(x=>x.Qty*x.Price);
+AnsiConsole.Write(new FigletText("SENJA").Color(Color.DarkOrange));
+AnsiConsole.MarkupLine("[grey]WARUNG KOPI SENJA  /  RINGKASAN PENJUALAN HARIAN[/]\n");
+var table = new Table().Border(TableBorder.Rounded).BorderColor(Color.Olive).Title("[bold #dce7b3]Selasa, 06 Oktober 2026[/]");
+table.AddColumn("[bold]Menu[/]"); table.AddColumn(new TableColumn("[bold]Terjual[/]").RightAligned()); table.AddColumn(new TableColumn("[bold]Pendapatan[/]").RightAligned());
+foreach(var sale in sales) table.AddRow(sale.Name, sale.Qty.ToString(), $"Rp{sale.Qty*sale.Price:N0}");
+table.AddEmptyRow(); table.AddRow("[bold]TOTAL[/]", $"[bold]{totalItems} item[/]", $"[bold #dce7b3]Rp{total:N0}[/]"); AnsiConsole.Write(table);
+AnsiConsole.MarkupLine($"\n[grey]Terima kasih sudah menemani sore kami. Sampai jumpa besok.[/]");

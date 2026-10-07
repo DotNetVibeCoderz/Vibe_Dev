@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Marbots.Abstractions/Marbots.Abstractions.csproj" />
+    <Project Path="src/Marbots.AgentHost/Marbots.AgentHost.csproj" />
     <Project Path="src/Marbots.Cli/Marbots.Cli.csproj" />
     <Project Path="src/Marbots.Desktop/Marbots.Desktop.csproj" />
     <Project Path="src/Marbots.Kernel/Marbots.Kernel.csproj" />

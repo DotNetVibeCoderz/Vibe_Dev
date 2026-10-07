@@ -53,5 +53,33 @@ Bots in `SuggestSkills` mode can draft new skills from successful multi-step tas
 review** on the Skills page. **Publish skill** moves a draft into `data/skills`; **Discard** deletes it.
 A learned skill never grants new permissions: it runs inside the bot's existing permission profile.
 
+
+## Learning evaluation
+
+Every task that loads a skill counts for that skill **version**: completed tasks are successes, failed tasks are
+failures, and cancelled tasks do not count. The Skills page shows a verdict for each skill, and so do
+`marbots skills` and `GET /api/v1/skills/evaluations`:
+
+| Verdict | When |
+|---|---|
+| Collecting evidence | fewer than 3 runs |
+| Healthy | at least 80% success |
+| Underperforming | less than 80% and no better earlier version |
+| Rollback recommended | under 50%, and the previous version did better (or has no data) |
+| Ready to publish | an auto-learned draft trialled at 80% or more |
+| Discard recommended | a draft under 50% on trial |
+
+- **Trials.** The bot that drafted a skill (auto-learn) may load it before anyone publishes it. The draft collects
+  evidence, but publishing stays a human decision (`marbots skills promote <name>` or **Publish skill**).
+- **Versions and rollback.** Publishing a new version of an installed skill raises its version number and keeps the
+  old one in `data/skills-history`. **Roll back** (or `marbots skills rollback <name>`, or
+  `POST /api/v1/skills/{name}/rollback`) restores the previous version and keeps the replaced one, so a rollback can
+  itself be undone.
+- **Automatic rollback.** Optional: **Roll back automatically** on the Skills page, or
+  `marbots skills auto-rollback on`. When a version keeps failing and the evaluation recommends a rollback, it happens
+  by itself, with a `SkillRolledBack` event in the log.
+- **Skill files.** Loading a skill copies its files (scripts, templates) into the workspace at `.skills/<name>/`, also
+  on remote computers, so bots can run the skill's scripts.
+
 ---
 *Marbots — Created by Gravicode Studios, led by Kang Fadhil.*

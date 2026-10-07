@@ -26,14 +26,17 @@ teammates in parallel, waits for dependencies, reviews the results and reports b
   marketing, support, education and more). Create your own templates with name, instructions, MCP and skills.
 - **Skills**: `SKILL.md` packages (Claude/Agent Skills and OpenClaw compatible) with progressive disclosure; 20 built in; install from git.
 - **MCP**: stdio and HTTP client, a curated gallery, workspace-scoped servers, custom servers, secret references.
-- **Kernel functions**: files, grep, shell (PowerShell/bash), web search/fetch, memory, todo.
+- **Kernel functions**: files, grep, shell (PowerShell/bash), `install_package` (winget/apt/brew/pip/npm…), web search/fetch, memory, todo, and computer use (screenshot, mouse, keyboard).
+- **Bots on other computers**: install the `marbots-host` agent on any PC over SSH in one step; bots placed there run their files, shell, Docker containers and desktop tools on it while models, memory and approvals stay on the server. Automatic placement, reconnect, rolling updates.
+- **Learning evaluation**: outcomes per skill version, verdicts, trials of auto-learned drafts, one-click or automatic rollback.
+- **Desktop and mobile**: an Avalonia app with a live **3D office** (Rodin models, Blender-animated robots) and a .NET MAUI app with approvals and notifications.
 - **Safety by design**: a deterministic policy engine with permission profiles, human approvals (once or per thread),
   encrypted secrets, path sandboxing, and prompt-injection boundaries. A dangerous *skip approvals* mode exists for
   sandboxes (Settings, `marbots approvals skip on`, or `--dangerously-skip-approvals`).
 - **Scheduler**: cron and one-off jobs with time zones.
 - **Observability**: a single event stream feeds the live chat activity, the **Office** floor plan, the dashboard, SSE and the CLI.
 - **Interop**: REST + SSE API, OpenAPI, **A2A** agent cards and JSON-RPC, `.marbot` export/import without secrets.
-- **SDKs**: .NET, Python, TypeScript and Go, plus the `marbots` CLI with themes.
+- **SDKs**: .NET, Python, TypeScript, Go, Java and Rust, plus the `marbots` CLI with themes.
 - **Bilingual**: UI and docs in English and Bahasa Indonesia.
 
 ## Quick start
@@ -64,6 +67,8 @@ Full walkthrough: [Getting started](docs/en/getting-started.md).
 | ![Skills](docs/images/skills.png) **Skills gallery**: built-in, installed and auto-learned drafts | ![MCP](docs/images/mcp.png) **MCP gallery**: install, test and list tools |
 | ![Research](docs/images/chat-research.png) **Web research** with cited sources | ![Dark mode](docs/images/chat-webapp-dark.png) **Dark mode** |
 | ![Indonesian UI](docs/images/chat-id.png) **Bahasa Indonesia UI** (EN/ID switch, bottom left) | ![Schedules](docs/images/schedules.png) **Schedules**: cron jobs created by Boss Man or by hand |
+| ![3D office](docs/images/desktop-office.png) **Desktop 3D office**: robots walk to their stations as events arrive | ![Computers](docs/images/hosts.png) **Computers**: bots working on other PCs, installed over SSH |
+| ![Mobile](docs/images/mobile-app.png) **Mobile**: team, streaming chat, approvals, activity | ![Streaming](docs/images/chat-streaming.png) **Live streaming** replies in web, CLI, desktop and mobile |
 
 ## Built by the bots (real LLM trials)
 
@@ -123,6 +128,9 @@ src/
   Marbots.Server         ASP.NET Core: REST/SSE API, A2A, Blazor UI
   Marbots.Sdk            .NET SDK
   Marbots.Cli            marbots CLI
+  Marbots.AgentHost      marbots-host: runs bots' tools on other computers (Spectre.Console dashboard)
+  Marbots.Desktop        Avalonia desktop app with the Three.Net 3D office
+  Marbots.Mobile         .NET MAUI Blazor Hybrid mobile app
 sdk/python · sdk/typescript · sdk/go · sdk/java · sdk/rust
 skills/                  20 built-in SKILL.md packages
 tests/Marbots.Tests      58 unit + end-to-end runtime tests (mock LLM)

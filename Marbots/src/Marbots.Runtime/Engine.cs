@@ -5,6 +5,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Marbots.Runtime;
 
+public static class Packs
+{
+    /// <summary>Optional pack: lets a bot split work across temporary copies of itself (spawn_subagents).</summary>
+    public const string Subagents = "subagents";
+}
+
 public sealed record DelegationSpec(string Key, string Bot, string Objective, IReadOnlyList<string> DependsOn);
 
 public sealed record DelegationOutcome(string Key, string BotId, string BotName, string TaskId, TaskState State, string Output);
@@ -376,6 +382,41 @@ public sealed class MarbotsEngine(
         return specs.Select(s => outcomes[s.Key]).ToList();
     }
 
+    /// <summary>
+    /// Runs independent sub-tasks in parallel on temporary sub-agents: clones of <paramref name="from"/> (persona, skills,
+    /// model, host, container, tools) that cannot spawn or delegate further. They share the thread's workspace and keep
+    /// the parent's id, so status, metering and the office view all belong to the parent bot.
+    /// </summary>
+    public async Task<IReadOnlyList<DelegationOutcome>> SpawnSubagentsAsync(TaskRecord parent, BotDefinition from, IReadOnlyList<(string Key, string Objective)> work, CancellationToken ct)
+    {
+        if (work.Count == 0) throw new BotValidationException("No sub-tasks given.");
+        if (work.Count > MaxSubagents) throw new BotValidationException($"Spawn at most {MaxSubagents} sub-agents at a time.");
+        if (parent.Depth >= options.MaxDelegationDepth) throw new BotValidationException("Sub-agents cannot spawn more sub-agents.");
+        var outcomes = new DelegationOutcome[work.Count];
+        using var slots = new SemaphoreSlim(Math.Max(1, options.MaxParallelDelegations));
+        await Task.WhenAll(work.Select(async (w, i) =>
+        {
+            await slots.WaitAsync(ct);
+            try { outcomes[i] = await RunChildAsync(parent, from, SubagentOf(from, i + 1), w.Key, w.Objective, ct); }
+            finally { slots.Release(); }
+        }));
+        return outcomes;
+    }
+
+    public const int MaxSubagents = 6;
+
+    public static BotDefinition SubagentOf(BotDefinition from, int number)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(from, MarbotsJsonContext.Default.BotDefinition);
+        var clone = System.Text.Json.JsonSerializer.Deserialize(json, MarbotsJsonContext.Default.BotDefinition)!;
+        clone.Name = $"{from.Name} #{number}";
+        clone.KernelFunctions = from.KernelFunctions.Where(p => p is not (Packs.Subagents or KernelPacks.Agents or "management")).ToList();
+        clone.Persona = from.Persona + "\n\nYou are a temporary sub-agent working on one part of a larger task for " + from.Name +
+            ". Do only your part, write results to the shared workspace when useful, and finish with a concise report.";
+        clone.AutoLearn = AutoLearnMode.Off;
+        return clone;
+    }
+
     private async Task<DelegationOutcome> RunChildAsync(TaskRecord parent, BotDefinition from, BotDefinition bot, string key, string objective, CancellationToken ct)
     {
         var child = new TaskRecord
@@ -401,7 +442,7 @@ public sealed class MarbotsEngine(
                 Bot = bot, Task = child, ThreadId = parent.ThreadId, Input = objective, Workspace = WorkspaceFor(parent.ThreadId),
             }, cts.Token);
             await FinishAsync(child, TaskState.Completed, result.Output, null, false);
-            _ = autoLearn.LearnAsync(bot, child, CancellationToken.None);
+            if (bot.AutoLearn != AutoLearnMode.Off) _ = autoLearn.LearnAsync(bot, child, CancellationToken.None);
             return new(key, bot.Id, bot.Name, child.Id, TaskState.Completed, result.Output);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested || cts.IsCancellationRequested)

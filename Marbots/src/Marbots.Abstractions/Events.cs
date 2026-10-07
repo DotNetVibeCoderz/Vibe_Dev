@@ -36,10 +36,12 @@ public static class EventTypes
     public const string ApprovalResolved = "ApprovalResolved";
     public const string MemoryWritten = "MemoryWritten";
     public const string SkillLoaded = "SkillLoaded";
+    public const string SkillRolledBack = "SkillRolledBack";
     public const string ContextCompacted = "ContextCompacted";
     public const string AutoLearnCandidateCreated = "AutoLearnCandidateCreated";
     public const string ScheduleTriggered = "ScheduleTriggered";
     public const string HostConnected = "HostConnected";
+    public const string HostDisconnected = "HostDisconnected";
     public const string TodoUpdated = "TodoUpdated";
     public const string SettingsChanged = "SettingsChanged";
     /// <summary>Streaming text from a model (transient: not stored). Message = the new text fragment.</summary>

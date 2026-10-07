@@ -7,6 +7,7 @@
 @inject IPolicyEngine Policy
 @inject IMemoryStore Memory
 @inject NavigationManager Nav
+@inject HostService Hosts
 
 <PageTitle>@(_isNew ? "Create bot" : _bot.Name) · Marbots</PageTitle>
 <div class="page">
@@ -70,9 +71,29 @@
                     <small>@ProfileHelp(_bot.PermissionProfile)</small>
                 </label>
                 <label class="field"><span>Host</span>
-                    <select class="select" @bind="_bot.HostRef"><option value="@WellKnown.LocalHostId">This computer (local-default)</option></select>
-                    <small>Remote VM and Docker hosts arrive with the AgentHost service (see roadmap).</small>
+                    <select class="select" @bind="_bot.HostRef">
+                        <option value="@WellKnown.LocalHostId">This computer (local-default)</option>
+                        <option value="@WellKnown.AutoHost">Automatic placement</option>
+                        @foreach (var h in _hosts.Where(h => h.Id != WellKnown.LocalHostId))
+                        {
+                            <option value="@h.Id">@h.Name · @h.Status@(h.Capabilities.Count > 0 ? " · " + string.Join(", ", h.Capabilities.Where(c => !c.StartsWith("pkg:", StringComparison.Ordinal))) : "")</option>
+                        }
+                    </select>
+                    <small>Files, shell, install_package and desktop tools run on this computer. <a href="/hosts">Add a computer</a>.</small>
                 </label>
+            </div>
+            <div class="split" style="margin-top:10px">
+                <label class="field"><span>Container image <small>(optional: run shell commands in Docker)</small></span>
+                    <input class="input" placeholder="python:3.12-slim" value="@_bot.Container?.Image" @onchange="e => SetImage(e.Value as string)" />
+                </label>
+                @if (_bot.Container is { } box)
+                {
+                    <div class="row" style="gap:10px">
+                        <label class="field"><span>CPUs</span><input class="input" type="number" step="0.5" min="0.5" @bind="box.Cpus" /></label>
+                        <label class="field"><span>Memory MB</span><input class="input" type="number" step="256" min="256" @bind="box.MemoryMb" /></label>
+                        <label class="row small-text" style="gap:6px;margin-top:18px"><input type="checkbox" @bind="box.Network" /> network</label>
+                    </div>
+                }
             </div>
             @if (!_isNew && !_bot.IsSystem)
             {
@@ -104,6 +125,19 @@
 </div>
 
 @code {
+    private IReadOnlyList<HostInfo> _hosts = [];
+
+    private string HostLabel() => _bot.HostRef switch
+    {
+        WellKnown.LocalHostId => "this computer",
+        WellKnown.AutoHost => "whichever computer placement picks",
+        var id => _hosts.FirstOrDefault(h => h.Id == id)?.Name ?? id,
+    };
+
+    protected override async Task OnInitializedAsync() => _hosts = await Hosts.ListAsync();
+
+    private void SetImage(string? image) => _bot.Container = string.IsNullOrWhiteSpace(image) ? null : new ContainerProfile { Image = image.Trim(), Cpus = _bot.Container?.Cpus ?? 1, MemoryMb = _bot.Container?.MemoryMb ?? 1024, Network = _bot.Container?.Network ?? true };
+
     [Parameter] public string? Id { get; set; }
     [SupplyParameterFromQuery(Name = "template")] public string? TemplateId { get; set; }
 
@@ -129,7 +163,7 @@
     private IEnumerable<string> Warnings()
     {
         if (_bot.PermissionProfile == "autonomous" && _bot.KernelFunctions.Contains("shell"))
-            yield return "Autonomous + shell: this bot can run commands on this computer without asking.";
+            yield return $"Autonomous + shell: this bot can run commands on {HostLabel()} without asking.";
         if (_bot.KernelFunctions.Contains("shell") && _bot.PermissionProfile == "developer-safe")
             yield return "Shell commands ask for your approval (once, or once per thread).";
         if (_bot.KernelFunctions.Contains("web"))
@@ -138,6 +172,8 @@
             yield return "Auto-learned skills land in a review queue and never grant new permissions.";
         if (_bot.McpServers.Count > 0)
             yield return $"MCP tools run inside the '{_bot.PermissionProfile}' boundaries plus each server's permission category.";
+        if (_bot.McpServers.Count > 0 && _bot.HostRef != WellKnown.LocalHostId)
+            yield return "MCP servers run on this server, not on the bot's computer; use shell tools for work that must happen there.";
     }
 
     private static string ProfileHelp(string p) => p switch

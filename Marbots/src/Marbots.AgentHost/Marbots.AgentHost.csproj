@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>marbots-host</AssemblyName>
+    <RootNamespace>Marbots.AgentHost</RootNamespace>
+    <Description>Marbots agent host: runs bots' files, shell, desktop and container tools on this computer for a Marbots control plane.</Description>
+    <IsPackable>false</IsPackable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Shipped as one self-contained file so target machines need no .NET install. -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained Condition="'$(RuntimeIdentifier)' != ''">true</SelfContained>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Marbots.Kernel\Marbots.Kernel.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+    <PackageReference Include="Spectre.Console" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,17 @@
+@* Learning-evaluation verdict for one skill version. *@
+<span class="chip verdict-@Evaluation.Verdict.ToString().ToLowerInvariant()" title="@Evaluation.Reason">@Label</span>
+<span class="muted"> @Evaluation.Reason</span>
+
+@code {
+    [Parameter, EditorRequired] public SkillEvaluation Evaluation { get; set; } = default!;
+
+    private string Label => Evaluation.Verdict switch
+    {
+        SkillVerdict.Healthy => "Healthy",
+        SkillVerdict.Underperforming => "Underperforming",
+        SkillVerdict.RollbackRecommended => "Rollback recommended",
+        SkillVerdict.ReadyToPromote => "Ready to publish",
+        SkillVerdict.DiscardRecommended => "Discard recommended",
+        _ => "Collecting evidence",
+    };
+}

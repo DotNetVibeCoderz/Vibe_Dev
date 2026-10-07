@@ -21,6 +21,11 @@ public sealed class MarbotsOptions
     public int ApprovalTimeoutMinutes { get; set; } = 30;
     public List<string> SkillDirectories { get; set; } = [];
     public bool SeedStarterBots { get; set; } = true;
+    /// <summary>
+    /// Where SSH bootstrap finds agent-host binaries: marbots-host-&lt;rid&gt;.exe (win-x64, win-arm64) or
+    /// marbots-host-&lt;rid&gt; (linux-x64, linux-arm64, osx-arm64). Defaults to data/host-packages.
+    /// </summary>
+    public string? HostPackagesDirectory { get; set; }
     /// <summary>Start with approvals skipped (server flag <c>--dangerously-skip-approvals</c>). Can be turned off at runtime.</summary>
     public bool DangerouslySkipApprovals { get; set; }
 
@@ -427,6 +432,9 @@ public sealed class ApprovalService(IDocumentStore<ApprovalRequest> store, IDocu
         await SaveSettingsAsync(s => s.Delegation = mode, by, ct);
         await bus.PublishAsync(new AgentEvent { Type = EventTypes.SettingsChanged, Message = $"Delegation mode is now {mode}, by {by}", Data = "delegation:" + mode }, ct);
     }
+
+    public async Task SetAutoRollbackSkillsAsync(bool on, string by, CancellationToken ct = default) =>
+        await SaveSettingsAsync(s => s.AutoRollbackSkills = on, by, ct);
 
     public async Task SetSkipApprovalsAsync(bool skip, string by, CancellationToken ct = default)
     {

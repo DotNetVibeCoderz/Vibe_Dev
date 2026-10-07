@@ -1,0 +1,61 @@
+@page "/"
+@implements IDisposable
+@inject MobileSession Session
+
+<h1 class="title">Your team</h1>
+<p class="sub">Pick a bot to chat. Boss Man can hand work to the others.</p>
+
+@if (!Session.IsConnected)
+{
+    <div class="card muted">Not connected. <a href="settings">Set the server</a> to start.</div>
+}
+<div class="bots">
+    @foreach (var b in Session.Bots)
+    {
+        <a class="bot card" href="chat/@b.Id">
+            <Avatar Bot="b" Size="44" />
+            <div class="grow">
+                <div class="name">@b.Name</div>
+                <div class="muted small">@b.Role</div>
+            </div>
+            <span class="state @Busy(b.Id)">@Status(b.Id)</span>
+        </a>
+    }
+</div>
+
+@code {
+    private readonly Dictionary<string, string> _activity = [];
+
+    protected override void OnInitialized()
+    {
+        Session.Changed += Refresh;
+        Session.EventReceived += OnEvent;
+    }
+
+    private void OnEvent(AgentEvent e)
+    {
+        if (e.BotId is null) return;
+        var label = e.Type switch
+        {
+            EventTypes.AgentThinkingStarted => "thinking",
+            EventTypes.ToolCallStarted => e.Message?.Split(' ', 2)[0] ?? "working",
+            EventTypes.ApprovalRequested => "needs approval",
+            EventTypes.AssistantDelta => "writing",
+            EventTypes.TaskStateChanged when e.Data is "Completed" or "Failed" or "Cancelled" => "",
+            _ => null,
+        };
+        if (label is null) return;
+        if (label.Length == 0) _activity.Remove(e.BotId); else _activity[e.BotId] = label;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private string Status(string id) => _activity.GetValueOrDefault(id) ?? "idle";
+    private string Busy(string id) => _activity.ContainsKey(id) ? "busy" : "";
+    private void Refresh() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Session.Changed -= Refresh;
+        Session.EventReceived -= OnEvent;
+    }
+}

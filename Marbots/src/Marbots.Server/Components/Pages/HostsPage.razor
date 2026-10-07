@@ -1,0 +1,156 @@
+@page "/hosts"
+@inherits LiveComponent
+@inject HostService Hosts
+@inject HostRegistry Registry
+@inject HostBootstrapper Bootstrapper
+@inject BotRegistry Bots
+@inject NavigationManager Nav
+
+<PageTitle>@T["nav.hosts"] · Marbots</PageTitle>
+<div class="page">
+    <div class="page-head">
+        <div>
+            <h1>@T["nav.hosts"]</h1>
+            <p>Computers your bots work on. This server keeps the conversation, models and approvals; a bot placed on another computer runs its files, shell, <code>install_package</code> and desktop tools there (in a workspace per thread), and can use its Docker.</p>
+        </div>
+    </div>
+    @if (_message is not null) { <div class="@(_isError ? "error-box" : "ok-box")">@_message</div> }
+
+    <div class="host-grid">
+        @foreach (var h in _hosts)
+        {
+            var bots = _bots.Where(b => b.HostRef == h.Id).ToList();
+            <div class="panel panel-pad host-card @(h.Status.ToLowerInvariant())">
+                <div class="row" style="justify-content:space-between">
+                    <div>
+                        <h3 style="margin:0">@h.Name</h3>
+                        <div class="muted small-text"><code>@h.Id</code> · @(h.Kind == "local" ? "this server" : h.InstalledVia ?? "remote")</div>
+                    </div>
+                    <span class="chip host-status">@h.Status</span>
+                </div>
+                <div class="small-text" style="margin:10px 0 6px">@h.Os · @h.Architecture · @h.ProcessorCount CPU · @(h.TotalMemoryMb / 1024) GB @(h.AgentVersion.Length > 0 ? "· v" + h.AgentVersion : "")</div>
+                <div class="chips">
+                    @foreach (var c in h.Capabilities) { <span class="chip @(c.StartsWith("pkg:", StringComparison.Ordinal) ? "muted" : "")">@c</span> }
+                </div>
+                @if (h.Metrics is { } m)
+                {
+                    <div class="meters">
+                        <div><span>CPU</span><div class="meter"><i style="width:@(Math.Clamp(m.CpuPercent, 0, 100).ToString("0", System.Globalization.CultureInfo.InvariantCulture))%"></i></div><b>@m.CpuPercent.ToString("0")%</b></div>
+                        <div><span>Free RAM</span><b>@m.FreeMemoryMb.ToString("N0") MB</b></div>
+                        <div><span>Free disk</span><b>@((m.FreeDiskMb / 1024).ToString("N0")) GB</b></div>
+                        <div><span>Running</span><b>@m.RunningCalls</b></div>
+                    </div>
+                }
+                <div class="small-text" style="margin-top:10px">
+                    @if (bots.Count == 0) { <span class="muted">No bots here yet.</span> }
+                    else { <span>Bots: </span>@foreach (var b in bots) { <a class="chip" href="/team/@b.Id">@b.Name</a> } }
+                </div>
+                @if (h.Kind != "local")
+                {
+                    <div class="row" style="margin-top:12px;gap:6px">
+                        @if (h.Status == "Disabled") { <button class="btn small" @onclick="() => Enable(h.Id, true)">Enable</button> }
+                        else { <button class="btn small" @onclick="() => Enable(h.Id, false)">Disable</button> }
+                        <button class="btn small danger" @onclick="() => Remove(h)">Remove</button>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <h2 style="margin:26px 0 12px">Add a computer</h2>
+    <div class="split" style="align-items:start">
+        <div class="panel panel-pad">
+            <h3 style="margin-top:0">Install over SSH</h3>
+            <p class="small-text muted">Marbots connects once, checks the machine, uploads <code>marbots-host</code>, enrolls it with a one-time token and starts it at logon (Windows: in the user's desktop session, so computer-use works; Linux: systemd user service). The password or key is used for this install only and is not stored.</p>
+            <div class="split">
+                <label class="field"><span>Address</span><input class="input" @bind="_ssh.Host" placeholder="192.168.1.20" /></label>
+                <label class="field"><span>Name</span><input class="input" @bind="_ssh.Name" placeholder="design-pc" /></label>
+                <label class="field"><span>User</span><input class="input" @bind="_ssh.User" autocomplete="off" /></label>
+                <label class="field"><span>Password</span><input class="input" type="password" @bind="_ssh.Password" autocomplete="new-password" /></label>
+            </div>
+            <label class="field"><span>Server address the computer uses to reach Marbots</span><input class="input" @bind="_ssh.ServerUrl" /></label>
+            <button class="btn primary" disabled="@_busy" @onclick="Bootstrap">@(_busy ? "Installing…" : "Install and connect")</button>
+            @if (_log.Count > 0)
+            {
+                <ol class="small-text" style="margin:12px 0 0;padding-left:18px">@foreach (var l in _log) { <li>@l</li> }</ol>
+            }
+            <p class="small-text muted" style="margin-top:10px">Packages found: @(_packages.Count == 0 ? "none" : string.Join(", ", _packages)) in <code>@Bootstrapper.PackagesDirectory</code></p>
+        </div>
+        <div class="panel panel-pad">
+            <h3 style="margin-top:0">Install by hand</h3>
+            <p class="small-text muted">Copy <code>marbots-host</code> to the computer, then run the command below there. The token works once, for an hour.</p>
+            <div class="row"><input class="input grow" @bind="_tokenName" placeholder="Name for the computer" /><button class="btn" @onclick="CreateToken">Create token</button></div>
+            @if (_enrollCommand is not null)
+            {
+                <pre class="small-text" style="white-space:pre-wrap;margin-top:12px">@_enrollCommand
+marbots-host run</pre>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<HostInfo> _hosts = [];
+    private IReadOnlyList<BotDefinition> _bots = [];
+    private List<string> _packages = [];
+    private readonly SshBootstrapRequest _ssh = new();
+    private readonly List<string> _log = [];
+    private string? _message, _enrollCommand, _tokenName;
+    private bool _isError, _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ssh.ServerUrl = $"http://{LanAddress()}:{new Uri(Nav.BaseUri).Port}";
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _hosts = await Hosts.ListAsync();
+        _bots = await Bots.ActiveAsync();
+        _packages = new[] { "win-x64", "win-arm64", "linux-x64", "linux-arm64", "osx-arm64" }.Where(r => Bootstrapper.PackageFor(r) is not null).ToList();
+    }
+
+    protected override bool Accept(AgentEvent e) => e.Type is EventTypes.HostConnected or EventTypes.HostDisconnected or EventTypes.BotUpdated or EventTypes.ToolCallStarted;
+
+    protected override Task RefreshAsync(IReadOnlyList<AgentEvent> events) => LoadAsync();
+
+    private static string LanAddress() =>
+        System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+            .Where(n => n.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up && n.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback)
+            .SelectMany(n => n.GetIPProperties().UnicastAddresses)
+            .Select(a => a.Address)
+            .FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork && !System.Net.IPAddress.IsLoopback(a))?.ToString() ?? "localhost";
+
+    private async Task Bootstrap()
+    {
+        _busy = true;
+        _log.Clear();
+        var result = await Bootstrapper.BootstrapAsync(_ssh, "web", default);
+        _ssh.Password = null;
+        _log.AddRange(result.Log);
+        (_message, _isError) = result.Success ? ($"{_ssh.Name} is set up as {result.HostId}. Put a bot on it in the bot editor (Host).", false) : (result.Error, true);
+        _busy = false;
+        await LoadAsync();
+    }
+
+    private async Task CreateToken()
+    {
+        var name = string.IsNullOrWhiteSpace(_tokenName) ? "new-host" : _tokenName.Trim();
+        var (token, _) = await Registry.CreateEnrollmentAsync(name, TimeSpan.FromHours(1), "web");
+        _enrollCommand = $"marbots-host enroll --server http://{LanAddress()}:{new Uri(Nav.BaseUri).Port} --token {token} --name \"{name}\"";
+    }
+
+    private async Task Enable(string id, bool enable)
+    {
+        if (await Registry.GetAsync(id) is { } h) { h.Disabled = !enable; await Registry.SaveAsync(h); }
+        await LoadAsync();
+    }
+
+    private async Task Remove(HostInfo h)
+    {
+        await Registry.RemoveAsync(h.Id);
+        _message = $"Removed {h.Name}. Bots placed on it fall back to failing tools until you move them."; _isError = false;
+        await LoadAsync();
+    }
+}

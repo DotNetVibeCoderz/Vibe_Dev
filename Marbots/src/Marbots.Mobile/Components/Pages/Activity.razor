@@ -1,0 +1,39 @@
+@page "/activity"
+@implements IDisposable
+@inject MobileSession Session
+
+<h1 class="title">Activity</h1>
+<p class="sub">What the team is doing right now.</p>
+
+@if (Session.Feed.Count == 0) { <div class="card muted">Quiet for now. Events appear here live.</div> }
+<ul class="feed">
+    @foreach (var e in Session.Feed)
+    {
+        var bot = Session.Bot(e.BotId ?? "");
+        <li>
+            <span class="dot" style="background:@(bot?.Color ?? "#6D7BFF")"></span>
+            <div class="grow">
+                <div><b>@(bot?.Name ?? e.BotId)</b> @Describe(e)</div>
+                <div class="muted small">@e.Timestamp.ToLocalTime().ToString("HH:mm:ss")</div>
+            </div>
+        </li>
+    }
+</ul>
+
+@code {
+    protected override void OnInitialized() => Session.Changed += Refresh;
+
+    private static string Describe(AgentEvent e) => e.Type switch
+    {
+        EventTypes.ToolCallStarted => "uses " + MobileSession.Preview(e.Message?.Split(' ', 2)[0], 40),
+        EventTypes.AgentThinkingStarted => "is thinking",
+        EventTypes.ApprovalRequested => "needs approval: " + MobileSession.Preview(e.Message, 60),
+        EventTypes.TaskDelegated => "got a task: " + MobileSession.Preview(e.Message, 60),
+        EventTypes.TaskCreated => "started: " + MobileSession.Preview(e.Message, 60),
+        EventTypes.TaskStateChanged => (e.Data ?? "updated").ToLowerInvariant(),
+        _ => MobileSession.Preview(e.Message, 60),
+    };
+
+    private void Refresh() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Session.Changed -= Refresh;
+}

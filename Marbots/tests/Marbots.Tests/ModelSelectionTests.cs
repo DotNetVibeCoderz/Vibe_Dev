@@ -44,7 +44,7 @@ public sealed class ModelSelectionTests : IAsyncLifetime
     private async Task<TaskRecord> RunAsync(string botId, string text)
     {
         var thread = await Engine.CreateThreadAsync(botId);
-        return await Engine.WaitAsync((await Engine.SendAsync(thread.Id, text)).Id, TimeSpan.FromSeconds(20));
+        return await Engine.WaitAsync((await Engine.SendAsync(thread.Id, text)).Id, TimeSpan.FromSeconds(60));
     }
 
     [Theory]

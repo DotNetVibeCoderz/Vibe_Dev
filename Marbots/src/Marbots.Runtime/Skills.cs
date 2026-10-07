@@ -77,6 +77,9 @@ public sealed class SkillRegistry
     public string InstalledDirectory => _options.DataPath("skills");
     public string PendingDirectory => _options.DataPath("skills-pending");
 
+    /// <summary>Earlier versions of installed skills, newest last: skills-history/&lt;slug&gt;/&lt;utc-stamp&gt;_&lt;version&gt;.</summary>
+    public string HistoryDirectory => _options.DataPath("skills-history");
+
     public IReadOnlyList<SkillInfo> All => _skills;
 
     public SkillInfo? Find(string name) => _skills.FirstOrDefault(s => !s.Pending && s.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
@@ -124,12 +127,21 @@ public sealed class SkillRegistry
             NeedsNetwork = fields.GetValueOrDefault("permissions.network") is "true",
             NeedsShell = fields.GetValueOrDefault("permissions.shell") is "true",
             HasScripts = Directory.Exists(Path.Combine(dir, "scripts")),
+            Author = fields.GetValueOrDefault("author") is { Length: > 0 } a ? a : null,
         };
     }
 
-    public IReadOnlyList<SkillInfo> ForBot(BotDefinition bot) =>
-        bot.Skills.Contains("*") ? _skills.Where(s => !s.Pending).ToList()
-            : _skills.Where(s => !s.Pending && bot.Skills.Contains(s.Name, StringComparer.OrdinalIgnoreCase)).ToList();
+    /// <summary>
+    /// Skills a bot may load: its enabled published skills, plus drafts it wrote itself (a trial that gives the
+    /// learning evaluation evidence before a human publishes them).
+    /// </summary>
+    public IReadOnlyList<SkillInfo> ForBot(BotDefinition bot)
+    {
+        var published = bot.Skills.Contains("*") ? _skills.Where(s => !s.Pending)
+            : _skills.Where(s => !s.Pending && bot.Skills.Contains(s.Name, StringComparer.OrdinalIgnoreCase));
+        var trials = _skills.Where(s => s.Pending && s.Author == bot.Id && !published.Any(p => p.Name.Equals(s.Name, StringComparison.OrdinalIgnoreCase)));
+        return published.Concat(trials).ToList();
+    }
 
     public async Task<string> LoadBodyAsync(SkillInfo skill, CancellationToken ct)
     {
@@ -173,6 +185,7 @@ public sealed class SkillRegistry
                 var name = Ids.Slug(info.Name);
                 if (name.Length == 0) continue;
                 var dest = Path.Combine(InstalledDirectory, name);
+                if (Directory.Exists(dest)) { Archive(name); TryDelete(dest); }
                 CopyDirectory(Path.GetDirectoryName(skillFile)!, dest);
                 installed.Add(info);
             }
@@ -194,13 +207,14 @@ public sealed class SkillRegistry
         return true;
     }
 
-    public async Task<SkillInfo> CreateAsync(string name, string description, string body, bool pending, CancellationToken ct)
+    public async Task<SkillInfo> CreateAsync(string name, string description, string body, bool pending, CancellationToken ct, string? author = null)
     {
         var slug = Ids.Slug(name);
         if (slug.Length == 0) throw new ArgumentException("Skill name is required.");
         var dir = Path.Combine(pending ? PendingDirectory : InstalledDirectory, slug);
         Directory.CreateDirectory(dir);
-        var content = $"---\nname: {slug}\ndescription: {description.Replace('\n', ' ')}\nversion: 1.0.0\n---\n\n{body.Trim()}\n";
+        var authorLine = author is null ? "" : $"author: {author}\n";
+        var content = $"---\nname: {slug}\ndescription: {description.Replace('\n', ' ')}\nversion: 1.0.0\n{authorLine}---\n\n{body.Trim()}\n";
         await File.WriteAllTextAsync(Path.Combine(dir, "SKILL.md"), content, ct);
         Refresh();
         return Read(Path.Combine(dir, "SKILL.md"), pending ? "Unverified" : "Local", pending ? "auto-learn" : "installed", pending);
@@ -208,12 +222,74 @@ public sealed class SkillRegistry
 
     public bool ApprovePending(string name)
     {
-        var src = Path.Combine(PendingDirectory, Ids.Slug(name));
+        var slug = Ids.Slug(name);
+        var src = Path.Combine(PendingDirectory, slug);
         if (!Directory.Exists(src)) return false;
-        CopyDirectory(src, Path.Combine(InstalledDirectory, Ids.Slug(name)));
+        var dest = Path.Combine(InstalledDirectory, slug);
+        string? replaced = null;
+        if (File.Exists(Path.Combine(dest, "SKILL.md")))
+        {
+            replaced = Read(Path.Combine(dest, "SKILL.md"), "Local", "installed", false).Version;
+            Archive(slug);
+            TryDelete(dest);
+        }
+        CopyDirectory(src, dest);
+        // A new version of an existing skill gets a higher version number, so its outcomes are tracked separately.
+        if (replaced is not null) SetVersion(Path.Combine(dest, "SKILL.md"), NextVersion(replaced));
         TryDelete(src);
         Refresh();
         return true;
+    }
+
+    /// <summary>Versions kept for rollback, oldest first.</summary>
+    public IReadOnlyList<(string Version, string Path)> History(string name)
+    {
+        var dir = Path.Combine(HistoryDirectory, Ids.Slug(name));
+        if (!Directory.Exists(dir)) return [];
+        return Directory.GetDirectories(dir).Order(StringComparer.Ordinal)
+            .Select(d => (Read(Path.Combine(d, "SKILL.md"), "Local", "history", false).Version, d)).ToList();
+    }
+
+    /// <summary>Restores the previous version of an installed skill; the current one is archived. Returns the restored version.</summary>
+    public string? Rollback(string name)
+    {
+        var slug = Ids.Slug(name);
+        var history = History(slug);
+        var dest = Path.Combine(InstalledDirectory, slug);
+        if (history.Count == 0 || !Directory.Exists(dest)) return null;
+        var (version, path) = history[^1];
+        Archive(slug);
+        TryDelete(dest);
+        CopyDirectory(path, dest);
+        TryDelete(path);
+        Refresh();
+        return version;
+    }
+
+    private void Archive(string slug)
+    {
+        var current = Path.Combine(InstalledDirectory, slug);
+        if (!File.Exists(Path.Combine(current, "SKILL.md"))) return;
+        var stamp = DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfffffff", System.Globalization.CultureInfo.InvariantCulture);
+        CopyDirectory(current, Path.Combine(HistoryDirectory, slug, stamp));
+    }
+
+    internal static string NextVersion(string version)
+    {
+        var parts = version.Split('.');
+        return parts.Length >= 2 && int.TryParse(parts[0], out var major) && int.TryParse(parts[1], out var minor)
+            ? $"{major}.{minor + 1}.0" : version + ".1";
+    }
+
+    private static void SetVersion(string skillFile, string version)
+    {
+        var lines = File.ReadAllLines(skillFile).ToList();
+        var end = lines.Count > 0 && lines[0].Trim() == "---" ? lines.FindIndex(1, l => l.Trim() == "---") : -1;
+        if (end < 0) return;
+        var at = lines.FindIndex(1, end - 1, l => l.StartsWith("version:", StringComparison.Ordinal));
+        if (at >= 0) lines[at] = "version: " + version;
+        else lines.Insert(end, "version: " + version);
+        File.WriteAllLines(skillFile, lines);
     }
 
     public bool RejectPending(string name)
@@ -223,6 +299,32 @@ public sealed class SkillRegistry
         TryDelete(src);
         Refresh();
         return true;
+    }
+
+    /// <summary>
+    /// The skill's files as workspace-relative paths under .skills/&lt;name&gt;/ (max 20 MB, no dependency folders).
+    /// With <paramref name="workspace"/> they are also copied there.
+    /// </summary>
+    public static List<(string Relative, string Full)> Materialize(SkillInfo skill, string? workspace)
+    {
+        var list = new List<(string, string)>();
+        long total = 0;
+        foreach (var f in Directory.EnumerateFiles(skill.Path, "*", SearchOption.AllDirectories))
+        {
+            var rel = Path.GetRelativePath(skill.Path, f).Replace('\\', '/');
+            if (rel.Split('/').Any(p => p is "node_modules" or ".git" or "__pycache__" or ".venv")) continue;
+            total += new FileInfo(f).Length;
+            if (total > 20 * 1024 * 1024) break;
+            var target = $".skills/{Ids.Slug(skill.Name)}/{rel}";
+            list.Add((target, f));
+            if (workspace is not null)
+            {
+                var dest = Path.Combine(workspace, target);
+                Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+                File.Copy(f, dest, overwrite: true);
+            }
+        }
+        return list;
     }
 
     public static void CopyDirectory(string from, string to)
@@ -263,7 +365,10 @@ public sealed class LoadSkillFunction(SkillRegistry registry) : KernelFunctionBa
         if (skill is null) return FunctionResult.Fail($"Skill '{name}' is not enabled for this bot.");
         if (ctx.Services.GetService(typeof(IEventBus)) is IEventBus bus)
             await bus.PublishAsync(new AgentEvent { Type = EventTypes.SkillLoaded, BotId = ctx.Bot.Id, TaskId = ctx.TaskId, ThreadId = ctx.ThreadId, Message = skill.Name }, ct);
-        return FunctionResult.Ok(await registry.LoadBodyAsync(skill, ct));
+        var body = await registry.LoadBodyAsync(skill, ct);
+        if (SkillRegistry.Materialize(skill, ctx.WorkspacePath).Count > 1)
+            body += $"\n\nThe skill's files are copied to .skills/{Ids.Slug(skill.Name)}/ in your workspace; run its scripts from there.";
+        return FunctionResult.Ok(body);
     }
 }
 

@@ -1,0 +1,51 @@
+@page "/settings"
+@inject MobileSession Session
+
+<h1 class="title">Settings</h1>
+<p class="sub">Connect to your Marbots server. On a phone, use your computer's LAN address (for example http://192.168.1.10:5170) and start the server with <code>--urls http://0.0.0.0:5170</code>.</p>
+
+<div class="card form">
+    <label>Server URL<input @bind="_url" inputmode="url" autocapitalize="off" placeholder="http://192.168.1.10:5170" /></label>
+    <label>API key <small class="muted">(stored in the device's secure storage)</small><input @bind="_key" type="password" autocomplete="off" /></label>
+    <button class="primary" disabled="@_busy" @onclick="Connect">@(_busy ? "Connecting…" : "Connect")</button>
+    @if (_message is not null) { <p class="@(_ok ? "ok-text" : "error")">@_message</p> }
+</div>
+
+<div class="card form">
+    <label class="toggle"><input type="checkbox" checked="@Session.NotificationsEnabled" @onchange="ToggleNotify" /> Notify me about approvals and finished tasks</label>
+</div>
+
+<div class="card small muted">
+    @if (Session.Server is { } s) { <p>@s.Product @s.Version · @s.CreditsEn</p> }
+    <p>Marbots mobile · Created by Gravicode Studios, led by Kang Fadhil · Dibuat oleh Gravicode Studios dipimpin oleh Kang Fadhil</p>
+</div>
+
+@code {
+    private string _url = "";
+    private string? _key;
+    private bool _busy;
+    private bool _ok;
+    private string? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _url = Session.Url;
+        _key = await Session.StoredApiKeyAsync();
+        if (Session.IsConnected) (_ok, _message) = (true, $"Connected to {Session.Url}");
+        else if (Session.Error is { } err) _message = err;
+    }
+
+    private async Task Connect()
+    {
+        _busy = true;
+        _ok = await Session.ConnectAsync(_url, _key);
+        _message = _ok ? $"Connected to {Session.Url} · {Session.Bots.Count} bots" : $"Could not connect: {Session.Error}";
+        _busy = false;
+    }
+
+    private async Task ToggleNotify(ChangeEventArgs e)
+    {
+        Session.NotificationsEnabled = e.Value is true;
+        if (Session.NotificationsEnabled) await Session.StartNotificationsAsync();
+    }
+}

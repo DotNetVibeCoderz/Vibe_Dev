@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 dotnet build Marbots.slnx                                   # whole solution (.NET 10)
-dotnet test tests/Marbots.Tests                             # 58 tests, no network (mock LLM)
+dotnet test tests/Marbots.Tests                             # ~140 tests, no network (mock LLM)
 dotnet test tests/Marbots.Tests --filter "FullyQualifiedName~EngineTests.Boss_man_and_starter_team_are_seeded"
 dotnet run --project src/Marbots.Server                     # UI + API on http://localhost:5170
 dotnet run --project src/Marbots.Cli -- status              # CLI (MARBOTS_URL, MARBOTS_API_KEY)
@@ -15,6 +15,9 @@ cd sdk/typescript && npm install && npx tsc -p .             # TS SDK build
 cd sdk/go && go vet ./...                                   # Go SDK
 python samples/trials/run_trials.py                         # real-LLM trials against a running server
 node tools/screenshots/shoot.mjs http://localhost:5170 docs/images   # README/docs screenshots (npm install in tools/screenshots first)
+dotnet run --project src/Marbots.Desktop                    # Avalonia desktop app with the 3D office
+dotnet build src/Marbots.Mobile -f net10.0-android          # MAUI mobile app (not in Marbots.slnx)
+dotnet publish src/Marbots.AgentHost -c Release -r win-x64 -o src/Marbots.Server/data/host-packages   # then rename to marbots-host-win-x64.exe for SSH bootstrap
 ```
 
 A running `Marbots.Server.exe` locks its binaries; stop it before rebuilding the server. Data lives in
@@ -40,3 +43,10 @@ Modular monolith (see `docs/en/architecture.md`, full target design in `solution
 - UI design system: "glass marbles" — tokens in `wwwroot/app.css` (`:root` + dark mode), Bricolage Grotesque + Plus Jakarta Sans, the `Marble` component is the signature element. Follow the frontend-design skill; avoid generic card-kit styling.
 - Async + `CancellationToken` everywhere, bounded channels, no reflection JSON on hot paths. Rust only if profiling justifies it (ADR-008).
 - Real-LLM test key: `C:\Users\mifma\Documents\CodeSandbox\testkey.txt`; publishing credentials: `C:\Users\mifma\Documents\CodeSandbox\PackageCredentials.txt`. Load at runtime only; never copy values into the repo, docs or logs. Publishing packages is outward-facing — confirm with the user first.
+
+## Distributed hosts (Phase 2)
+
+- `Marbots.AgentHost` (`marbots-host`) executes the `RemotePacks` (files, search, shell, desktop) for bots whose `HostRef` is a registered host; the agent loop, policy, approvals, memory and web tools stay on the server (ADR-010).
+- Protocol: `HostFrame` JSON over one WebSocket (`/api/v1/hosts/connect`), see `Abstractions/Hosts.cs`, `Runtime/Hosts.cs` (`HostConnectionManager`, `RemoteFunction`, `PlacementService`), `Runtime/HostBootstrapper.cs` (SSH.NET).
+- `ToolAssembler.ForBotAsync` swaps remote-pack tools for `RemoteFunction` and `load_skill` for `RemoteSkillLoader`.
+- Remote workspace folder = `Ids.Slug(threadId)` (e.g. `thr-…`) under `%LOCALAPPDATA%\Marbots\Host\workspaces`.

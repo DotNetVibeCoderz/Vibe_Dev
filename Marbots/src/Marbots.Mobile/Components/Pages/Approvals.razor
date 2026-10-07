@@ -1,0 +1,53 @@
+@page "/approvals"
+@implements IDisposable
+@inject MobileSession Session
+
+<h1 class="title">Approvals</h1>
+<p class="sub">Bots ask here before risky actions. You get a notification when something is waiting.</p>
+
+@if (Session.Pending.Count == 0)
+{
+    <div class="card empty">
+        <div class="big">✓</div>
+        <div>Nothing is waiting for you.</div>
+    </div>
+}
+@foreach (var a in Session.Pending)
+{
+    var bot = Session.Bot(a.BotId);
+    <div class="card approval">
+        <div class="row">
+            @if (bot is not null) { <Avatar Bot="bot" Size="32" /> }
+            <div class="grow">
+                <div class="name">@(bot?.Name ?? a.BotId) wants to use <code>@a.ToolName</code></div>
+                <div class="muted small">@a.Risk risk · @a.CreatedAt.ToLocalTime().ToString("HH:mm")</div>
+            </div>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(a.Reason)) { <p class="muted small">@a.Reason</p> }
+        <pre class="args">@(a.Summary ?? MobileSession.Preview(a.Arguments, 600))</pre>
+        <div class="actions">
+            <button class="primary" disabled="@_busy" @onclick="() => Resolve(a, true, false)">Approve</button>
+            <button disabled="@_busy" @onclick="() => Resolve(a, true, true)">For thread</button>
+            <button class="danger" disabled="@_busy" @onclick="() => Resolve(a, false, false)">Reject</button>
+        </div>
+    </div>
+}
+@if (_error is not null) { <p class="error">@_error</p> }
+
+@code {
+    private bool _busy;
+    private string? _error;
+
+    protected override void OnInitialized() => Session.Changed += Refresh;
+
+    private async Task Resolve(ApprovalRequest a, bool approve, bool thread)
+    {
+        _busy = true;
+        try { await Session.ResolveAsync(a.Id, approve, thread); _error = null; }
+        catch (Exception ex) when (ex is HttpRequestException or Marbots.Sdk.MarbotsApiException) { _error = ex.Message; }
+        _busy = false;
+    }
+
+    private void Refresh() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Session.Changed -= Refresh;
+}

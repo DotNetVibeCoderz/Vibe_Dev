@@ -53,5 +53,33 @@ Bot dengan mode `SuggestSkills` dapat membuat draf skill baru dari tugas multi-l
 **Waiting for review** di halaman Skill. **Publish skill** memindahkan draf ke `data/skills`; **Discard** menghapusnya.
 Skill hasil belajar tidak pernah memberi izin baru: ia berjalan di dalam profil izin bot yang sudah ada.
 
+
+## Evaluasi pembelajaran
+
+Setiap tugas yang memuat skill dihitung untuk **versi** skill tersebut: tugas selesai adalah keberhasilan, tugas gagal
+adalah kegagalan, dan tugas yang dibatalkan tidak dihitung. Halaman Skills menampilkan putusan untuk setiap skill,
+begitu pula `marbots skills` dan `GET /api/v1/skills/evaluations`:
+
+| Putusan | Kapan |
+|---|---|
+| Collecting evidence | kurang dari 3 kali dijalankan |
+| Healthy | keberhasilan minimal 80% |
+| Underperforming | di bawah 80% dan tidak ada versi sebelumnya yang lebih baik |
+| Rollback recommended | di bawah 50%, dan versi sebelumnya lebih baik (atau belum punya data) |
+| Ready to publish | draf auto-learn yang diuji coba dengan keberhasilan 80% atau lebih |
+| Discard recommended | draf yang di bawah 50% saat diuji coba |
+
+- **Uji coba.** Bot yang menyusun sebuah skill (auto-learn) boleh memuatnya sebelum diterbitkan. Draf mengumpulkan
+  bukti, tetapi penerbitan tetap keputusan manusia (`marbots skills promote <nama>` atau **Publish skill**).
+- **Versi dan rollback.** Menerbitkan versi baru dari skill yang sudah terpasang menaikkan nomor versinya dan menyimpan
+  versi lama di `data/skills-history`. **Roll back** (atau `marbots skills rollback <nama>`, atau
+  `POST /api/v1/skills/{name}/rollback`) memulihkan versi sebelumnya dan menyimpan versi yang diganti, sehingga
+  rollback pun bisa dibatalkan.
+- **Rollback otomatis.** Opsional: **Roll back automatically** di halaman Skills, atau
+  `marbots skills auto-rollback on`. Bila sebuah versi terus gagal dan evaluasi merekomendasikan rollback, rollback
+  terjadi dengan sendirinya, disertai event `SkillRolledBack` di log.
+- **Berkas skill.** Memuat skill menyalin berkasnya (skrip, templat) ke workspace di `.skills/<nama>/`, juga di
+  komputer jarak jauh, sehingga bot bisa menjalankan skrip skill.
+
 ---
 *Marbots — Dibuat oleh Gravicode Studios dipimpin oleh Kang Fadhil.*

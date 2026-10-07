@@ -10,6 +10,8 @@ public sealed class ModelMessage
     public string? Content { get; set; }
     public List<ToolCall>? ToolCalls { get; set; }
     public string? ToolCallId { get; set; }
+    /// <summary>Images for vision models as data URLs (e.g. screenshots from computer-use tools).</summary>
+    public List<string>? Images { get; set; }
 
     public static ModelMessage System(string content) => new() { Role = "system", Content = content };
     public static ModelMessage User(string content) => new() { Role = "user", Content = content };
@@ -87,6 +89,9 @@ public sealed record FunctionCall(string Id, string Name, JsonElement Arguments)
 
 public sealed record FunctionResult(bool Success, string Content)
 {
+    /// <summary>Optional images (data URLs) shown to the model after the call, e.g. a screenshot.</summary>
+    public List<string>? Images { get; init; }
+
     public static FunctionResult Ok(string content) => new(true, content);
     public static FunctionResult Fail(string error) => new(false, "ERROR: " + error);
 }

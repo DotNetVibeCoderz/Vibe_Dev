@@ -1,0 +1,15 @@
+<span class="avatar" style="width:@(Size)px;height:@(Size)px;font-size:@(Size * 0.38)px;background:@Bot.Color">@Initials</span>
+
+@code {
+    [Parameter, EditorRequired] public BotDefinition Bot { get; set; } = default!;
+    [Parameter] public int Size { get; set; } = 36;
+
+    private string Initials
+    {
+        get
+        {
+            var parts = Bot.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length switch { 0 => "?", 1 => parts[0][..1].ToUpperInvariant(), _ => (parts[0][..1] + parts[1][..1]).ToUpperInvariant() };
+        }
+    }
+}

@@ -3,11 +3,11 @@
 Development log and current status. The roadmap is in [PLAN.md](PLAN.md).
 *Dibuat oleh Gravicode Studios dipimpin oleh Kang Fadhil.*
 
-## Snapshot — 2026-10-06 (v0.1.0)
+## Snapshot — 2026-10-07 (v0.2 in progress)
 
 | Area | Status | Notes |
 |---|---|---|
-| Solution & build | ✅ | .NET 10, `Marbots.slnx`, 8 projects + tests, central package management, nullable, analyzers |
+| Solution & build | ✅ | .NET 10, `Marbots.slnx`, 10 projects + tests (+ MAUI mobile outside the slnx), central package management, nullable, analyzers |
 | Storage | ✅ | SQLite WAL: documents, messages (per-thread seq), events, FTS5 memory |
 | Model providers | ✅ | Azure OpenAI v1, OpenAI-compatible (DeepSeek/Ollama/…), retries with backoff, profile fallbacks, mock |
 | Agent runtime | ✅ | Tool loop, policy checks, approvals, timeouts, metering, step limit with summary |
@@ -16,7 +16,7 @@ Development log and current status. The roadmap is in [PLAN.md](PLAN.md).
 | Auto-Learn | ✅ | MemoryOnly / SuggestSkills with review queue, secret filter and near-duplicate filter |
 | Skills | ✅ | SKILL.md loader, progressive disclosure, install from git/folder, 20 built-in skills |
 | MCP | ✅ | stdio + streamable HTTP client, gallery (10 entries), workspace-scoped processes, custom servers, health |
-| Kernel functions | ✅ | files, grep, shell, web search/fetch, remember/recall, todo, agents, management |
+| Kernel functions | ✅ | files, grep, shell, install_package (winget/scoop/choco, apt/dnf/…, brew, pip/npm/dotnet-tool), web search/fetch, remember/recall, todo, desktop (screenshot/click/type/keys with vision), agents, management |
 | Policy & approvals | ✅ | 5 permission profiles, critical-risk override, session grants, expiry, history |
 | Scheduler | ✅ | Cron (5-field) + one-off, time zones, run now, misfire handling |
 | Templates | ✅ | 58 built-in templates / 11 categories; custom templates; duplicate built-ins |
@@ -29,10 +29,12 @@ Development log and current status. The roadmap is in [PLAN.md](PLAN.md).
 | Per-bot models | ✅ | `default` / `provider/model` / profile per bot; workspace default; fallback to default; model recorded per task; UI, API, CLI, SDKs, `create_bot` |
 | Skip approvals | ✅ | Dangerous mode like `--dangerously-skip-permissions`: Settings toggle, `marbots approvals skip on`, server flag `--dangerously-skip-approvals`, API/SDK; profile denies still apply; audited |
 | SDKs (typed, DotCode style) | ✅ | .NET, Python (`marbots-sdk`, mypy --strict + typo test), TypeScript (`@gravicode/marbots`, `@ts-expect-error` typo test), Go, Java (JitPack, javac -Werror), Rust (`marbots-sdk`, clippy -D warnings) — each with a conformance test against a real server, all in CI |
-| CLI | ✅ | status, bots, bot *, templates, chat (streaming activity), tasks, approvals, skills, mcp, schedules, hosts, logs, themes |
-| Docs | ✅ | 11 pages × EN/ID, glossary, screenshots, README EN/ID |
-| Remote hosts / AgentHost | ⏳ | Phase 2 |
-| Desktop / mobile / 3D office | ⏳ | Phases 4–5 (2D office view available) |
+| CLI | ✅ | status, bots, bot * (incl. host, container, skills, packs, profile), templates, chat (token streaming), tasks, approvals, skills (evaluations, rollback/promote/discard), mcp, schedules, hosts (token, bootstrap, update, disable/remove), logs, themes |
+| Docs | ✅ | 14 pages × EN/ID (new: computers, apps), glossary, screenshots, README EN/ID |
+| Remote hosts / AgentHost | ✅ | `marbots-host` (Spectre.Console dashboard), WebSocket protocol, enrollment, SSH bootstrap + `--update`, placement, Docker profiles, reconnect + idempotent re-send, remote files; tested on a second PC |
+| Desktop / mobile / 3D office | ✅ | Avalonia app with the Three.Net 3D office (Rodin assets, Blender-rigged robot with 6 clips); MAUI Blazor Hybrid app with approvals and notifications |
+| Streaming | ✅ | Token streaming (SSE) in web chat, CLI, desktop and mobile; transient events not stored |
+| Learning evaluation | ✅ | Outcomes per skill version, verdicts, trials of drafts, history, manual/automatic rollback |
 
 ## Tests
 
@@ -77,9 +79,23 @@ Seven concurrent jobs plus A2A: **16/16 tasks completed**, ~1.02 M tokens, ≈ $
   renders live Markdown with a caret and the CLI prints text as it arrives. 97 tests. Verified with Azure gpt-5-mini
   (CLI) and DeepSeek (web UI). SDKs published: NuGet, PyPI, npm, crates.io, Go module, JitPack.
 
+- **2026-10-07 (d)**: Phases 2, 4 and 5 completed.
+  - **Phase 2.** `Marbots.AgentHost` plus the host protocol, enrollment, SSH bootstrap (rolling updates), placement,
+    Docker container profiles, `install_package`, computer use with vision, remote workspace files, and skills' files
+    copied to hosts.
+  - **Phase 4.** Avalonia desktop app with a 3D office; MAUI mobile app.
+  - **Phase 5.** Rodin and Nano Banana assets, Blender rigging and animation, learning evaluation.
+  - **Trials on a second PC (DEV2).** Bots were created via the CLI, SDK, web UI and Boss Man. They made PPTX, DOCX,
+    XLSX and PDF files with Anthropic skills after Tavily research, built Blazor, Avalonia and console apps on .NET 10,
+    used Playwright, Docker and computer use. See docs/en/trials.md, including what fell short.
+  - **Bugs found by the trials and fixed:** `create_bot` approval timeout, pip/npm packages, skill scripts on hosts,
+    the container note, and SSE resume dropping transient events.
+
 ## Known limitations
 
-- One host (local). Bots on the same host are isolated per thread workspace and policy, not per OS process/container.
+- Bots on the same host are isolated per thread workspace and policy; use a container profile for process isolation. Host-to-server auth is a shared secret over the server's TLS (no mTLS certificates yet).
+- MCP servers run on the control plane, also for bots placed on other computers.
+- Mobile notifications are local (while the app runs); no FCM/APNs push yet. Windows toast delivery was not verified.
 - Memory search is BM25 only; vector retrieval is planned.
 - Approvals granted "for this thread" are kept in memory and reset when the server restarts.
 - Java SDK is distributed through JitPack (the `com.gravicode` Maven Central namespace is not verified yet).

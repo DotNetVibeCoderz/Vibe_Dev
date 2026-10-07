@@ -130,14 +130,16 @@ public sealed class CreateBotFunction : KernelFunctionBase
           "role":{"type":"string"},
           "persona":{"type":"string","description":"Instructions / system prompt"},
           "skills":{"type":"array","items":{"type":"string"}},
-          "kernel_functions":{"type":"array","items":{"type":"string","enum":["files","search","shell","web","memory","todo","agents"]}},
+          "kernel_functions":{"type":"array","items":{"type":"string","enum":["files","search","shell","web","memory","todo","agents","desktop","subagents"]}},
           "mcp_servers":{"type":"array","items":{"type":"string"}},
           "permission_profile":{"type":"string","enum":["read-only","workspace-write","developer-safe","autonomous"]},
           "auto_learn":{"type":"string","enum":["Off","MemoryOnly","SuggestSkills"]},
-          "model":{"type":"string","description":"Optional model: 'default' (workspace default), a profile name, or 'provider/model'. Omit unless the user asked for a specific model."}},
+          "model":{"type":"string","description":"Optional model: 'default' (workspace default), a profile name, or 'provider/model'. Omit unless the user asked for a specific model."},
+          "host":{"type":"string","description":"Optional: which computer runs the bot's files/shell/desktop tools: 'local-default', a host id or name from list_hosts, or 'auto'. Omit to use this computer."},
+          "container_image":{"type":"string","description":"Optional Docker image; the bot's shell commands then run in that container (e.g. python:3.12-slim)."}},
           "required":["name"]}
         """,
-        "management", PermissionCategory.AgentControl, RiskLevel.Medium);
+        "management", PermissionCategory.AgentControl, RiskLevel.Medium, 3600); // may wait for a human approval
 
     protected override async ValueTask<FunctionResult> ExecuteAsync(FunctionCall call, FunctionExecutionContext ctx, CancellationToken ct)
     {
@@ -168,6 +170,15 @@ public sealed class CreateBotFunction : KernelFunctionBase
             if (resolved.Fallback && !ModelRouter.IsDefaultSetting(model)) modelWarning = resolved.Warning;
             else bot.ModelProfile = model;
         }
+        if (call.GetString("host") is { Length: > 0 } hostArg)
+        {
+            var hostIds = ctx.Services.GetRequiredService<HostRegistry>();
+            var match = hostArg is WellKnown.LocalHostId or WellKnown.AutoHost ? hostArg
+                : (await hostIds.ListAsync(ct)).FirstOrDefault(h => h.Id.Equals(hostArg, StringComparison.OrdinalIgnoreCase) || h.Name.Equals(hostArg, StringComparison.OrdinalIgnoreCase))?.Id;
+            if (match is null) return FunctionResult.Fail($"Unknown host '{hostArg}'. Use list_hosts.");
+            bot.HostRef = match;
+        }
+        if (call.GetString("container_image") is { Length: > 0 } image) bot.Container = new ContainerProfile { Image = image };
         if (bot.Description.Length == 0) bot.Description = $"Created by {ctx.Bot.Name} on request.";
 
         // Creating a bot with broader privileges than the creator's own profile needs a human.
@@ -235,5 +246,56 @@ public sealed class GetTaskFunction : KernelFunctionBase
         var t = await ctx.Services.GetRequiredService<MarbotsEngine>().GetTaskAsync(call.Require("task_id"), ct);
         return t is null ? FunctionResult.Fail("Task not found.")
             : FunctionResult.Ok($"{t.Id} [{t.State}] bot={t.BotId} steps={t.Steps}\nObjective: {AgentRuntime.Preview(t.Objective, 400)}\nResult: {t.Result ?? t.Error ?? "(none yet)"}");
+    }
+}
+
+/// <summary>Boss Man: which computers can run bots' tools (this one plus enrolled agent hosts).</summary>
+public sealed class ListHostsFunction : KernelFunctionBase
+{
+    public override FunctionDescriptor Descriptor { get; } = new(
+        "list_hosts", "List the computers bots can run their tools on (status, OS, capabilities such as desktop, docker, dotnet, node, python).",
+        "{\"type\":\"object\",\"properties\":{}}", "management", PermissionCategory.ReadOnly, RiskLevel.Low);
+
+    protected override async ValueTask<FunctionResult> ExecuteAsync(FunctionCall call, FunctionExecutionContext ctx, CancellationToken ct)
+    {
+        var hosts = await ctx.Services.GetRequiredService<HostService>().ListAsync(ct);
+        return FunctionResult.Ok(string.Join('\n', hosts.Select(h => $"- {h.Id} \"{h.Name}\" {h.Status}; {h.Os}; {string.Join(", ", h.Capabilities)}")));
+    }
+}
+
+/// <summary>
+/// Optional pack "subagents": split independent work across temporary copies of this bot that run in parallel.
+/// </summary>
+public sealed class SpawnSubagentsFunction : KernelFunctionBase
+{
+    public override FunctionDescriptor Descriptor { get; } = new(
+        "spawn_subagents",
+        "Split independent parts of your task across temporary copies of yourself that work in parallel (same persona, skills, model, computer and tools; shared workspace). Use it when the parts do not depend on each other, e.g. researching several topics, writing several files or testing several pages. Each objective must be self-contained. You get every sub-agent's report back.",
+        """
+        {"type":"object","properties":{"tasks":{"type":"array","maxItems":6,"items":{"type":"object","properties":{
+          "key":{"type":"string","description":"Short unique key, e.g. part-1"},
+          "objective":{"type":"string","description":"Self-contained instructions for this part, incl. file names to write"}},
+          "required":["key","objective"]}}},"required":["tasks"]}
+        """,
+        Packs.Subagents, PermissionCategory.AgentControl, RiskLevel.Low, 3600);
+
+    protected override async ValueTask<FunctionResult> ExecuteAsync(FunctionCall call, FunctionExecutionContext ctx, CancellationToken ct)
+    {
+        if (!call.Arguments.TryGetProperty("tasks", out var arr) || arr.ValueKind != JsonValueKind.Array) return FunctionResult.Fail("tasks is required.");
+        var work = arr.EnumerateArray()
+            .Select((t, i) => (Key: t.TryGetProperty("key", out var k) && k.GetString() is { Length: > 0 } key ? key : $"part-{i + 1}",
+                               Objective: t.TryGetProperty("objective", out var o) ? o.GetString() ?? "" : ""))
+            .Where(w => w.Objective.Length > 0).ToList();
+        var engine = ctx.Services.GetRequiredService<MarbotsEngine>();
+        var parent = await engine.GetTaskAsync(ctx.TaskId, ct) ?? throw new InvalidOperationException("Unknown task.");
+        try
+        {
+            var outcomes = await engine.SpawnSubagentsAsync(parent, ctx.Bot, work, ct);
+            var sb = new System.Text.StringBuilder();
+            foreach (var o in outcomes)
+                sb.Append("## ").Append(o.Key).Append(" (").Append(o.State).AppendLine(")").AppendLine(o.Output).AppendLine();
+            return new FunctionResult(outcomes.All(o => o.State == TaskState.Completed), sb.ToString().Trim());
+        }
+        catch (BotValidationException ex) { return FunctionResult.Fail(ex.Message); }
     }
 }

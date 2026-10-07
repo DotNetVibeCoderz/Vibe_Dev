@@ -1,6 +1,8 @@
 @page "/skills"
 @inherits LiveComponent
 @inject SkillRegistry Registry
+@inject SkillEvaluator Evaluator
+@inject ApprovalService Approvals
 
 <PageTitle>@T["nav.skills"] · Marbots</PageTitle>
 <div class="page">
@@ -41,6 +43,10 @@
         {
             <div class="approval-card" style="max-width:none">
                 <b>@s.Name</b> — @s.Description
+                @if (Eval(s) is { } ev)
+                {
+                    <div class="small-text" style="margin-top:6px"><Verdict Evaluation="ev" />@(s.Author is { } a ? $" · on trial with {a}" : "")</div>
+                }
                 <details style="margin-top:6px"><summary class="small-text">Show draft</summary><pre>@File.ReadAllText(Path.Combine(s.Path, "SKILL.md"))</pre></details>
                 <div class="row" style="margin-top:8px">
                     <button class="btn small primary" @onclick="() => Approve(s)">Publish skill</button>
@@ -50,9 +56,17 @@
         }
     }
 
+    <div class="panel panel-pad row" style="margin-bottom:16px;justify-content:space-between">
+        <div>
+            <b>Learning evaluation</b>
+            <div class="small-text muted">Every task that loads a skill counts as a success or failure for that skill version. Drafts from auto-learn are trialled by the bot that wrote them; you decide when to publish. Replacing a skill keeps the old version for rollback.</div>
+        </div>
+        <label class="row small-text" style="gap:8px;white-space:nowrap"><input type="checkbox" checked="@_autoRollback" @onchange="ToggleAutoRollback" /> Roll back automatically</label>
+    </div>
+
     <div class="panel">
         <table class="table">
-            <thead><tr><th>Skill</th><th>Trust</th><th>Needs</th><th>Version</th><th></th></tr></thead>
+            <thead><tr><th>Skill</th><th>Trust</th><th>Needs</th><th>Version</th><th>Learning evaluation</th><th></th></tr></thead>
             <tbody>
                 @foreach (var s in _installed)
                 {
@@ -61,7 +75,14 @@
                         <td><span class="chip">@s.Trust</span></td>
                         <td class="small-text">@(s.NeedsShell ? "shell " : "")@(s.NeedsNetwork ? "network " : "")@(s.HasScripts ? "scripts" : "")@(!s.NeedsShell && !s.NeedsNetwork && !s.HasScripts ? "—" : "")</td>
                         <td class="small-text">@s.Version</td>
-                        <td>@if (s.Source == "installed") { <button class="btn small danger" @onclick="() => Uninstall(s)">Remove</button> }</td>
+                        <td class="small-text">@if (Eval(s) is { } ev) { <Verdict Evaluation="ev" /> }</td>
+                        <td class="row" style="gap:6px;flex-wrap:nowrap">
+                            @if (Eval(s) is { CanRollback: true } rb)
+                            {
+                                <button class="btn small @(rb.Verdict == SkillVerdict.RollbackRecommended ? "primary" : "")" title="Restore version @rb.PreviousVersion" @onclick="() => Rollback(s)">Roll back to @rb.PreviousVersion</button>
+                            }
+                            @if (s.Source == "installed") { <button class="btn small danger" @onclick="() => Uninstall(s)">Remove</button> }
+                        </td>
                     </tr>
                 }
             </tbody>
@@ -76,17 +97,44 @@
     private string? _message;
     private bool _isError, _busy, _showCreate;
 
-    protected override void OnParametersSet() => Load();
+    private Dictionary<string, SkillEvaluation> _evals = [];
+    private bool _autoRollback;
 
-    private void Load()
+    protected override async Task OnParametersSetAsync()
+    {
+        _autoRollback = (await Approvals.GetSettingsAsync()).AutoRollbackSkills;
+        await LoadAsync();
+    }
+
+    private void Load() => _ = InvokeAsync(LoadAsync);
+
+    private async Task LoadAsync()
     {
         _installed = Registry.All.Where(s => !s.Pending).ToList();
         _pending = Registry.All.Where(s => s.Pending).ToList();
+        _evals = (await Evaluator.EvaluateAllAsync()).GroupBy(e => (e.Pending ? "p:" : "") + e.Name.ToLowerInvariant()).ToDictionary(g => g.Key, g => g.First());
+        StateHasChanged();
     }
 
-    protected override bool Accept(AgentEvent e) => e.Type == EventTypes.AutoLearnCandidateCreated;
+    private SkillEvaluation? Eval(SkillInfo s) => _evals.GetValueOrDefault((s.Pending ? "p:" : "") + s.Name.ToLowerInvariant());
 
-    protected override Task RefreshAsync(IReadOnlyList<AgentEvent> events) { Load(); return Task.CompletedTask; }
+    protected override bool Accept(AgentEvent e) => e.Type is EventTypes.AutoLearnCandidateCreated or EventTypes.SkillLoaded or EventTypes.SkillRolledBack
+        || e.Type == EventTypes.TaskStateChanged && e.Data is "Completed" or "Failed";
+
+    protected override Task RefreshAsync(IReadOnlyList<AgentEvent> events) => LoadAsync();
+
+    private async Task Rollback(SkillInfo s)
+    {
+        var v = await Evaluator.RollbackAsync(s.Name, "web");
+        (_message, _isError) = v is null ? ($"No earlier version of '{s.Name}'.", true) : ($"Rolled '{s.Name}' back to {v}.", false);
+        await LoadAsync();
+    }
+
+    private async Task ToggleAutoRollback(ChangeEventArgs e)
+    {
+        _autoRollback = e.Value is true;
+        await Approvals.SetAutoRollbackSkillsAsync(_autoRollback, "web");
+    }
 
     private async Task Install()
     {

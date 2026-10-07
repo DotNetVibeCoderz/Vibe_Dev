@@ -165,6 +165,7 @@ public sealed class IntegrationTests : IAsyncLifetime, IDisposable
         Assert.Contains("out:AI news", wrenTask.Objective);
         await Engine.WaitAsync(wrenTask.Id, TimeSpan.FromSeconds(20));
         // "Echo Wren" fires once for Wren's summary, but never for the task it started itself.
+        await Eventually(async () => (await Engine.ListTasksAsync()).FirstOrDefault(t => t.Objective.StartsWith("again:", StringComparison.Ordinal)));
         await Task.Delay(1500);
         var echoes = (await Engine.ListTasksAsync()).Where(t => t.Objective.StartsWith("again:", StringComparison.Ordinal)).ToList();
         Assert.Single(echoes);

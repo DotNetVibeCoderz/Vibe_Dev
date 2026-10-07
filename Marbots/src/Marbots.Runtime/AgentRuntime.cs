@@ -20,7 +20,8 @@ public sealed class AgentRunRequest
 public sealed record AgentRunResult(bool Success, string Output);
 
 /// <summary>Assembles the tool set a bot may use for a run: kernel packs, skills, agent tools and MCP tools.</summary>
-public sealed class ToolAssembler(IEnumerable<IKernelFunction> functions, McpManager mcp, IDocumentStore<McpServerConfig> mcpStore, MarbotsOptions options, ILogger<ToolAssembler> log)
+public sealed class ToolAssembler(IEnumerable<IKernelFunction> functions, McpManager mcp, IDocumentStore<McpServerConfig> mcpStore, MarbotsOptions options, ILogger<ToolAssembler> log,
+    PlacementService placement, HostRegistry hostRegistry, HostConnectionManager hostConnections, SkillRegistry skills)
 {
     public async Task<(Dictionary<string, IKernelFunction> Tools, List<string> Notes)> ForBotAsync(BotDefinition bot, TaskRecord task, string workspace, bool hasSkills, CancellationToken ct)
     {
@@ -28,9 +29,26 @@ public sealed class ToolAssembler(IEnumerable<IKernelFunction> functions, McpMan
         var notes = new List<string>();
         var packs = new HashSet<string>(bot.KernelFunctions, StringComparer.OrdinalIgnoreCase);
         if (hasSkills) packs.Add("skills");
-        if (task.Depth >= options.MaxDelegationDepth) packs.Remove("agents");
+        if (task.Depth >= options.MaxDelegationDepth) { packs.Remove("agents"); packs.Remove(Packs.Subagents); }
         foreach (var f in functions)
             if (packs.Contains(f.Descriptor.Pack)) tools[f.Descriptor.Name] = f;
+
+        // Bots placed on a remote host run their environment tools (files, shell, desktop) there.
+        var hostId = await placement.ResolveAsync(bot, task.ThreadId, ct);
+        if (hostId != WellKnown.LocalHostId)
+        {
+            var host = await hostRegistry.GetAsync(hostId, ct);
+            var hostName = host?.Name ?? hostId;
+            await placement.MarkUsedAsync(task.ThreadId, hostId, ct);
+            foreach (var (name, fn) in tools.ToList())
+                if (HostProtocol.RemotePacks.Contains(fn.Descriptor.Pack)) tools[name] = new RemoteFunction(fn, hostId, hostName, hostConnections);
+                else if (name == "load_skill") tools[name] = new RemoteSkillLoader(fn, skills, hostId, hostConnections);
+            var hello = hostConnections.HelloOf(hostId) ?? host?.LastHello;
+            notes.Add($"Your files, shell and desktop tools run on the computer '{hostName}' ({hello?.Os ?? "remote host"}{(hello is { Capabilities.Count: > 0 } ? "; has " + string.Join(", ", hello.Capabilities) : "")})" +
+                (hostConnections.IsOnline(hostId) ? "." : ", which is OFFLINE right now: those tools will fail until it reconnects."));
+        }
+        if (bot.Container is { Image.Length: > 0 } box)
+            notes.Add($"run_shell runs inside a Linux container ({box.Image}, {box.Cpus:0.#} CPU, {box.MemoryMb} MB{(box.Network ? "" : ", no network")}) with the workspace at /workspace; use sh/bash syntax, not PowerShell. You are already inside the container: do not call docker.");
 
         foreach (var serverId in bot.McpServers)
         {
@@ -151,12 +169,21 @@ public sealed class AgentRuntime(
 
             await AppendAsync(task.TranscriptId, "assistant", bot.Id, response.Content ?? "", task.Id, response.ToolCalls, ct: ct);
             modelMessages.Add(ModelMessage.Assistant(response.Content, response.ToolCalls));
+            var images = new List<string>();
             foreach (var call in response.ToolCalls)
             {
                 tools.TryGetValue(call.Name, out var fn);
                 var result = await ExecuteToolAsync(call, fn, execCtx, task, req.ThreadId, ct);
                 await AppendAsync(task.TranscriptId, "tool", bot.Id, result.Content, task.Id, toolCallId: call.Id, toolName: call.Name, ct: ct);
                 modelMessages.Add(ModelMessage.Tool(call.Id, result.Content));
+                if (result.Images is { Count: > 0 }) images.AddRange(result.Images);
+            }
+            if (images.Count > 0)
+            {
+                // Only the newest screenshots stay in context; older ones cost tokens and are out of date.
+                foreach (var m in modelMessages) m.Images = null;
+                modelMessages.Add(new ModelMessage { Role = "user", Content = "Images returned by the tools above (newest state):", Images = [.. images.TakeLast(2)] });
+                images.Clear();
             }
             await tasks.UpsertAsync(task, ct);
         }
@@ -216,12 +243,12 @@ public sealed class AgentRuntime(
                     return FunctionResult.Fail($"The user did not approve this action ({approval.State}). Choose another approach or explain what you need.");
             }
 
-            var waiting = d.Pack == "agents" ? TaskState.WaitingForAgent : TaskState.WaitingForTool;
+            var waiting = d.Pack is "agents" or Packs.Subagents ? TaskState.WaitingForAgent : TaskState.WaitingForTool;
             task.State = waiting;
             task.CurrentActivity = d.Name;
             await PublishToolAsync(EventTypes.ToolCallStarted, task, threadId, $"{d.Name} {Preview(call.Arguments, 160)}", null, ct);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeout.CancelAfter(TimeSpan.FromSeconds(d.Pack == "agents" ? 3600 : d.TimeoutSeconds + 15));
+            timeout.CancelAfter(TimeSpan.FromSeconds(d.Pack is "agents" or Packs.Subagents ? 3600 : d.TimeoutSeconds + 15));
             FunctionResult result;
             try
             {

@@ -7,7 +7,7 @@ using Marbots.Abstractions;
 namespace Marbots.Sdk;
 
 public sealed record SendMessageResult(TaskRecord Task, ChatMessage? Reply);
-public sealed record WorkspaceFile(string Path, long Size, DateTimeOffset Modified);
+public sealed record WorkspaceFile(string Path, long Size, DateTimeOffset Modified, string? Host = null, string? HostName = null);
 public sealed record ModelProfileInfo(string Name, string Provider, string Model, List<string> Fallbacks);
 /// <summary>The workspace default model, the provider/model choices and the named profiles.</summary>
 public sealed record ModelCatalog(string Default, List<string> Choices, List<ModelProfileInfo> Profiles);
@@ -28,6 +28,8 @@ internal sealed record DelegationBody(string Mode);
 public sealed record ChannelView(ChannelConfig Channel, List<string> ConfiguredSecrets, string InboundUrl);
 /// <summary>Whether approvals are skipped (dangerous mode).</summary>
 public sealed record ApprovalSettings(bool DangerouslySkipApprovals);
+public sealed record LearningSettings(bool AutoRollbackSkills);
+public sealed record SkillRollbackResult(string Name, string Version);
 internal sealed record DefaultModelResult(string Default);
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull, UseStringEnumConverter = true)]
@@ -46,6 +48,8 @@ internal sealed record DefaultModelResult(string Default);
 [JsonSerializable(typeof(ChannelView))]
 [JsonSerializable(typeof(List<ChannelView>))]
 [JsonSerializable(typeof(ApprovalSettings))]
+[JsonSerializable(typeof(LearningSettings))]
+[JsonSerializable(typeof(SkillRollbackResult))]
 [JsonSerializable(typeof(DefaultModelResult))]
 [JsonSerializable(typeof(ModelCatalog))]
 [JsonSerializable(typeof(BotModelInfo))]
@@ -93,6 +97,7 @@ public sealed class MarbotsClient : IDisposable
         Models = new ModelsClient(this);
         Channels = new ChannelsClient(this);
         Triggers = new TriggersClient(this);
+        Hosts = new HostsClient(this);
     }
 
     public BotsClient Bots { get; }
@@ -119,6 +124,9 @@ public sealed class MarbotsClient : IDisposable
     public Task<SystemInfo> SystemAsync(CancellationToken ct = default) => GetAsync<SystemInfo>("api/v1/system", ct);
 
     public Task<List<HostInfo>> HostsAsync(CancellationToken ct = default) => GetAsync<List<HostInfo>>("api/v1/hosts", ct);
+
+    /// <summary>Remote agent hosts: enrollment, SSH bootstrap, enable/disable.</summary>
+    public HostsClient Hosts { get; private set; } = default!;
 
     private static JsonSerializerOptions CreateOptions()
     {
@@ -292,6 +300,25 @@ public sealed class SkillsClient(MarbotsClient c)
 {
     public Task<List<SkillInfo>> ListAsync(CancellationToken ct = default) => c.GetAsync<List<SkillInfo>>("api/v1/skills", ct);
     public Task<List<SkillInfo>> InstallAsync(string source, CancellationToken ct = default) => c.SendAsync<List<SkillInfo>>(HttpMethod.Post, "api/v1/skills/install", new SourceBody(source), ct);
+
+    /// <summary>Learning evaluation: outcomes per skill version and a verdict (healthy, rollback recommended, ready to promote…).</summary>
+    public Task<List<SkillEvaluation>> EvaluationsAsync(CancellationToken ct = default) => c.GetAsync<List<SkillEvaluation>>("api/v1/skills/evaluations", ct);
+
+    /// <summary>Restores the previous version of an installed skill. Returns the restored version.</summary>
+    public async Task<string> RollbackAsync(string name, CancellationToken ct = default) =>
+        (await c.SendAsync<SkillRollbackResult>(HttpMethod.Post, $"api/v1/skills/{MarbotsClient.E(name)}/rollback", null, ct).ConfigureAwait(false)).Version;
+
+    /// <summary>Publishes a skill drafted by auto-learn (after reviewing its evaluation).</summary>
+    public Task PromoteAsync(string name, CancellationToken ct = default) => c.SendAsync(HttpMethod.Post, $"api/v1/skills/{MarbotsClient.E(name)}/approve", null, ct);
+
+    public Task DiscardAsync(string name, CancellationToken ct = default) => c.SendAsync(HttpMethod.Post, $"api/v1/skills/{MarbotsClient.E(name)}/reject", null, ct);
+
+    public async Task<bool> GetAutoRollbackAsync(CancellationToken ct = default) =>
+        (await c.GetAsync<LearningSettings>("api/v1/system/learning", ct).ConfigureAwait(false)).AutoRollbackSkills;
+
+    /// <summary>Roll skills back automatically when their evaluation recommends it.</summary>
+    public async Task<bool> SetAutoRollbackAsync(bool on, CancellationToken ct = default) =>
+        (await c.SendAsync<LearningSettings>(HttpMethod.Put, "api/v1/system/learning", new LearningSettings(on), ct).ConfigureAwait(false)).AutoRollbackSkills;
 }
 
 public sealed class McpClient(MarbotsClient c)
@@ -346,6 +373,23 @@ public sealed class TriggersClient(MarbotsClient c)
         c.SendAsync<TriggerConfig>(HttpMethod.Post, "api/v1/triggers", new SaveTriggerBody(trigger, secret), ct);
 
     public Task DeleteAsync(string id, CancellationToken ct = default) => c.SendAsync(HttpMethod.Delete, $"api/v1/triggers/{MarbotsClient.E(id)}", null, ct);
+}
+
+public sealed class HostsClient(MarbotsClient c)
+{
+    public Task<List<HostInfo>> ListAsync(CancellationToken ct = default) => c.GetAsync<List<HostInfo>>("api/v1/hosts", ct);
+
+    /// <summary>One-time token for installing marbots-host by hand (<c>marbots-host enroll --server … --token …</c>).</summary>
+    public Task<CreateEnrollmentResult> CreateEnrollmentAsync(string name, int validMinutes = 60, CancellationToken ct = default) =>
+        c.SendAsync<CreateEnrollmentResult>(HttpMethod.Post, "api/v1/hosts/enrollments", new CreateEnrollmentRequest(name, validMinutes), ct);
+
+    /// <summary>Installs and enrolls a host over SSH. The password/key is used for this call only.</summary>
+    public Task<SshBootstrapResult> BootstrapAsync(SshBootstrapRequest request, CancellationToken ct = default) =>
+        c.SendAsync<SshBootstrapResult>(HttpMethod.Post, "api/v1/hosts/bootstrap", request, ct);
+
+    public Task DisableAsync(string id, CancellationToken ct = default) => c.SendAsync(HttpMethod.Post, $"api/v1/hosts/{MarbotsClient.E(id)}/disable", null, ct);
+    public Task EnableAsync(string id, CancellationToken ct = default) => c.SendAsync(HttpMethod.Post, $"api/v1/hosts/{MarbotsClient.E(id)}/enable", null, ct);
+    public Task RemoveAsync(string id, CancellationToken ct = default) => c.SendAsync(HttpMethod.Delete, $"api/v1/hosts/{MarbotsClient.E(id)}", null, ct);
 }
 
 public sealed class EventsClient(MarbotsClient c)

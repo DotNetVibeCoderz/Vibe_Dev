@@ -44,7 +44,8 @@
     private IReadOnlyList<McpServerConfig> _mcp = [];
 
     private IEnumerable<(string, string)> Packs => Marbots.Kernel.KernelCatalog.Packs
-        .Concat(AllowAgents ? [("agents", "Delegate to and coordinate other bots")] : []);
+        .Concat(AllowAgents ? [("agents", "Delegate to and coordinate other bots")] : [])
+        .Append(("subagents", "Split independent work across temporary copies of this bot that run in parallel (spawn_subagents)"));
 
     protected override async Task OnInitializedAsync() =>
         _mcp = (await McpStore.ListAsync()).Where(m => !m.IsCatalogEntry).OrderBy(m => m.Name).ToList();

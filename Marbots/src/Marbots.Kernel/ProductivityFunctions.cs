@@ -122,10 +122,11 @@ public static class KernelCatalog
     [
         new ReadFileFunction(), new WriteFileFunction(), new EditFileFunction(), new ListFilesFunction(), new DeleteFileFunction(),
         new GrepFunction(),
-        new RunShellFunction(),
+        new RunShellFunction(), new InstallPackageFunction(),
         new WebFetchFunction(), new WebSearchFunction(),
         new RememberFunction(), new RecallFunction(),
         new TodoWriteFunction(),
+        new ScreenshotFunction(), new MouseClickFunction(), new TypeTextFunction(), new PressKeysFunction(),
     ];
 
     public static readonly IReadOnlyList<(string Pack, string Description)> Packs =
@@ -136,5 +137,6 @@ public static class KernelCatalog
         ("web", "Web search and page fetching"),
         ("memory", "Remember and recall long-term facts"),
         ("todo", "Plan and track multi-step work"),
+        ("desktop", "Computer use: screenshots, mouse clicks and typing on the host's desktop (Windows)"),
     ];
 }

@@ -1,0 +1,166 @@
+@page "/chat/{BotId}"
+@implements IDisposable
+@inject MobileSession Session
+@inject IJSRuntime JS
+@using Markdig
+
+<div class="chat">
+    <div class="chat-head">
+        <a href="" class="back" aria-label="Back">‹</a>
+        @if (_bot is not null) { <Avatar Bot="_bot" Size="34" /> }
+        <div class="grow">
+            <div class="name">@(_bot?.Name ?? BotId)</div>
+            <div class="muted small">@_model</div>
+        </div>
+        <button class="ghost" @onclick="NewThread">New</button>
+    </div>
+
+    <div class="messages" id="messages">
+        @if (_messages.Count == 0 && _live is null)
+        {
+            <p class="muted center">Say hello. Ask for research, a document, code, or a plan for the whole team.</p>
+        }
+        @foreach (var m in _messages)
+        {
+            <div class="msg @(m.Role == "user" ? "me" : "bot")">
+                @if (m.Role == "user") { @m.Content }
+                else { <div class="md">@((MarkupString)Md(m.Content))</div> }
+            </div>
+        }
+        @if (_live is not null)
+        {
+            <div class="msg bot">
+                @if (_live.Length == 0) { <span class="muted">@_status</span> }
+                else { <div class="md streaming">@((MarkupString)Md(_live.ToString()))</div> }
+            </div>
+        }
+        @if (_waiting)
+        {
+            <a class="card warn-card" href="approvals">⏳ Waiting for your approval. Tap to review.</a>
+        }
+    </div>
+
+    <form class="composer" @onsubmit="Send">
+        <textarea @bind="_input" @bind:event="oninput" rows="1" placeholder="Message @(_bot?.Name)…"></textarea>
+        <button type="submit" class="primary" disabled="@(string.IsNullOrWhiteSpace(_input) || _threadId is null)">Send</button>
+    </form>
+</div>
+
+@code {
+    [Parameter] public string BotId { get; set; } = "";
+
+    private static readonly Markdig.MarkdownPipeline Pipeline = new Markdig.MarkdownPipelineBuilder().UseAdvancedExtensions().DisableHtml().Build();
+    private BotDefinition? _bot;
+    private string? _model;
+    private string? _threadId;
+    private string? _liveTask;
+    private System.Text.StringBuilder? _live;
+    private string _status = "thinking…";
+    private bool _waiting;
+    private string _input = "";
+    private List<ChatMessage> _messages = [];
+
+    private static string Md(string text) => Markdig.Markdown.ToHtml(text, Pipeline);
+
+    protected override void OnInitialized() => Session.EventReceived += OnEvent;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _bot = Session.Bot(BotId);
+        if (Session.Client is not { } c) return;
+        try
+        {
+            _model = (await c.Bots.GetModelAsync(BotId)).Effective;
+            var thread = (await c.Threads.ListAsync(BotId)).OrderByDescending(t => t.UpdatedAt).FirstOrDefault()
+                ?? await c.Threads.CreateAsync(BotId, null);
+            _threadId = thread.Id;
+            await LoadAsync();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or Marbots.Sdk.MarbotsApiException) { _model = ex.Message; }
+    }
+
+    private async Task NewThread()
+    {
+        if (Session.Client is not { } c) return;
+        _threadId = (await c.Threads.CreateAsync(BotId, null)).Id;
+        _live = null;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (Session.Client is not { } c || _threadId is null) return;
+        _messages = (await c.Threads.MessagesAsync(_threadId))
+            .Where(m => m.Role is "user" or "assistant" && m.ToolCalls is null && !string.IsNullOrWhiteSpace(m.Content)).TakeLast(60).ToList();
+        StateHasChanged();
+        await ScrollAsync();
+    }
+
+    private async Task Send()
+    {
+        var text = _input.Trim();
+        if (text.Length == 0 || Session.Client is not { } c || _threadId is null) return;
+        _input = "";
+        _messages.Add(new ChatMessage { Role = "user", Content = text });
+        _live = new();
+        _status = "thinking…";
+        await ScrollAsync();
+        try
+        {
+            var sent = await c.Threads.SendAsync(_threadId, text);
+            _liveTask = sent.Task.Id;
+            Session.Track(sent.Task.Id);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or Marbots.Sdk.MarbotsApiException)
+        {
+            _live = null;
+            _messages.Add(new ChatMessage { Role = "assistant", Content = "⚠️ " + ex.Message });
+        }
+    }
+
+    private void OnEvent(AgentEvent e)
+    {
+        if (e.ThreadId != _threadId) return;
+        if (_liveTask is null && e.Type == EventTypes.AssistantDelta && e.BotId == BotId)
+        {
+            // Started from another client (web, CLI, a channel): stream it here too.
+            _liveTask = e.TaskId;
+            _live = new();
+        }
+        if (e.TaskId != _liveTask || _live is null)
+        {
+            if (e.Type == EventTypes.MessageAdded && _liveTask is null) _ = InvokeAsync(LoadAsync);
+            return;
+        }
+        switch (e.Type)
+        {
+            case EventTypes.AssistantDelta:
+                _live.Append(e.Message);
+                _waiting = false;
+                break;
+            case EventTypes.ToolCallStarted:
+                _live.Clear();
+                _status = "working: " + MobileSession.Preview(e.Message?.Split(' ', 2)[0], 40) + "…";
+                break;
+            case EventTypes.ApprovalRequested:
+                _waiting = true;
+                break;
+            case EventTypes.TaskStateChanged when e.Data is "Completed" or "Failed" or "Cancelled":
+                _liveTask = null;
+                _live = null;
+                _waiting = false;
+                _ = InvokeAsync(LoadAsync);
+                return;
+            default:
+                return;
+        }
+        _ = InvokeAsync(async () => { StateHasChanged(); await ScrollAsync(); });
+    }
+
+    private async Task ScrollAsync()
+    {
+        try { await JS.InvokeVoidAsync("marbots.scrollEnd", "messages"); } catch (JSException) { }
+    }
+
+    public void Dispose() => Session.EventReceived -= OnEvent;
+}

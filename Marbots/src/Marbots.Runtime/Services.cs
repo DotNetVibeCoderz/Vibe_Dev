@@ -65,7 +65,7 @@ public sealed class AutoLearnService(IModelRouter router, IMessageStore messages
                 var body = sk.TryGetProperty("body", out var b) ? b.GetString() ?? "" : "";
                 if (name.Length > 0 && body.Length > 40 && !SecretScanner.LooksSensitive(body))
                 {
-                    var info = await skills.CreateAsync(name, desc, $"<!-- Drafted by auto-learn from task {task.Id} ({bot.Name}). Review before approving. -->\n\n{body}", pending: true, ct);
+                    var info = await skills.CreateAsync(name, desc, $"<!-- Drafted by auto-learn from task {task.Id} ({bot.Name}). Review before approving. -->\n\n{body}", pending: true, ct, author: bot.Id);
                     await bus.PublishAsync(new AgentEvent { Type = EventTypes.AutoLearnCandidateCreated, BotId = bot.Id, TaskId = task.Id, ThreadId = task.ThreadId, Message = $"Skill candidate '{info.Name}' awaits review" }, ct);
                 }
             }
@@ -422,11 +422,29 @@ public sealed class BotPackageService(BotRegistry registry, SkillRegistry skills
 }
 
 /// <summary>Host registry. The local host is always present; remote hosts arrive with the AgentHost service (roadmap phase 2).</summary>
-public sealed class HostService(MarbotsOptions options)
+public sealed class HostService(MarbotsOptions options, HostRegistry registry, HostConnectionManager connections)
 {
     private readonly DateTimeOffset _started = DateTimeOffset.UtcNow;
 
-    public IReadOnlyList<HostInfo> List() => [Local()];
+    /// <summary>The control plane's own host plus every enrolled remote host with its live status.</summary>
+    public async Task<IReadOnlyList<HostInfo>> ListAsync(CancellationToken ct = default)
+    {
+        var list = new List<HostInfo> { Local() };
+        foreach (var h in await registry.ListAsync(ct))
+        {
+            var online = connections.IsOnline(h.Id);
+            var hello = connections.HelloOf(h.Id) ?? h.LastHello;
+            list.Add(new HostInfo
+            {
+                Id = h.Id, Name = h.Name, Kind = h.Kind, Os = hello?.Os ?? "", Architecture = hello?.Architecture ?? "",
+                ProcessorCount = hello?.ProcessorCount ?? 0, TotalMemoryMb = hello?.TotalMemoryMb ?? 0, AgentVersion = hello?.AgentVersion ?? "",
+                Status = h.Disabled ? "Disabled" : online ? "Online" : "Offline", Capabilities = hello?.Capabilities ?? [],
+                Metrics = connections.MetricsOf(h.Id) ?? h.LastMetrics, InstalledVia = h.InstalledVia,
+                LastHeartbeat = online ? DateTimeOffset.UtcNow : h.LastSeen ?? h.EnrolledAt, StartedAt = h.EnrolledAt,
+            });
+        }
+        return list;
+    }
 
     public HostInfo Local()
     {
@@ -444,6 +462,7 @@ public sealed class HostService(MarbotsOptions options)
             ProcessWorkingSetMb = proc.WorkingSet64 / 1024 / 1024,
             AgentVersion = typeof(HostService).Assembly.GetName().Version?.ToString() ?? "0.1.0",
             Status = "Online",
+            Capabilities = OperatingSystem.IsWindows() ? ["shell", "desktop"] : ["shell"],
             LastHeartbeat = DateTimeOffset.UtcNow,
             StartedAt = _started,
         };

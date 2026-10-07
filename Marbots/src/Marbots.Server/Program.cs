@@ -39,6 +39,7 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/error", createScopeForErrors: true);
 }
+app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
 app.UseMiddleware<ApiKeyMiddleware>();
 app.UseAntiforgery();
 app.MapStaticAssets();
@@ -46,6 +47,7 @@ app.MapOpenApi();
 app.MapMarbotsApi();
 app.MapA2a();
 app.MapIntegrations();
+app.MapHosts();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 app.Run();

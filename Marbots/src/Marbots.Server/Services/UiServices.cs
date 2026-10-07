@@ -53,7 +53,7 @@ public sealed class UiText
     {
         ["nav.chat"] = "Chat", ["nav.team"] = "Team", ["nav.templates"] = "Templates", ["nav.tasks"] = "Tasks", ["nav.office"] = "Office",
         ["nav.approvals"] = "Approvals", ["nav.skills"] = "Skills", ["nav.mcp"] = "MCP servers", ["nav.schedules"] = "Schedules",
-        ["nav.memory"] = "Memory", ["nav.channels"] = "Channels", ["nav.dashboard"] = "Dashboard", ["nav.settings"] = "Settings", ["nav.about"] = "About",
+        ["nav.memory"] = "Memory", ["nav.channels"] = "Channels", ["nav.dashboard"] = "Dashboard", ["nav.hosts"] = "Computers", ["nav.settings"] = "Settings", ["nav.about"] = "About",
         ["nav.group.work"] = "Work", ["nav.group.build"] = "Build", ["nav.group.observe"] = "Observe",
         ["chat.placeholder"] = "Message {0}… (Enter to send, Shift+Enter for a new line)", ["chat.send"] = "Send", ["chat.stop"] = "Stop",
         ["chat.newThread"] = "New thread", ["chat.threads"] = "Threads", ["chat.activity"] = "Live activity", ["chat.files"] = "Workspace files",
@@ -82,7 +82,7 @@ public sealed class UiText
     {
         ["nav.chat"] = "Obrolan", ["nav.team"] = "Tim", ["nav.templates"] = "Templat", ["nav.tasks"] = "Tugas", ["nav.office"] = "Kantor",
         ["nav.approvals"] = "Persetujuan", ["nav.skills"] = "Skill", ["nav.mcp"] = "Server MCP", ["nav.schedules"] = "Jadwal",
-        ["nav.memory"] = "Memori", ["nav.channels"] = "Kanal", ["nav.dashboard"] = "Dasbor", ["nav.settings"] = "Pengaturan", ["nav.about"] = "Tentang",
+        ["nav.memory"] = "Memori", ["nav.channels"] = "Kanal", ["nav.dashboard"] = "Dasbor", ["nav.hosts"] = "Komputer", ["nav.settings"] = "Pengaturan", ["nav.about"] = "Tentang",
         ["nav.group.work"] = "Kerja", ["nav.group.build"] = "Bangun", ["nav.group.observe"] = "Pantau",
         ["chat.placeholder"] = "Kirim pesan ke {0}… (Enter untuk kirim, Shift+Enter untuk baris baru)", ["chat.send"] = "Kirim", ["chat.stop"] = "Hentikan",
         ["chat.newThread"] = "Utas baru", ["chat.threads"] = "Utas", ["chat.activity"] = "Aktivitas langsung", ["chat.files"] = "Berkas workspace",

@@ -28,6 +28,9 @@ public static class ServiceCollectionExtensions
         AddDocs(services, "channelconv", ctx.ChannelConversation, c => c.Id);
         AddDocs(services, "trigger", ctx.TriggerConfig, t => t.Id);
         AddDocs(services, "skillstats", ctx.SkillStats, s => s.Id);
+        AddDocs(services, "host", ctx.HostRecord, h => h.Id);
+        AddDocs(services, "hostenroll", ctx.HostEnrollment, e => e.Id);
+        AddDocs(services, "threadhost", ctx.ThreadHost, t => t.Id);
         services.AddSingleton<IMessageStore, SqliteMessageStore>();
         services.AddSingleton<IEventStore, SqliteEventStore>();
         services.AddSingleton<IMemoryStore, SqliteMemoryStore>();
@@ -53,6 +56,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IKernelFunction, DelegateTasksFunction>();
         services.AddSingleton<IKernelFunction, ListTemplatesFunction>();
         services.AddSingleton<IKernelFunction, CreateBotFunction>();
+        services.AddSingleton<IKernelFunction, ListHostsFunction>();
+        services.AddSingleton<IKernelFunction, SpawnSubagentsFunction>();
         services.AddSingleton<IKernelFunction, ScheduleTaskFunction>();
         services.AddSingleton<IKernelFunction, GetTaskFunction>();
 
@@ -65,11 +70,17 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<MarbotsEngine>();
         services.AddSingleton<BotPackageService>();
         services.AddSingleton<HostService>();
+        services.AddSingleton<HostRegistry>();
+        services.AddSingleton<HostConnectionManager>();
+        services.AddSingleton<PlacementService>();
+        services.AddSingleton<HostBootstrapper>();
         services.AddSingleton<SchedulerService>();
         services.AddHostedService<MarbotsBootstrapper>();
         services.AddHostedService(sp => sp.GetRequiredService<SchedulerService>());
 
         // Phase 3: triggers and channels
+        services.AddSingleton<SkillEvaluator>();
+        services.AddHostedService(sp => sp.GetRequiredService<SkillEvaluator>());
         services.AddSingleton<TriggerService>();
         services.AddHostedService(sp => sp.GetRequiredService<TriggerService>());
         services.AddSingleton<ChannelContext>();

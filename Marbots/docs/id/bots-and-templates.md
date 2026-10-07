@@ -71,6 +71,28 @@ marbots bot model atlas default                # kembali ke model bawaan
 marbots models default azure/gpt-5-mini        # ganti bawaan untuk semua bot "default"
 ```
 
+## Sub-agen (opsional)
+
+Aktifkan pack tool **subagents** agar bot bisa membagi pekerjaan yang saling lepas ke salinan sementara dirinya:
+
+- web: pack tool di editor bot;
+- CLI: `marbots bot packs nova files,shell,…,subagents`;
+- Boss Man: `create_bot` dengan `kernel_functions` yang memuat `subagents`;
+- SDK: tambahkan `"subagents"` ke `KernelFunctions`.
+
+Bot lalu memiliki `spawn_subagents`. Tool ini menerima hingga 6 sub-tugas mandiri, menjalankannya paralel, lalu
+mengembalikan semua laporan sekaligus.
+
+Setiap sub-agen:
+
+- mewarisi persona, skill, model, komputer (host), container, dan tool;
+- berbagi workspace utas;
+- tidak dapat membuat sub-agen atau mendelegasikan lagi, dan tidak menjalankan auto-learn.
+
+Pekerjaannya dihitung untuk bot induk: status, biaya, dan robotnya di kantor. Pakai untuk bagian yang tidak saling
+bergantung, misalnya meriset beberapa topik atau menulis beberapa berkas. Pakai `delegate_tasks` milik Boss Man bila
+butuh peran yang berbeda.
+
 ## Profil izin
 
 | Profil | Baca | Tulis workspace | Web | Shell | Hapus | Pesan eksternal |

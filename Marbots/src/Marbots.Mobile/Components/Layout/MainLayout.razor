@@ -1,0 +1,47 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject MobileSession Session
+@inject NavigationManager Nav
+
+<div class="shell">
+    <header class="top">
+        <img src="marbots.png" alt="" class="logo" />
+        <div class="brand">Marbots</div>
+        <span class="conn @(Session.IsConnected && !Session.IsReconnecting ? "ok" : Session.IsReconnecting ? "warn" : "off")"
+              title="@Session.Url">@(Session.IsConnected ? Session.IsReconnecting ? "reconnecting" : "online" : "offline")</span>
+    </header>
+    <div class="@(Session.SkipApprovals ? "danger" : "")">@(Session.SkipApprovals ? "Approvals are skipped (dangerous mode). Bots act without asking." : "")</div>
+    <main class="content">@Body</main>
+    <nav class="tabs">
+        <NavLink href="" Match="NavLinkMatch.All" class="tab">
+            <svg viewBox="0 0 24 24"><path d="M4 4h16v12H8l-4 4z" /></svg><span>Chat</span>
+        </NavLink>
+        <NavLink href="approvals" class="tab">
+            <svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V5z" /></svg><span>Approvals</span>
+            @if (Session.Pending.Count > 0) { <b class="badge">@Session.Pending.Count</b> }
+        </NavLink>
+        <NavLink href="activity" class="tab">
+            <svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4" fill="none" stroke-width="2" /></svg><span>Activity</span>
+        </NavLink>
+        <NavLink href="settings" class="tab">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1" fill="none" stroke-width="2" /></svg><span>Settings</span>
+        </NavLink>
+    </nav>
+</div>
+
+@code {
+    private bool _started;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _started) return;
+        _started = true;
+        Session.Changed += OnChanged;
+        await Session.StartAsync();
+        if (!Session.IsConnected) Nav.NavigateTo("settings");
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Session.Changed -= OnChanged;
+}

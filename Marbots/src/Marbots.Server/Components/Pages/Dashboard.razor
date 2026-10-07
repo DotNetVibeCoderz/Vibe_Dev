@@ -109,7 +109,7 @@
     private async Task LoadAsync()
     {
         _usage = await Usage.SummaryAsync();
-        _hosts = Hosts.List();
+        _hosts = await Hosts.ListAsync();
         _bots = await Registry.ActiveAsync();
         _approvals = (await Approvals.PendingAsync()).Count;
         _mcp = Mcp.Status();

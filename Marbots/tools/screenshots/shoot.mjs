@@ -41,6 +41,14 @@ for (const theme of ["light", "dark"]) {
     if (theme === "dark" && !darkPages.includes(p.name)) continue;
     await page.goto(base + p.path, { waitUntil: "networkidle" });
     await page.waitForTimeout(Number(process.env.WAIT ?? 1500));
+    // Hide private details (user names, LAN addresses) before capturing docs screenshots.
+    await page.evaluate(() => {
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) {
+        const n = walker.currentNode;
+        n.nodeValue = n.nodeValue.replace(/ssh \S+@[\d.]+/g, "ssh user@dev2.lan").replace(/192\.168\.\d+\.\d+/g, "192.168.1.20");
+      }
+    });
     const file = `${out}/${p.name}${theme === "dark" ? "-dark" : ""}.png`;
     await page.screenshot({ path: file });
     console.log("saved", file);

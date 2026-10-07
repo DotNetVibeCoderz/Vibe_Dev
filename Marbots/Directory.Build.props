@@ -1,6 +1,7 @@
 <Project>
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <!-- The MAUI app multi-targets (android/ios/maccatalyst/windows) and sets its own frameworks. -->
+    <TargetFramework Condition="'$(UseMaui)' != 'true' and '$(MSBuildProjectName)' != 'Marbots.Mobile'">net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>

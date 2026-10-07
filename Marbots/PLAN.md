@@ -18,6 +18,8 @@ Legend: ✅ done · 🟡 partial / preview · ⏳ planned
 | ADR-006 | Event-oriented observability | Web, CLI, SDKs and Office view share one event stream |
 | ADR-007 | Auto-Learn can't elevate privileges | Learned output is untrusted until a human approves |
 | ADR-008 | Rust only for measured hot paths | No hot path has justified native code yet (see Performance) |
+| ADR-009 | Host protocol: JSON over an outbound WebSocket, not gRPC | One port, works behind NAT without h2c setup, source-generated JSON shared with the rest of the platform |
+| ADR-010 | Agent loop stays on the control plane; hosts run tools | Model keys, memory and approvals never leave the server; a host compromise exposes only its own workspaces |
 
 ## Phase 0 — Foundations ✅
 - ✅ Solution layout, central package management, deterministic builds, analyzers
@@ -39,14 +41,18 @@ Legend: ✅ done · 🟡 partial / preview · ⏳ planned
 - ✅ CLI (`marbots`) with themes
 - ✅ 58 built-in bot templates across 11 categories; 20 built-in skills
 
-## Phase 2 — Distributed BotAgent ⏳
-- ⏳ `Marbots.AgentHost` service (separate process) speaking a gRPC protocol (`protocols/agenthost.proto`)
-- ⏳ Host registry with enrollment: one-time token → host certificate → mTLS
-- ⏳ SSH bootstrap (preflight, install service, register) — credentials only during bootstrap
-- ⏳ Docker runner (per-bot container profile, CPU/RAM quotas) and VM hosts
-- ⏳ Placement scoring (capability, load, GPU, data locality, affinity)
-- ⏳ Offline/reconnect with idempotent event sync; host drift + rolling updates
-- 🟡 Today: one local host (`local-default`) with live metrics; per-thread workspaces isolate concurrent work
+## Phase 2 — Distributed BotAgent ✅
+- ✅ `Marbots.AgentHost` (`marbots-host`, self-contained single file) executing files/search/shell/install_package/desktop tools in per-thread workspaces; Spectre.Console live dashboard ("who is working on this computer")
+- ✅ Host protocol: JSON frames over one outbound WebSocket (`/api/v1/hosts/connect`) — see ADR-009
+- ✅ Enrollment: one-time token (hash only) → host id + secret (hash on server, DPAPI on Windows hosts); disable/remove
+- ✅ SSH bootstrap (preflight incl. reachability, upload, enroll, logon task / systemd user unit, wait online) — credentials used once, never stored; `--update` rolling updates keep the enrollment
+- ✅ Docker runner: per-bot container profile (image, CPU, memory, network) for `run_shell`
+- ✅ Placement (`HostRef: auto`): capability filter + load/memory scoring + thread data locality
+- ✅ Offline/reconnect: back-off reconnect, in-flight calls re-sent with the same request id, host result cache (idempotent)
+- ✅ `install_package`: winget/scoop/choco, apt/dnf/yum/pacman/apk/zypper, brew, pip/npm/dotnet-tool; .NET via dotnet-install (no admin); PATH refresh
+- ✅ Remote workspace files listed and downloaded through the server; skills' files copied to `.skills/<name>/` on load
+- ✅ Tested end to end on a second Windows PC (DEV2) with a real LLM: bots created via CLI, SDK, web UI and Boss Man
+- ⏳ mTLS host certificates (today: secret over the server's TLS), VM provisioning, GPU capability scoring
 
 ## Phase 3 — Productivity + ecosystem ✅
 - ✅ Scheduler (cron + one-shot, time zones, run now, misfire on startup)
@@ -59,16 +65,20 @@ Legend: ✅ done · 🟡 partial / preview · ⏳ planned
 - ✅ Webhook triggers (secret or HMAC) and event-triggered tasks with loop guards
 - ✅ Suggest-mode delegation (Boss Man proposes the plan, user approves)
 
-## Phase 4 — Rich clients ⏳
-- ⏳ Avalonia desktop app (embedded runtime or remote control plane)
-- ⏳ .NET MAUI Hybrid mobile app (chat, approvals, push notifications)
+## Phase 4 — Rich clients ✅
+- ✅ Avalonia desktop app: 3D office, chat (streaming), approvals, connect or start a local server
+- ✅ .NET MAUI Blazor Hybrid mobile app: team, chat (streaming), approvals, activity, local notifications (Android/iOS/Mac/Windows)
+- ⏳ Remote push notifications (FCM/APNs) when the app is closed
 - ✅ Streaming token output in chat and CLI (OpenAI-compatible SSE, transient `AssistantDelta` events)
 
-## Phase 5 — Auto-Learn + 3D 🟡
+## Phase 5 — Auto-Learn + 3D ✅
 - ✅ Auto-Learn: `MemoryOnly` and `SuggestSkills` (review queue, secret scanning, never auto-published)
 - 🟡 Office view: live 2D floor plan driven by events (fallback mode from the design)
-- ⏳ Three.Net 3D office (Rust/wgpu) with Blender-authored assets, LOD, instancing
-- ⏳ Learning evaluation (promote/rollback skills based on outcomes)
+- ✅ Three.Net 3D office in the desktop app: Rodin-generated furniture and robot, Blender rigging + 6 animation clips, event-driven movement along aisles
+- ✅ Learning evaluation: outcomes per skill version, verdicts, trials of auto-learned drafts, version history, manual/automatic rollback
+
+## Cross-cutting
+- ✅ Optional sub-agents (`subagents` pack, `spawn_subagents`): parallel temporary copies of a bot with its persona, skills, model and host
 
 ## Cross-cutting backlog
 - ⏳ Vector retrieval (`IVectorStore`) alongside BM25 for hybrid memory search

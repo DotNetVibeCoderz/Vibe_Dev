@@ -86,5 +86,60 @@ python samples/trials/run_trials.py --approve-delay 30
 node tools/screenshots/shoot.mjs http://localhost:5170 docs/images
 ```
 
+
+## PC kedua: bot bekerja di komputer lain (DEV2)
+
+7 Oktober 2026. Server berjalan di satu PC Windows dengan Azure OpenAI dan DeepSeek. PC Windows 11 kedua di LAN yang
+sama ("DEV2") memiliki Docker Desktop, .NET 8 SDK, Node, dan Python, tanpa office suite. DEV2 dipasang dengan satu
+perintah lewat SSH (`marbots hosts bootstrap … --name DEV2`), diperbarui dua kali dengan `--update`, dan
+pendaftarannya tetap sama sepanjang uji coba. Semua hasil di bawah dibuat di DEV2 dan diunduh melalui server.
+
+![Konsol host di DEV2](../images/trial-dev2-host-console.png)
+
+*Konsol `marbots-host` di DEV2, diambil dengan tool `screenshot` milik Rina sendiri. "At work now" menunjukkan Rina
+sedang mengambil screenshot itu; "Lately" menunjukkan suntingan berkas Nova dan satu perintah shell yang gagal.*
+
+### Empat bot, dibuat dengan empat cara
+
+| Bot | Dibuat dengan | Pengaturan |
+|---|---|---|
+| **Dara**, dokumen | CLI: `bot hire technical-writer`, `bot host`, `bot skills pptx,docx,xlsx,pdf`, `bot profile autonomous` | model bawaan (gpt-5-mini) |
+| **Nova**, engineer .NET | SDK .NET, [`samples/remote-host/create-nova.cs`](../../samples/remote-host/create-nova.cs) (aplikasi berbasis berkas `dotnet run`) | azure/gpt-5.6-luna, skill frontend-design dan webapp-testing |
+| **Rina**, QA computer-use | Editor bot di web, dijalankan oleh Playwright ([`tools/screenshots/create-bot-ui.mjs`](../../tools/screenshots/create-bot-ui.mjs)) | pack `desktop`, host dipilih di dropdown Host |
+| **Dockie**, data engineer | Boss Man, lewat pesan chat berbahasa Indonesia | `list_hosts`, lalu `create_bot` dengan `host: DEV2` dan `container_image: python:3.12-slim`. Pembuatan bot autonomous meminta persetujuan, dan saya menyetujuinya. |
+
+### Yang mereka kerjakan
+
+| Tugas | Hasil |
+|---|---|
+| Dockie: skrip statistik di dalam Docker | Skrip berjalan di `python:3.12-slim` di DEV2 (image ditarik di sana): rata-rata 143, median 142,5, sd 16,02, disimpan ke `stats.json`. |
+| Dara: riset Tavily, lalu PPTX, DOCX, XLSX, dan PDF dengan skill Anthropic | Enam fakta bersumber: AWS/Strand 2025, Microsoft Work Trend Index 2026, KADIN, Digital in Asia. Dara memasang `python-pptx`, `python-docx`, `openpyxl`, `reportlab`, dan `pptxgenjs` sendiri, lalu menjalankan `recalc.py` milik skill xlsx dari `.skills/xlsx/`. Hasilnya: dek 6 slide, laporan (judul, ringkasan, temuan, rekomendasi, sumber), workbook (sheet Data dan Summary, 5 formula, 1 grafik), dan PDF 2 halaman. [Berkas](../../samples/trials/remote-dev2/dara/deliverables) |
+| Nova: aplikasi web Blazor, desktop Avalonia, dan CLI Spectre.Console di .NET 10 | Ketiganya ter-build dengan 0 peringatan dan 0 galat. Aplikasi web mengikuti skill frontend-design: Fraunces dan DM Sans, palet sendiri, harga dalam rupiah. |
+| Nova: Playwright, Docker | Nova menyiapkan Playwright, yang memakai Edge setelah unduhan Chromium timeout, lalu mengambil screenshot desktop dan mobile. Nova menulis Dockerfile multi-stage di atas `sdk:10.0` dan `aspnet:10.0`, mem-build `warungweb:latest`, dan menjalankannya di :8090. Server dev dan container sama-sama menjawab HTTP 200. |
+| Rina: computer use | Rina mengambil screenshot desktop, mem-build dan menjalankan WarungDesk, mengklik item menu, membuka situs Docker di Edge, lalu menutup kedua jendela, dan melihat screenshot sebelum setiap langkah. |
+
+![WarungWeb di Docker, desktop dan mobile](../images/trial-dev2-warungweb.png)
+![WarungDesk dioperasikan Rina](../images/trial-dev2-warungdesk.png)
+
+### Catatan jujur
+
+- **Batas langkah.** Batas 24 langkah pada templat penulis menghentikan Dara di tengah jalan. Menaikkannya ke 80
+  membuat Dara bisa menyelesaikan tugas. PDF pertama hanya satu paragraf; permintaan lanjutan meminta ringkasan yang
+  layak.
+- **Rendering office.** Kedua PC tidak punya Office atau LibreOffice, sehingga langkah rekalkulasi skill xlsx tidak bisa
+  berjalan, dan formula baru dihitung saat berkas dibuka. Dokumen diperiksa dengan python-pptx, python-docx, openpyxl,
+  dan PyMuPDF, bukan dengan merender slide.
+- **Percobaan pertama Nova** masih menyisakan chrome templat Blazor bawaan (sidebar ungu). Permintaan lanjutan
+  menghapusnya. Screenshot "cart"-nya menampilkan menu, bukan keranjang, sehingga klaim "dua item terlihat" berlebihan.
+- **Jalannya Rina.** Percobaan pertamanya gagal karena saya memberi path workspace yang salah (folder berupa slug:
+  `thr-…`, bukan `thr_…`). Klik keduanya menggantikan klik pertama, karena daftar butuh Ctrl+klik untuk memilih lebih
+  dari satu, sehingga total menunjukkan satu minuman (Rp18.000).
+- **Dockie** mencoba memanggil `docker` dari dalam container-nya. Catatan container kini menyebut bahwa ia sudah berada
+  di dalam container.
+- **Bug yang ditemukan dan diperbaiki selama uji coba:**
+  - `create_bot` timeout saat persetujuannya masih menunggu; kini menunggu hingga satu jam.
+  - `install_package openpyxl` mencoba winget; paket `pip:`, `npm:`, dan `dotnet-tool:` kini didukung.
+  - Skrip skill tidak tersedia di komputer jarak jauh; kini disalin ke `.skills/<nama>/`.
+
 ---
 *Marbots — Dibuat oleh Gravicode Studios dipimpin oleh Kang Fadhil.*

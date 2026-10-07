@@ -90,7 +90,7 @@ internal sealed class Commands(MarbotsClient client, Ui ui)
             case "skills": return await SkillsAsync(a, ct);
             case "mcp": return await McpAsync(a, ct);
             case "schedules": return await SchedulesAsync(ct);
-            case "hosts": return await HostsAsync(ct);
+            case "hosts": return await HostsAsync(a, Opt, ct);
             case "models": return await ModelsAsync(a, ct);
             case "channels":
                 foreach (var v in await client.Channels.ListAsync(ct))
@@ -139,9 +139,18 @@ internal sealed class Commands(MarbotsClient client, Ui ui)
           <any command> --dangerously-skip-approvals   Skip approvals only while that command runs
                                          (alias: --dangerously-skip-permissions)
           skills | skills install <git-url-or-folder>
+          skills rollback|promote|discard <name>   Learning evaluation (verdicts in "skills")
+          skills auto-rollback on|off
           mcp | mcp install <id>
           schedules                      Scheduled jobs
-          hosts                          Registered hosts
+          hosts                          Control plane + remote agent hosts (status, capabilities, load)
+          hosts token <name>             One-time token to enroll a machine by hand (marbots-host enroll …)
+          hosts bootstrap <user>@<host> --server <url> [--name N] [--password-file f | --key-file f] [--port 22] [--update]
+          hosts disable|enable|remove <id>
+          bot skills|packs <bot> [a,b,c]  Show or set a bot's skills / tool packs (files,search,shell,web,memory,todo,desktop,…)
+          bot profile <bot> [profile]    read-only | workspace-write | developer-safe | autonomous
+          bot host <bot> [local-default|<host-id>|auto]   Where the bot's files/shell/desktop tools run
+          bot container <bot> [<image>|off] [--cpus 1] [--memory 1024] [--no-network]
           logs [--thread <id>]           Follow the live event stream
           theme | theme set <name>       CLI colours (default, aurora, matrix, mono, high-contrast)
 
@@ -204,6 +213,47 @@ internal sealed class Commands(MarbotsClient client, Ui ui)
                 ui.Line($"{info.BotId}: {info.Effective}{(info.UsesDefault ? " (workspace default)" : $" (setting: {info.Setting})")}");
                 if (info.Warning is not null) ui.Warn(info.Warning);
                 return 0;
+            case "host":
+                var hb = await client.Bots.GetAsync(target, ct);
+                if (a.Count > 3)
+                {
+                    hb.HostRef = a[3];
+                    hb = await client.Bots.UpdateAsync(hb, ct);
+                }
+                ui.Line($"{hb.Name} runs its tools on: {hb.HostRef}{(hb.HostRef == WellKnown.AutoHost ? " (placement chooses per thread)" : "")}");
+                return 0;
+            case "container":
+                var cb = await client.Bots.GetAsync(target, ct);
+                if (a.Count > 3)
+                {
+                    cb.Container = a[3] is "off" or "none" ? null : new ContainerProfile
+                    {
+                        Image = a[3],
+                        Cpus = double.TryParse(opt("--cpus"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var cpus) ? cpus : 1,
+                        MemoryMb = int.TryParse(opt("--memory"), out var mem) ? mem : 1024,
+                        Network = !flag("--no-network"),
+                    };
+                    cb = await client.Bots.UpdateAsync(cb, ct);
+                }
+                ui.Line(cb.Container is { } box ? $"{cb.Name}: shell runs in {box.Image} ({box.Cpus} CPU, {box.MemoryMb} MB{(box.Network ? "" : ", no network")})" : $"{cb.Name}: shell runs directly on its host");
+                return 0;
+            case "skills" or "packs" or "profile":
+                var eb = await client.Bots.GetAsync(target, ct);
+                if (a.Count > 3)
+                {
+                    var values = a[3].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+                    if (sub == "skills") eb.Skills = values;
+                    else if (sub == "packs") eb.KernelFunctions = values;
+                    else eb.PermissionProfile = a[3];
+                    eb = await client.Bots.UpdateAsync(eb, ct);
+                }
+                ui.Line(sub switch
+                {
+                    "skills" => $"{eb.Name} skills: {string.Join(", ", eb.Skills)}",
+                    "packs" => $"{eb.Name} tool packs: {string.Join(", ", eb.KernelFunctions)}",
+                    _ => $"{eb.Name} permission profile: {eb.PermissionProfile}",
+                });
+                return 0;
             case "pause": await client.Bots.PauseAsync(target, ct); ui.Ok("Paused."); return 0;
             case "resume": await client.Bots.ResumeAsync(target, ct); ui.Ok("Resumed."); return 0;
             case "delete": await client.Bots.DeleteAsync(target, ct); ui.Ok("Deleted."); return 0;
@@ -262,7 +312,29 @@ internal sealed class Commands(MarbotsClient client, Ui ui)
             ui.Ok($"Installed: {string.Join(", ", installed.Select(s => s.Name))}");
             return 0;
         }
-        foreach (var s in await client.Skills.ListAsync(ct)) ui.Row(s.Name, s.Trust, s.Pending ? "pending review" : "", AgentPreview(s.Description, 80));
+        switch (a.Count > 2 ? a[1] : null)
+        {
+            case "rollback":
+                ui.Ok($"Rolled {a[2]} back to {await client.Skills.RollbackAsync(a[2], ct)}.");
+                return 0;
+            case "promote":
+                await client.Skills.PromoteAsync(a[2], ct);
+                ui.Ok($"Published {a[2]}.");
+                return 0;
+            case "discard":
+                await client.Skills.DiscardAsync(a[2], ct);
+                ui.Ok($"Discarded {a[2]}.");
+                return 0;
+            case "auto-rollback" when a[2] is "on" or "off":
+                ui.Ok($"Automatic rollback: {(await client.Skills.SetAutoRollbackAsync(a[2] == "on", ct) ? "on" : "off")}");
+                return 0;
+        }
+        var evals = (await client.Skills.EvaluationsAsync(ct)).ToDictionary(e => (e.Pending ? "p:" : "") + e.Name.ToLowerInvariant());
+        foreach (var s in await client.Skills.ListAsync(ct))
+        {
+            var e = evals.GetValueOrDefault((s.Pending ? "p:" : "") + s.Name.ToLowerInvariant());
+            ui.Row(s.Name, s.Version, s.Pending ? "draft" : s.Trust, e is null ? "" : $"{e.Verdict} ({e.Reason})", AgentPreview(s.Description, 60));
+        }
         return 0;
     }
 
@@ -301,10 +373,40 @@ internal sealed class Commands(MarbotsClient client, Ui ui)
         return 0;
     }
 
-    private async Task<int> HostsAsync(CancellationToken ct)
+    private async Task<int> HostsAsync(List<string> a, Func<string, string?> opt, CancellationToken ct)
     {
-        foreach (var h in await client.HostsAsync(ct))
-            ui.Row(h.Id, h.Name, h.Status, $"{h.Os} {h.Architecture}", $"{h.ProcessorCount} cpu", $"{h.ProcessWorkingSetMb} MB");
+        switch (a.Count > 1 ? a[1] : null)
+        {
+            case "token":
+                var enr = await client.Hosts.CreateEnrollmentAsync(a.Count > 2 ? a[2] : "new-host", 60, ct);
+                ui.Ok($"One-time token (valid until {enr.ExpiresAt.ToLocalTime():HH:mm}). On the new machine run:");
+                ui.Line("  " + enr.EnrollCommand);
+                ui.Line("  marbots-host run");
+                return 0;
+            case "bootstrap" when a.Count > 2 && a[2].Contains('@', StringComparison.Ordinal):
+                var (user, host) = (a[2][..a[2].IndexOf('@')], a[2][(a[2].IndexOf('@') + 1)..]);
+                var password = opt("--password-file") is { } pf ? (await File.ReadAllTextAsync(pf, ct)).Trim() : Environment.GetEnvironmentVariable("MARBOTS_SSH_PASSWORD");
+                var key = opt("--key-file") is { } kf ? await File.ReadAllTextAsync(kf, ct) : null;
+                if (password is null && key is null) { ui.Error("Give --password-file, --key-file or MARBOTS_SSH_PASSWORD."); return 1; }
+                var server = opt("--server") ?? throw new ArgumentException("--server <url this host can reach> is required, e.g. http://192.168.1.10:5170");
+                ui.Dim($"Bootstrapping {host} over SSH (credentials are used for this call only)…");
+                var r = await client.Hosts.BootstrapAsync(new SshBootstrapRequest
+                {
+                    Host = host, User = user, Password = password, PrivateKey = key, Name = opt("--name") ?? host, ServerUrl = server,
+                    Port = int.TryParse(opt("--port"), out var port) ? port : 22,
+                    UpdateOnly = a.Contains("--update"),
+                }, ct);
+                foreach (var line in r.Log) ui.Line("  " + line);
+                if (!r.Success) { ui.Error(r.Error ?? "Bootstrap failed."); return 1; }
+                ui.Ok(r.HostId is null ? "Host updated." : $"Host {r.HostId} installed. Put a bot on it: marbots bot host <bot> {r.HostId}");
+                return 0;
+            case "disable" when a.Count > 2: await client.Hosts.DisableAsync(a[2], ct); ui.Ok("Disabled."); return 0;
+            case "enable" when a.Count > 2: await client.Hosts.EnableAsync(a[2], ct); ui.Ok("Enabled."); return 0;
+            case "remove" when a.Count > 2: await client.Hosts.RemoveAsync(a[2], ct); ui.Ok("Removed."); return 0;
+        }
+        foreach (var h in await client.Hosts.ListAsync(ct))
+            ui.Row(h.Id, h.Name, h.Status, $"{h.Os} {h.Architecture}".Trim(), $"{h.ProcessorCount} cpu", string.Join(",", h.Capabilities),
+                h.Metrics is { } m ? $"cpu {m.CpuPercent:0}% · {m.FreeMemoryMb:N0} MB free · {m.RunningCalls} running" : "");
         return 0;
     }
 

@@ -81,7 +81,25 @@ public sealed class OpenAiCompatibleProvider : IModelProvider
             {
                 w.WriteStartObject();
                 w.WriteString("role", m.Role);
-                if (m.Content is not null) w.WriteString("content", m.Content);
+                if (m.Images is { Count: > 0 })
+                {
+                    w.WriteStartArray("content");
+                    w.WriteStartObject();
+                    w.WriteString("type", "text");
+                    w.WriteString("text", m.Content ?? "");
+                    w.WriteEndObject();
+                    foreach (var url in m.Images)
+                    {
+                        w.WriteStartObject();
+                        w.WriteString("type", "image_url");
+                        w.WriteStartObject("image_url");
+                        w.WriteString("url", url);
+                        w.WriteEndObject();
+                        w.WriteEndObject();
+                    }
+                    w.WriteEndArray();
+                }
+                else if (m.Content is not null) w.WriteString("content", m.Content);
                 else w.WriteNull("content");
                 if (m.ToolCalls is { Count: > 0 })
                 {

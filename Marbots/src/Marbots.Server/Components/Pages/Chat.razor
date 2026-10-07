@@ -11,6 +11,7 @@
 @inject MarkdownRenderer Md
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject IServiceProvider Services
 @inject ModelRouter Router
 
 <PageTitle>@(_thread?.Title ?? "Chat") · Marbots</PageTitle>
@@ -213,7 +214,7 @@
                     <h3 style="margin:10px 0 6px">@T["chat.files"]</h3>
                     @foreach (var f in _files.Take(60))
                     {
-                        <a href="/api/v1/threads/@_thread.Id/files/@f.Path" target="_blank">@f.Path <span class="muted">(@FormatSize(f.Size))</span></a>
+                        <a href="@($"/api/v1/threads/{_thread.Id}/files/{f.Path}{(f.Host is null ? "" : "?host=" + f.Host)}")" target="_blank">@f.Path <span class="muted">(@FormatSize(f.Size)@(f.HostName is null ? "" : " · on " + f.HostName))</span></a>
                     }
                 </div>
             }
@@ -313,7 +314,7 @@
         _activity = runningTask is null ? null : $"{BotFor(runningTask.BotId)?.Name}: {runningTask.CurrentActivity}";
         _todos = active is null ? [] : tasks.Where(t => !t.State.IsTerminal()).Select(t => Todos.Get(t.Id)).FirstOrDefault(l => l.Count > 0) ?? [];
         _approvals = (await Approvals.PendingAsync()).Where(a => a.ThreadId == _thread.Id).ToList();
-        _files = Marbots.Server.Api.WorkspaceFiles.List(Engine.WorkspaceFor(_thread.Id));
+        _files = await Marbots.Server.Api.WorkspaceFiles.ListAllAsync(_thread.Id, Engine, Services, default);
     }
 
     protected override bool WantsDeltas => true;

@@ -71,6 +71,28 @@ marbots bot model atlas default                # back to the workspace default
 marbots models default azure/gpt-5-mini        # change the default for all "default" bots
 ```
 
+## Sub-agents (optional)
+
+Switch on the **subagents** tool pack to let a bot split independent work across temporary copies of itself:
+
+- web: the bot editor's tool packs;
+- CLI: `marbots bot packs nova files,shell,…,subagents`;
+- Boss Man: `create_bot` with `kernel_functions` including `subagents`;
+- SDK: add `"subagents"` to `KernelFunctions`.
+
+The bot then has `spawn_subagents`. It takes up to 6 self-contained sub-tasks and runs them in parallel, then returns
+every report together.
+
+Each sub-agent:
+
+- inherits the persona, skills, model, computer (host), container and tools;
+- shares the thread's workspace;
+- cannot spawn or delegate further, and does not auto-learn.
+
+The work counts toward the parent bot: status, cost, and its robot in the office. Use it for parts that don't depend
+on each other, such as researching several topics or writing several files. Use Boss Man's `delegate_tasks` when
+different roles are needed.
+
 ## Permission profiles
 
 | Profile | Read | Write workspace | Web | Shell | Delete | External messages |

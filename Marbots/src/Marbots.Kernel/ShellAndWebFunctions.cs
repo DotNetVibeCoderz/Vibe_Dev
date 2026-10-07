@@ -26,9 +26,11 @@ public sealed partial class RunShellFunction : KernelFunctionBase
         var command = call.Require("command");
         var timeout = TimeSpan.FromSeconds(Math.Clamp(call.GetInt("timeout_seconds", 120), 1, 600));
         Directory.CreateDirectory(ctx.WorkspacePath);
-        var psi = IsWindows
-            ? new ProcessStartInfo("powershell.exe") { ArgumentList = { "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command } }
-            : new ProcessStartInfo("/bin/bash") { ArgumentList = { "-lc", command } };
+        var psi = ctx.Bot.Container is { Image.Length: > 0 } box
+            ? ContainerCommand(box, ctx, command)
+            : IsWindows
+                ? new ProcessStartInfo("powershell.exe") { ArgumentList = { "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command } }
+                : new ProcessStartInfo("/bin/bash") { ArgumentList = { "-lc", command } };
         psi.WorkingDirectory = ctx.WorkspacePath;
         psi.RedirectStandardOutput = true;
         psi.RedirectStandardError = true;
@@ -37,6 +39,8 @@ public sealed partial class RunShellFunction : KernelFunctionBase
         psi.CreateNoWindow = true;
         psi.StandardOutputEncoding = Encoding.UTF8;
         psi.StandardErrorEncoding = Encoding.UTF8;
+        // Pick up tools installed after this process started (install_package, installers run by earlier commands).
+        psi.Environment["PATH"] = Prerequisites.CurrentPath();
         psi.Environment["MARBOTS_BOT"] = ctx.Bot.Id;
         psi.Environment["MARBOTS_TASK"] = ctx.TaskId;
 
@@ -64,6 +68,24 @@ public sealed partial class RunShellFunction : KernelFunctionBase
         proc.WaitForExit(); // flush async readers
         var text = output.ToString();
         return new FunctionResult(proc.ExitCode == 0, $"exit code: {proc.ExitCode}\n{(text.Length == 0 ? "(no output)" : text)}");
+    }
+
+    /// <summary>
+    /// The bot's container profile: the command runs in a throwaway Docker container with CPU/RAM quotas and only the
+    /// workspace mounted (at /workspace).
+    /// </summary>
+    public static ProcessStartInfo ContainerCommand(ContainerProfile box, FunctionExecutionContext ctx, string command)
+    {
+        var psi = new ProcessStartInfo("docker");
+        foreach (var a in new[] { "run", "--rm", "-i", "--cpus", box.Cpus.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture), "--memory", $"{box.MemoryMb}m",
+                     "--label", "marbots.bot=" + ctx.Bot.Id, "-v", $"{ctx.WorkspacePath}:/workspace", "-w", "/workspace" })
+            psi.ArgumentList.Add(a);
+        if (!box.Network) { psi.ArgumentList.Add("--network"); psi.ArgumentList.Add("none"); }
+        psi.ArgumentList.Add(box.Image);
+        psi.ArgumentList.Add("sh");
+        psi.ArgumentList.Add("-lc");
+        psi.ArgumentList.Add(command);
+        return psi;
     }
 
     /// <summary>Keeps the head and the tail of long outputs; the end of a build log is usually what matters.</summary>
