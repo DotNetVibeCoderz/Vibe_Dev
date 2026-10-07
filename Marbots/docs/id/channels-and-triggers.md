@@ -19,8 +19,24 @@ langkah berikutnya.
 | **Slack** | Events API → `/api/v1/channels/{id}/slack` (signing secret, jendela replay 5 menit, `url_verification`) | `chat.postMessage` | `token`, `signingSecret` | diuji dengan API simulasi |
 | **WhatsApp** | Webhook Cloud API `/api/v1/channels/{id}/whatsapp` (verify token, `X-Hub-Signature-256`) | Graph API `messages` | `token`, `appSecret`, `verifyToken` | diuji dengan API simulasi |
 | **Discord** | Relay Anda melakukan POST ke URL inbound generik | Webhook kanal | `webhookUrl`, `inboundSecret` | diuji dengan API simulasi |
+| **E-mail** | Polling IMAP pada folder mailbox (setiap `pollSeconds`) | Balasan SMTP berutas (`Re:`, `In-Reply-To`, `References`) | `password` (app password) | diuji terhadap server protokol IMAP dan SMTP |
 
 Microsoft Teams, Zapier, n8n, dan Make bekerja melalui kanal **Webhook**.
+
+### E-mail
+
+Beri bot mailbox sendiri (misalnya `support-bot@perusahaan.com`) dan app password. Pengaturan: `username`,
+`fromAddress`, `fromName`, `imapHost`/`imapPort`/`imapSecurity` (`ssl` 993), `smtpHost`/`smtpPort`/`smtpSecurity`
+(`starttls` 587), `folder` (INBOX), dan `pollSeconds` (30).
+
+- Setiap alamat pengirim adalah satu percakapan, sehingga bot mengingat e-mail sebelumnya dari orang itu. Subjek e-mail
+  baru disertakan dalam prompt.
+- Hanya teks baru yang sampai ke bot. Riwayat kutipan ("On … wrote:", "Pada … menulis:", baris `>`, "Original Message"
+  Outlook) dan tanda tangan (`-- `) dibuang, dan e-mail yang hanya berisi HTML diubah menjadi teks.
+- Pencegah loop: Marbots tidak pernah membalas alamatnya sendiri, balasan otomatis (`Auto-Submitted`), e-mail massal atau
+  milis (`Precedence`), `no-reply@`, `mailer-daemon@`, atau kanal Marbots lain. Balasannya membawa
+  `Auto-Submitted: auto-replied`.
+- E-mail yang sudah diproses ditandai terbaca; batasi siapa yang boleh menulis lewat daftar pengirim yang diizinkan.
 
 ```bash
 # Kanal webhook generik

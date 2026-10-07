@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.gravicode</groupId>
   <artifactId>marbots-sdk</artifactId>
-  <version>0.2.0</version>
+  <version>0.3.0</version>
   <packaging>jar</packaging>
   <name>Marbots SDK for Java</name>
   <description>Typed Java client for Marbots, the multi-agent collaboration platform (Boss Man orchestration, per-bot models, skills, MCP, A2A). Built by Gravicode Studios, led by Kang Fadhil.</description>

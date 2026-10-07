@@ -84,7 +84,9 @@ diubah menjadi teks biasa sebelum dilihat model.
 
 ## Akses API
 
-API REST dan endpoint A2A terbuka di localhost secara bawaan. Untuk membuka Marbots ke jaringan, atur API key:
+API REST dan endpoint A2A terbuka di localhost secara bawaan. Untuk tenant, kunci API per tenant dengan peran
+(Viewer, Operator, Admin, Owner), dan single sign-on OIDC, lihat [Multi-tenant, database, dan masuk](multi-tenant.md).
+Untuk membuka server single-tenant ke jaringan, atur API key:
 
 ```json
 { "Marbots": { "ApiKey": "nilai-acak-yang-panjang" } }
@@ -92,6 +94,9 @@ API REST dan endpoint A2A terbuka di localhost secara bawaan. Untuk membuka Marb
 
 Klien lalu mengirim `X-Api-Key: <key>` (atau `Authorization: Bearer <key>`). Tempatkan server di belakang HTTPS
 (*reverse proxy*) jika dapat diakses dari mesin lain.
+
+Perlindungan terkait: agent host dapat diwajibkan memakai [mutual TLS](computers.md#mutual-tls), dan skill dapat
+diwajibkan [ditandatangani penerbit tepercaya](skills.md#paket-skill-bertanda-tangan).
 
 ## Pengaman Auto-Learn
 

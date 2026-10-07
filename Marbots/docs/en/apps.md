@@ -79,5 +79,12 @@ For a phone on the same network, start the server with `--urls http://0.0.0.0:51
 The mobile project is not part of `Marbots.slnx`, because CI on Linux has no MAUI workloads. Build it with the
 commands above.
 
+### Notifications when the app is closed
+
+**Settings → When the app is closed → Turn on push** registers a private random ntfy topic for the phone. Install the
+ntfy app and subscribe to it, and approvals and finished tasks arrive even when Marbots is closed. Native FCM and APNs
+tokens are supported by the server as well (see [Operations](operations.md#push-notifications)).
+
+
 ---
 *Marbots: Created by Gravicode Studios, led by Kang Fadhil.*

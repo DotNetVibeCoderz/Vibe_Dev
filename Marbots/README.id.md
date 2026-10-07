@@ -22,20 +22,23 @@ Anda juga bisa berbicara langsung dengan bot mana pun.
 
 - **Orkestrasi Boss Man**: DAG delegasi dengan eksekusi paralel, dependensi, pembatalan, dan batas kedalaman.
 - **Model per bot**: setiap bot bisa memakai modelnya sendiri (`provider/model` atau profil); bot tanpa pilihan memakai model bawaan workspace, dan model yang tidak tersedia otomatis kembali ke bawaan.
-- **Bot yang tahan lama**: persona, memori jangka pendek dan panjang (BM25 dengan asal-usul), pemadatan konteks otomatis, serta Auto-Learn opsional.
+- **Bot yang tahan lama**: persona, memori jangka pendek dan panjang (pencarian hybrid kata kunci + vektor, dengan asal-usul), pemadatan konteks otomatis, serta Auto-Learn opsional.
 - **Galeri templat**: 58 peran siap pakai dalam 11 kategori (engineering, desain, produk, keuangan, HR, legal,
   pemasaran, layanan pelanggan, pendidikan, dan lainnya). Buat templat sendiri lengkap dengan nama, instruksi, MCP, dan skill.
 - **Skill**: paket `SKILL.md` (kompatibel dengan Claude/Agent Skills dan OpenClaw) dengan pengungkapan bertahap; 20 skill bawaan; bisa dipasang dari git.
 - **MCP**: klien stdio dan HTTP, galeri terkurasi, server terikat workspace, server kustom, referensi secret.
 - **Kernel function**: berkas, grep, shell (PowerShell/bash), `install_package` (winget/apt/brew/pip/npm…), pencarian/pengambilan web, memori, todo, dan computer use (screenshot, mouse, keyboard).
-- **Bot di komputer lain**: pasang agen `marbots-host` di PC mana pun lewat SSH dalam satu langkah; bot yang ditempatkan di sana menjalankan berkas, shell, container Docker, dan tool desktop di PC itu, sementara model, memori, dan persetujuan tetap di server. Placement otomatis, sambung ulang, pembaruan bergulir.
+- **Bot di komputer lain**: pasang agen `marbots-host` di mesin Windows, Linux, atau macOS lewat SSH dalam satu langkah; bot yang ditempatkan di sana menjalankan berkas, shell, container Docker, dan tool desktop di mesin itu, sementara model, memori, dan persetujuan tetap di server. Placement sadar-GPU, host container sekali pakai, mutual TLS, sambung ulang, pembaruan bergulir.
+- **Multi-tenant**: satu runtime per tenant di SQLite, PostgreSQL, SQL Server, atau MySQL; kunci API per tenant, single sign-on OIDC, dan peran (Viewer, Operator, Admin, Owner).
 - **Evaluasi pembelajaran**: hasil per versi skill, putusan, uji coba draf auto-learn, rollback sekali klik atau otomatis.
 - **Desktop dan mobile**: aplikasi Avalonia dengan **kantor 3D** langsung (model Rodin, robot beranimasi Blender) dan aplikasi .NET MAUI dengan persetujuan dan notifikasi.
 - **Aman sejak desain**: mesin kebijakan deterministik dengan profil izin, persetujuan manusia (sekali atau per utas),
   secret terenkripsi, *sandbox* path, dan batasan prompt injection. Tersedia mode berbahaya *lewati persetujuan* untuk
   sandbox (Pengaturan, `marbots approvals skip on`, atau `--dangerously-skip-approvals`).
 - **Penjadwal**: job cron dan sekali jalan dengan zona waktu.
-- **Observabilitas**: satu aliran event untuk aktivitas obrolan langsung, denah **Kantor**, dasbor, SSE, dan CLI.
+- **Observabilitas**: satu aliran event untuk aktivitas obrolan langsung, denah **Kantor**, dasbor, SSE, dan CLI; trace dan metrik GenAI OpenTelemetry lewat OTLP.
+- **Kanal dan notifikasi**: web chat, webhook, Telegram, Slack, WhatsApp, Discord, dan e-mail; push ke ponsel lewat FCM, APNs, atau ntfy.
+- **Rantai pasok**: paket skill bertanda tangan dari penerbit tepercaya; SBOM CycloneDX dan checksum di setiap rilis.
 - **Interoperabilitas**: API REST + SSE, OpenAPI, Agent Card dan JSON-RPC **A2A**, ekspor/impor `.marbot` tanpa secret.
 - **SDK**: .NET, Python, TypeScript, Go, Java, dan Rust, ditambah CLI `marbots` dengan tema.
 - **Dwibahasa**: UI dan dokumentasi dalam Bahasa Indonesia dan Inggris.

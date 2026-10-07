@@ -21,20 +21,23 @@ teammates in parallel, waits for dependencies, reviews the results and reports b
 
 - **Boss Man orchestration**: delegation DAG with parallel fan-out, dependencies, cancellation and depth limits.
 - **Per-bot models**: each bot can run on its own model (`provider/model` or a profile); bots without one use the workspace default, and unusable models fall back to it.
-- **Durable bots**: persona, short- and long-term memory (BM25 with provenance), automatic context compaction, and optional Auto-Learn.
+- **Durable bots**: persona, short- and long-term memory (hybrid keyword + vector search, with provenance), automatic context compaction, and optional Auto-Learn.
 - **Template gallery**: 58 ready-made roles across 11 categories (engineering, design, product, finance, HR, legal,
   marketing, support, education and more). Create your own templates with name, instructions, MCP and skills.
 - **Skills**: `SKILL.md` packages (Claude/Agent Skills and OpenClaw compatible) with progressive disclosure; 20 built in; install from git.
 - **MCP**: stdio and HTTP client, a curated gallery, workspace-scoped servers, custom servers, secret references.
 - **Kernel functions**: files, grep, shell (PowerShell/bash), `install_package` (winget/apt/brew/pip/npm…), web search/fetch, memory, todo, and computer use (screenshot, mouse, keyboard).
-- **Bots on other computers**: install the `marbots-host` agent on any PC over SSH in one step; bots placed there run their files, shell, Docker containers and desktop tools on it while models, memory and approvals stay on the server. Automatic placement, reconnect, rolling updates.
+- **Bots on other computers**: install the `marbots-host` agent on any Windows, Linux or macOS machine over SSH in one step; bots placed there run their files, shell, Docker containers and desktop tools on it while models, memory and approvals stay on the server. GPU-aware placement, disposable container hosts, mutual TLS, reconnect, rolling updates.
+- **Multi-tenant**: one runtime per tenant on SQLite, PostgreSQL, SQL Server or MySQL; tenant API keys, OIDC single sign-on and roles (Viewer, Operator, Admin, Owner).
 - **Learning evaluation**: outcomes per skill version, verdicts, trials of auto-learned drafts, one-click or automatic rollback.
 - **Desktop and mobile**: an Avalonia app with a live **3D office** (Rodin models, Blender-animated robots) and a .NET MAUI app with approvals and notifications.
 - **Safety by design**: a deterministic policy engine with permission profiles, human approvals (once or per thread),
   encrypted secrets, path sandboxing, and prompt-injection boundaries. A dangerous *skip approvals* mode exists for
   sandboxes (Settings, `marbots approvals skip on`, or `--dangerously-skip-approvals`).
 - **Scheduler**: cron and one-off jobs with time zones.
-- **Observability**: a single event stream feeds the live chat activity, the **Office** floor plan, the dashboard, SSE and the CLI.
+- **Observability**: a single event stream feeds the live chat activity, the **Office** floor plan, the dashboard, SSE and the CLI; OpenTelemetry GenAI traces and metrics over OTLP.
+- **Channels and notifications**: web chat, webhook, Telegram, Slack, WhatsApp, Discord and e-mail; push to phones via FCM, APNs or ntfy.
+- **Supply chain**: signed skill packages from trusted publishers; CycloneDX SBOMs and checksums on every release.
 - **Interop**: REST + SSE API, OpenAPI, **A2A** agent cards and JSON-RPC, `.marbot` export/import without secrets.
 - **SDKs**: .NET, Python, TypeScript, Go, Java and Rust, plus the `marbots` CLI with themes.
 - **Bilingual**: UI and docs in English and Bahasa Indonesia.

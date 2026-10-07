@@ -33,7 +33,8 @@ Yang terjadi:
 3. **Enroll.** Token sekali pakai (berlaku 10 menit, disimpan hanya sebagai hash) ditukar dengan id dan secret host.
    Di Windows, secret dilindungi DPAPI untuk pengguna tersebut.
 4. **Jalan saat logon.** Di Windows berupa scheduled task di sesi desktop pengguna, sehingga tool computer-use bisa
-   melihat layar. Di Linux berupa systemd user service.
+   melihat layar. Di Linux berupa systemd user service. Di macOS berupa launchd agent (`id.gravicode.marbots-host`);
+   binary-nya ditandatangani ad hoc, yang diwajibkan Apple silicon.
 5. **Online.** Host terhubung keluar ke server (aman di balik NAT) dan melaporkan kemampuannya.
 
 Password atau key SSH hanya dipakai untuk permintaan itu dan tidak pernah disimpan. Untuk platform lain, buat paket
@@ -88,6 +89,60 @@ Nama umum dipetakan ke id paket yang benar: `python`, `node`, `git`, `java`, `go
 perlu hak administrator. Sebelum memasang, tool memeriksa apakah program sudah ada. Setelahnya, setiap panggilan
 `run_shell` membaca PATH terbaru, sehingga tool baru langsung bisa dipakai. `install_package` meminta persetujuan
 seperti perintah shell lain, kecuali profil bot `autonomous`.
+
+## GPU
+
+Host melaporkan GPU-nya: NVIDIA (nvidia-smi, dengan pemakaian dan memori bebas langsung di heartbeat), AMD (rocm-smi di
+Linux), Apple (Metal; memori terpadu), dan adapter Windows apa pun (WMI). GPU menambah kemampuan `gpu` beserta API-nya
+(`cuda`, `rocm`, `metal`, `directx`). `marbots-host capabilities` menampilkan apa yang dimiliki sebuah mesin.
+
+Beri bot persyaratan dan biarkan placement memilih (`HostRef: auto`):
+
+```json
+{ "hostRef": "auto", "requires": ["cuda", "gpu:16"] }
+```
+
+`gpu:16` berarti minimal 16 GB memori pada satu GPU. Di antara host yang memenuhi syarat, placement memilih GPU yang
+menganggur dengan memori bebas terbanyak. Persyaratan lain bekerja sama: `docker`, `python`, `node`, `dotnet`,
+`playwright`, `desktop`. Dalam uji coba di DEV2, bot yang mensyaratkan `gpu:2` otomatis ditempatkan di satu-satunya
+mesin dengan GPU 2 GB, lalu melaporkan nama mesin dan GPU-nya.
+
+## Mutual TLS
+
+Saat mendaftar, host membuat kunci P-256 yang tidak pernah meninggalkan mesin itu dan mengirim permintaan penandatanganan
+sertifikat (CSR). CA host milik server (satu per tenant, kuncinya dienkripsi dengan Data Protection) menandatangani
+sertifikat klien dengan CN = id host. Pada server HTTPS, host menunjukkan sertifikat itu saat terhubung, di samping
+secret-nya.
+
+```json
+"HostSecurity": { "RequireClientCertificate": true }
+```
+
+- Hanya sertifikat terbaru sebuah host yang diterima, sehingga perpanjangan dan penghapusan host mencabut sertifikat
+  lama. Host memperpanjang sendiri saat masa berlaku tinggal sepertiga; `marbots-host renew` memperpanjang sekarang.
+  Perpanjangan harus dilakukan dengan sertifikat yang masih berlaku, sehingga secret curian saja tidak cukup untuk
+  mendapatkannya.
+- Di belakang proxy yang mengakhiri TLS, atur `ClientCertificateHeader` (misalnya `X-Client-Cert` dengan nginx
+  `$ssl_client_escaped_cert`).
+- Server dengan CA privat: `marbots-host enroll … --server-ca ca.pem`.
+
+Diuji di Windows dengan Kestrel lewat HTTPS: host dengan sertifikatnya berhasil terhubung; tanpa sertifikat, koneksinya
+ditolak dengan 401.
+
+## Host container ("VM" sekali pakai)
+
+Mesin yang mampu menjalankan Docker (server ini, atau host mana pun dengan kemampuan `docker`) dapat menjalankan host
+sekali pakai: `marbots-host` di dalam container yang mendaftarkan dirinya sendiri, menyimpan identitasnya di volume
+bernama, dan ikut dijalankan ulang oleh Docker.
+
+```bash
+marbots hosts provision sandbox-1 --on host-dev2-bba5 --server http://host.docker.internal:5170 --cpus 1 --memory 1024
+marbots hosts remove host-sandbox-1-990c      # sekaligus menghapus container dan volumenya
+```
+
+Opsi: `--gpu` (`--gpus all`), `--no-network`, `--image`, `--arch arm64`. Paket host Linux (`marbots-host-linux-x64`)
+harus ada di `data/host-packages`. Dalam uji coba, host container di DEV2 menjalankan tugas shell sebuah bot (Ubuntu
+24.04, batas memori 1 GiB ditegakkan), dan menghapus host turut menghapus container serta volumenya.
 
 ## Container
 

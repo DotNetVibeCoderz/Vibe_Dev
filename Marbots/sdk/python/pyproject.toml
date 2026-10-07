@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "marbots-sdk"
-version = "0.2.0"
+version = "0.3.0"
 description = "Typed Python SDK for Marbots, the multi-agent collaboration platform (Boss Man orchestration, per-bot models, skills, MCP, A2A). By Gravicode Studios, led by Kang Fadhil."
 readme = "README.md"
 requires-python = ">=3.9"

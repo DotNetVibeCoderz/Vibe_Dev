@@ -19,8 +19,24 @@ operator needs to approve the next step.
 | **Slack** | Events API → `/api/v1/channels/{id}/slack` (signing secret, 5-minute replay window, `url_verification`) | `chat.postMessage` | `token`, `signingSecret` | tested with a simulated API |
 | **WhatsApp** | Cloud API webhook `/api/v1/channels/{id}/whatsapp` (verify token, `X-Hub-Signature-256`) | Graph API `messages` | `token`, `appSecret`, `verifyToken` | tested with a simulated API |
 | **Discord** | Your relay POSTs to the generic inbound URL | Channel webhook | `webhookUrl`, `inboundSecret` | tested with a simulated API |
+| **E-mail** | IMAP polling of a mailbox folder (every `pollSeconds`) | SMTP reply, threaded (`Re:`, `In-Reply-To`, `References`) | `password` (app password) | tested against IMAP and SMTP protocol servers |
 
 Microsoft Teams, Zapier, n8n and Make work through the **Webhook** channel.
+
+### E-mail
+
+Give the bot its own mailbox (for example `support-bot@company.com`) and an app password. Settings: `username`,
+`fromAddress`, `fromName`, `imapHost`/`imapPort`/`imapSecurity` (`ssl` 993), `smtpHost`/`smtpPort`/`smtpSecurity`
+(`starttls` 587), `folder` (INBOX) and `pollSeconds` (30).
+
+- Each sender address is one conversation, so the bot remembers earlier mails from that person. The subject of a new
+  mail is included in the prompt.
+- Only the new text reaches the bot. Quoted history ("On … wrote:", "Pada … menulis:", `>` lines, Outlook's
+  "Original Message") and signatures (`-- `) are removed, and HTML-only mails are converted to text.
+- Loop protection: Marbots never answers its own address, auto-replies (`Auto-Submitted`), bulk or list mail
+  (`Precedence`), `no-reply@`, `mailer-daemon@` or another Marbots channel. Its replies carry
+  `Auto-Submitted: auto-replied`.
+- Processed mails are marked as read; restrict who may write with the allowed-senders list.
 
 ```bash
 # Generic webhook channel

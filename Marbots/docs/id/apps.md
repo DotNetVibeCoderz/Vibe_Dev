@@ -79,5 +79,11 @@ Untuk ponsel di jaringan yang sama, jalankan server dengan `--urls http://0.0.0.
 Proyek mobile tidak termasuk dalam `Marbots.slnx`, karena CI di Linux tidak punya workload MAUI. Build dengan perintah
 di atas.
 
+### Notifikasi saat aplikasi tertutup
+
+**Settings → When the app is closed → Turn on push** mendaftarkan topik ntfy acak pribadi untuk ponsel. Pasang aplikasi
+ntfy dan berlangganan topik itu, maka persetujuan dan tugas yang selesai tetap masuk walaupun Marbots tertutup. Token
+FCM dan APNs native juga didukung server (lihat [Operasional](operations.md#notifikasi-push)).
+
 ---
 *Marbots — Dibuat oleh Gravicode Studios dipimpin oleh Kang Fadhil.*

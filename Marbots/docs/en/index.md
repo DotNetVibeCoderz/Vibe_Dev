@@ -15,9 +15,11 @@ and permission boundaries.
 | [MCP servers](mcp.md) | Gallery, workspace-scoped servers, custom stdio/HTTP servers |
 | [Security](security.md) | Policy engine, approvals, secrets, prompt injection, API keys |
 | [Schedules](scheduling.md) | Cron and one-off jobs |
-| [Computers](computers.md) | Run bots on other machines: SSH bootstrap, agent host, placement, containers, install_package, computer use |
+| [Computers](computers.md) | Run bots on other machines: SSH bootstrap (Windows, Linux, macOS), agent host, GPU placement, container hosts, mutual TLS, install_package, computer use |
 | [Desktop and mobile apps](apps.md) | Avalonia app with the 3D office (Rodin + Blender assets), MAUI mobile app with notifications |
-| [Channels and triggers](channels-and-triggers.md) | Web chat, webhook, Telegram, Slack, WhatsApp, Discord; webhook and event triggers; suggest mode; A2A streaming |
+| [Channels and triggers](channels-and-triggers.md) | Web chat, webhook, Telegram, Slack, WhatsApp, Discord, e-mail; webhook and event triggers; suggest mode; A2A streaming |
+| [Multi-tenant, databases and sign-in](multi-tenant.md) | Tenants, SQLite/PostgreSQL/SQL Server/MySQL, hybrid memory, API keys, OIDC, roles |
+| [Operations](operations.md) | OpenTelemetry, push notifications (FCM/APNs/ntfy), releases and SBOMs, performance |
 | [API, A2A, SDKs and CLI](api-and-sdks.md) | REST + SSE, Agent2Agent, .NET/Python/TypeScript/Go SDKs, `marbots` CLI |
 | [Architecture](architecture.md) | Modules, request flow, performance, configuration |
 | [Trials](trials.md) | What the bots built with a real LLM, with screenshots |

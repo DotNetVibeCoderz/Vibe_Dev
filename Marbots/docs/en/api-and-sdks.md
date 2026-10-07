@@ -116,6 +116,18 @@ conformance test that drives a real server.
 
 Each SDK keeps its compile-time typo checks and a conformance test against a real server for these calls.
 
+### What's new in 0.3.0
+
+- **Tenancy**: `Tenancy` / `tenancy` API in every SDK (`whoami`, tenants, keys, members). Base URLs may end in
+  `/t/<tenant>`, and a `tenant` option sends `X-Marbots-Tenant`. OIDC access tokens can be passed as the API key and
+  are sent as `Authorization: Bearer`.
+- **Push** (.NET SDK): `client.Push.RegisterAsync("ntfy" | "fcm" | "apns", token)`, `TestAsync()`.
+- **Container hosts** (.NET SDK, CLI): `client.Hosts.ProvisionAsync(…)`, `marbots hosts provision`.
+- **Skills**: `PublishersAsync`, `TrustPublisherAsync`; the CLI signs and verifies packages offline.
+
+New endpoints: `/api/v1/whoami`, `/api/v1/tenants…`, `/api/v1/tenant/keys…`, `/api/v1/tenant/members…`,
+`/api/v1/push/{config,devices,test}`, `/api/v1/hosts/{provision,renew}`, `/api/v1/skills/publishers`.
+
 ## Per-bot models
 
 ```bash

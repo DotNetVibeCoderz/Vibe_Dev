@@ -116,6 +116,18 @@ membuktikan salah ketik yang disengaja gagal di-compile, serta tes conformance t
 
 Setiap SDK tetap memiliki pemeriksaan typo saat kompilasi dan uji conformance terhadap server sungguhan untuk panggilan ini.
 
+### Yang baru di 0.3.0
+
+- **Tenancy**: API `Tenancy` / `tenancy` di setiap SDK (`whoami`, tenant, kunci, anggota). URL dasar boleh diakhiri
+  `/t/<tenant>`, dan opsi `tenant` mengirim `X-Marbots-Tenant`. Access token OIDC dapat diberikan sebagai API key dan
+  dikirim sebagai `Authorization: Bearer`.
+- **Push** (SDK .NET): `client.Push.RegisterAsync("ntfy" | "fcm" | "apns", token)`, `TestAsync()`.
+- **Host container** (SDK .NET, CLI): `client.Hosts.ProvisionAsync(…)`, `marbots hosts provision`.
+- **Skill**: `PublishersAsync`, `TrustPublisherAsync`; CLI menandatangani dan memverifikasi paket secara offline.
+
+Endpoint baru: `/api/v1/whoami`, `/api/v1/tenants…`, `/api/v1/tenant/keys…`, `/api/v1/tenant/members…`,
+`/api/v1/push/{config,devices,test}`, `/api/v1/hosts/{provision,renew}`, `/api/v1/skills/publishers`.
+
 ## Model per bot
 
 ```bash

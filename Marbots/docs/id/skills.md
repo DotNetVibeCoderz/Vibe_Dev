@@ -94,5 +94,27 @@ begitu pula `marbots skills` dan `GET /api/v1/skills/evaluations`:
 - **Berkas skill.** Memuat skill menyalin berkasnya (skrip, templat) ke workspace di `.skills/<nama>/`, juga di
   komputer jarak jauh, sehingga bot bisa menjalankan skrip skill.
 
+## Paket skill bertanda tangan
+
+Skill dapat ditandatangani, sehingga server tahu siapa penerbitnya dan bahwa tidak ada yang berubah sejak itu.
+`SIGNATURE.json` memuat penerbit, id kunci, dan SHA-256 setiap file, lalu ditandatangani dengan ECDSA P-256.
+
+```bash
+marbots skills keygen gravicode                              # gravicode.key.pem (rahasia) + gravicode.pub.pem
+marbots skills sign ./invoice-check --key gravicode.key.pem --publisher gravicode
+marbots skills verify ./invoice-check gravicode.pub.pem
+marbots skills trust gravicode gravicode.pub.pem             # di server (Admin)
+```
+
+| Status tanda tangan | Yang terjadi |
+|---|---|
+| Terverifikasi (penerbit tepercaya, file tidak berubah) | Dipasang dan dimuat; label kepercayaan "Verified Publisher", ✓ penerbit di halaman Skills |
+| Ditandatangani penerbit tak dikenal | Dimuat sebagai skill lokal biasa, ditandai "signed · penerbit" |
+| **Tidak valid** (ada file ditambah, dihapus, atau diubah, atau tanda tangan salah) | **Tidak pernah dipasang atau dimuat**, siapa pun penandatangannya |
+| Tidak bertanda tangan | Dimuat, kecuali `RequireSignedSkills` menyala |
+
+Penerbit tepercaya diambil dari `Marbots:TrustedSkillPublishers` (`{ Name, PublicKeyPem }`) dan dari
+`data/trusted-publishers/<nama>.pem`.
+
 ---
 *Marbots — Dibuat oleh Gravicode Studios dipimpin oleh Kang Fadhil.*

@@ -45,4 +45,4 @@ __all__ = [
     "SkillInfo", "McpServer", "ScheduleSpec", "ScheduleJob", "HostInfo", "SystemInfo",
     "TenancyApi", "TenantRole", "TenantInfo", "ApiKeyInfo", "NewApiKey", "TenantMember", "WhoAmI",
 ]
-__version__ = "0.2.0"
+__version__ = "0.3.0"

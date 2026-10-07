@@ -15,9 +15,11 @@ memori, skill, tool MCP, dan batasan izin masing-masing.
 | [Server MCP](mcp.md) | Galeri, server terikat workspace, server stdio/HTTP kustom |
 | [Keamanan](security.md) | Mesin kebijakan, persetujuan, secret, prompt injection, API key |
 | [Jadwal](scheduling.md) | Job cron dan sekali jalan |
-| [Komputer](computers.md) | Menjalankan bot di mesin lain: bootstrap SSH, agent host, placement, container, install_package, computer use |
+| [Komputer](computers.md) | Menjalankan bot di mesin lain: bootstrap SSH (Windows, Linux, macOS), agent host, placement GPU, host container, mutual TLS, install_package, computer use |
 | [Aplikasi desktop dan mobile](apps.md) | Aplikasi Avalonia dengan kantor 3D (aset Rodin + Blender), aplikasi mobile MAUI dengan notifikasi |
-| [Kanal dan trigger](channels-and-triggers.md) | Web chat, webhook, Telegram, Slack, WhatsApp, Discord; trigger webhook dan event; mode suggest; streaming A2A |
+| [Kanal dan trigger](channels-and-triggers.md) | Web chat, webhook, Telegram, Slack, WhatsApp, Discord, e-mail; trigger webhook dan event; mode suggest; streaming A2A |
+| [Multi-tenant, database, dan masuk](multi-tenant.md) | Tenant, SQLite/PostgreSQL/SQL Server/MySQL, memori hybrid, kunci API, OIDC, peran |
+| [Operasional](operations.md) | OpenTelemetry, notifikasi push (FCM/APNs/ntfy), rilis dan SBOM, performa |
 | [API, A2A, SDK, dan CLI](api-and-sdks.md) | REST + SSE, Agent2Agent, SDK .NET/Python/TypeScript/Go, CLI `marbots` |
 | [Arsitektur](architecture.md) | Modul, alur permintaan, performa, konfigurasi |
 | [Uji coba](trials.md) | Apa yang dibangun para bot dengan LLM sungguhan, lengkap dengan tangkapan layar |

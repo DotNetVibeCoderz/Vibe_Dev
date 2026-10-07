@@ -80,7 +80,9 @@ model is tricked, the policy engine still decides what may run. Web content is s
 
 ## API access
 
-The REST API and A2A endpoints are open on localhost by default. To expose Marbots on a network, set an API key:
+The REST API and A2A endpoints are open on localhost by default. For tenants, per-tenant API keys with roles
+(Viewer, Operator, Admin, Owner), and OIDC single sign-on, see [Multi-tenant, databases and sign-in](multi-tenant.md).
+To expose a single-tenant server on a network, set an API key:
 
 ```json
 { "Marbots": { "ApiKey": "a-long-random-value" } }
@@ -88,6 +90,9 @@ The REST API and A2A endpoints are open on localhost by default. To expose Marbo
 
 Clients then send `X-Api-Key: <key>` (or `Authorization: Bearer <key>`). Put the server behind HTTPS (reverse proxy) when
 it is reachable from other machines.
+
+Related protections: agent hosts can be required to use [mutual TLS](computers.md#mutual-tls), and skills can be
+required to be [signed by a trusted publisher](skills.md#signed-skill-packages).
 
 ## Auto-Learn safeguards
 

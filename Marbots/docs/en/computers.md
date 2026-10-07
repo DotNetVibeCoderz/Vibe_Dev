@@ -33,7 +33,8 @@ What happens:
 3. **Enroll.** A one-time token (valid 10 minutes, stored only as a hash) is exchanged for the host's id and secret.
    On Windows the secret is protected with DPAPI for that user.
 4. **Start at logon.** On Windows this is a scheduled task in the user's desktop session, so computer-use tools can see
-   the screen. On Linux it is a systemd user service.
+   the screen. On Linux it is a systemd user service. On macOS it is a launchd agent (`id.gravicode.marbots-host`); the
+   binary is signed ad hoc, which Apple silicon requires.
 5. **Online.** The host connects out to the server (it works behind NAT) and reports its capabilities.
 
 The SSH password or key is used for that request only and is never stored. Build a package for another platform with
@@ -88,6 +89,57 @@ Common names map to the right package ids: `python`, `node`, `git`, `java`, `go`
 administrator rights. Before installing, the tool checks whether the program is already there. Afterwards, every
 `run_shell` call reads the updated PATH, so the new tool works immediately. `install_package` asks for approval like
 any shell command, unless the bot's profile is `autonomous`.
+
+## GPUs
+
+Hosts report their GPUs: NVIDIA (nvidia-smi, with live utilisation and free memory in the heartbeat), AMD (rocm-smi on
+Linux), Apple (Metal; unified memory) and any Windows adapter (WMI). A GPU adds the capabilities `gpu` plus its API
+(`cuda`, `rocm`, `metal`, `directx`). `marbots-host capabilities` lists what a machine has.
+
+Give a bot requirements and let placement choose (`HostRef: auto`):
+
+```json
+{ "hostRef": "auto", "requires": ["cuda", "gpu:16"] }
+```
+
+`gpu:16` means at least 16 GB of memory on one GPU. Among the hosts that qualify, placement prefers idle GPUs with the
+most free memory. Other requirements work the same way: `docker`, `python`, `node`, `dotnet`, `playwright`, `desktop`.
+In the trial on DEV2, a bot that required `gpu:2` was placed automatically on the only machine with a 2 GB GPU, and it
+reported that machine's name and GPUs.
+
+## Mutual TLS
+
+When a host enrolls, it makes a P-256 key that never leaves the machine and sends a certificate signing request. The
+server's host CA (one per tenant, key encrypted with Data Protection) signs a client certificate with CN = host id. On
+an HTTPS server the host presents that certificate when it connects, on top of its secret.
+
+```json
+"HostSecurity": { "RequireClientCertificate": true }
+```
+
+- Only the host's latest certificate is accepted, so renewal and host removal revoke the old one. Hosts renew on their
+  own when a third of the lifetime is left; `marbots-host renew` renews now. A renewal must be made with the current
+  certificate, so a stolen secret alone cannot obtain one.
+- Behind a TLS-terminating proxy, set `ClientCertificateHeader` (for example `X-Client-Cert` with nginx
+  `$ssl_client_escaped_cert`).
+- A server with a private CA: `marbots-host enroll … --server-ca ca.pem`.
+
+Tested on Windows with Kestrel over HTTPS: a host with its certificate connects; without it, the connection is refused
+with 401.
+
+## Container hosts (disposable "VMs")
+
+A Docker-capable machine (this server or any host with the `docker` capability) can start disposable hosts:
+`marbots-host` in a container that enrolls itself, keeps its identity in a named volume and restarts with Docker.
+
+```bash
+marbots hosts provision sandbox-1 --on host-dev2-bba5 --server http://host.docker.internal:5170 --cpus 1 --memory 1024
+marbots hosts remove host-sandbox-1-990c      # also removes the container and its volume
+```
+
+Options: `--gpu` (`--gpus all`), `--no-network`, `--image`, `--arch arm64`. The Linux host package
+(`marbots-host-linux-x64`) must be in `data/host-packages`. In the trial a container host on DEV2 ran a bot's shell
+task (Ubuntu 24.04, 1 GiB memory limit enforced), and removing the host removed the container and its volume.
 
 ## Containers
 

@@ -51,11 +51,11 @@ flowchart LR
 | Project | Responsibility |
 |---|---|
 | `Marbots.Abstractions` | Contracts: models, events, interfaces (`IModelProvider`, `IKernelFunction`, `IPolicyEngine`, `IMemoryStore`, stores), source-generated JSON context |
-| `Marbots.Storage` | SQLite: JSON document table, message log (per-thread sequence), event log, FTS5 memory |
+| `Marbots.Storage` | SQLite, PostgreSQL, SQL Server or MySQL (one dialect each): JSON document table, message log (per-thread sequence), event log, hybrid memory (keyword + vectors); every row has a `tenant` |
 | `Marbots.Providers` | OpenAI-compatible chat completions (Azure v1, OpenAI, DeepSeek, Ollama…) with retry/backoff; deterministic mock |
 | `Marbots.Kernel` | Built-in tools and workspace path safety |
 | `Marbots.Runtime` | Engine, agent loop, delegation, context/compaction, memory recall, skills, MCP client, policy, approvals, scheduler, auto-learn, `.marbot` packages, templates, DI |
-| `Marbots.Server` | ASP.NET Core host: REST/SSE API, A2A, Blazor Server UI, API-key middleware, data protection |
+| `Marbots.Server` | ASP.NET Core host: REST/SSE API, A2A, Blazor Server UI, tenancy and sign-in (API keys, OIDC/JWT, roles), OpenTelemetry export, data protection |
 | `Marbots.Sdk` | .NET client |
 | `Marbots.Cli` | `marbots` command line |
 | `sdk/python`, `sdk/typescript`, `sdk/go` | Other SDKs |
@@ -83,7 +83,17 @@ flowchart LR
 - Shell output is captured into a head+tail bounded buffer; file reads, grep and web fetch are size-capped.
 - Older tool outputs are truncated in the model context; the full content stays in storage.
 - UI pages coalesce bursts of events into at most one re-render per throttle window.
-- Rust: none of the current hot paths justify native code yet (see ADR-008 in [PLAN.md](../../PLAN.md)).
+- Grep searches UTF-8 bytes before decoding and runs over files in parallel; memory vector search reads only ids and
+  vectors, with SIMD cosine. Measurements: [Operations → Performance](operations.md#performance).
+- Rust: profiling found algorithmic costs, which C# fixed, so no native library (ADR-008/ADR-011 in [PLAN.md](../../PLAN.md)).
+
+## Tenancy
+
+In multi-tenant mode each tenant has its own runtime: a separate service provider with its own engine, stores
+(bound to the tenant), scheduler, channels, MCP processes, host connections and data folder. Requests and Blazor
+circuits resolve runtime services through a scoped `TenantAccessor`, which middleware (API) or the circuit handler (UI)
+points at the caller's tenant. Tenant runtime services are deliberately not `IDisposable`, so a request scope can never
+dispose a tenant's singleton (a test guards this). See [Multi-tenant](multi-tenant.md).
 
 ## Configuration (`appsettings.json` → `Marbots`)
 
@@ -97,7 +107,15 @@ flowchart LR
 | `MaxDelegationDepth` | 2 | How deep delegation may nest |
 | `ApprovalTimeoutMinutes` | 30 | Pending approval lifetime |
 | `SeedStarterBots` | true | Hire Atlas, Alice, Quinn and Wren on first run |
-| `ApiKey` | — | Require `X-Api-Key` on `/api` and `/a2a` |
+| `ApiKey` | — | Require `X-Api-Key` on `/api` and `/a2a` (platform admin key in multi-tenant mode) |
+| `Database` | SQLite | `{ Provider: sqlite\|postgresql\|sqlserver\|mysql, ConnectionString }` |
+| `EmbeddingModel` | `hash` | `hash`, `none` or `provider/model` for memory vectors |
+| `MultiTenant` | false | One runtime per tenant ([Multi-tenant](multi-tenant.md)) |
+| `Auth` | apikey | `{ Mode: apikey\|oidc, Authority, ClientId, ClientSecret, Audience, TenantClaim, RoleClaim, PlatformAdmins[], JwtSigningKey }` |
+| `Telemetry` | off | `{ OtlpEndpoint, Protocol, ServiceName, HeadersSecret, Traces, Metrics, Logs }` |
+| `Push` | ntfy.sh | `{ NtfyServer, ApnsKeyId, ApnsTeamId, ApnsBundleId, PublicUrl, … }` |
+| `HostSecurity` | — | `{ RequireClientCertificate, AcceptTlsClientCertificates, ClientCertificateHeader, CertificateDays }` |
+| `TrustedSkillPublishers`, `RequireSignedSkills` | —, false | Signed skill packages |
 | `Secrets:NAME` | — | Secrets from configuration |
 
 ---

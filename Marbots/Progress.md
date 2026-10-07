@@ -3,12 +3,15 @@
 Development log and current status. The roadmap is in [PLAN.md](PLAN.md).
 *Dibuat oleh Gravicode Studios dipimpin oleh Kang Fadhil.*
 
-## Snapshot — 2026-10-07 (v0.2 in progress)
+## Snapshot — 2026-10-07 (v0.3)
 
 | Area | Status | Notes |
 |---|---|---|
 | Solution & build | ✅ | .NET 10, `Marbots.slnx`, 10 projects + tests (+ MAUI mobile outside the slnx), central package management, nullable, analyzers |
-| Storage | ✅ | SQLite WAL: documents, messages (per-thread seq), events, FTS5 memory |
+| Storage | ✅ | SQLite (WAL), PostgreSQL, SQL Server, MySQL: documents, messages (per-thread seq), events, hybrid memory (FTS5/BM25 + vectors); `tenant` on every row; automatic migration of older SQLite files |
+| Multi-tenant & sign-in | ✅ | Runtime per tenant, tenant API keys, OIDC + JWT, roles, Access page, tenant switcher, `/t/<tenant>` URLs; tenancy in all six SDKs and the CLI |
+| Telemetry | ✅ | OpenTelemetry GenAI spans + metrics + logs over OTLP (verified against an OTLP/HTTP receiver) |
+| Push | ✅ | FCM HTTP v1, APNs, ntfy; device API; mobile ntfy registration |
 | Model providers | ✅ | Azure OpenAI v1, OpenAI-compatible (DeepSeek/Ollama/…), retries with backoff, profile fallbacks, mock |
 | Agent runtime | ✅ | Tool loop, policy checks, approvals, timeouts, metering, step limit with summary |
 | Boss Man & delegation | ✅ | Protected bot; DAG delegation with parallelism, dependencies, cycle detection, depth limit, cascade cancel |
@@ -24,21 +27,21 @@ Development log and current status. The roadmap is in [PLAN.md](PLAN.md).
 | Web UI (Blazor) | ✅ | Chat, Office, Tasks, Approvals, Team, Bot editor, Templates, Skills, MCP, Schedules, Memory, Dashboard, Settings, About; EN/ID; light/dark |
 | REST + SSE API | ✅ | `/api/v1`, OpenAPI, optional API key |
 | A2A | ✅ | Agent cards, `message/send`, `message/stream` (SSE), `tasks/get`, `tasks/cancel` |
-| Channels | ✅ | WebChat (real-LLM tested), Webhook, Telegram, Slack, WhatsApp, Discord (provider APIs simulated in tests) |
+| Channels | ✅ | WebChat (real-LLM tested), Webhook, Telegram, Slack, WhatsApp, Discord (provider APIs simulated in tests), E-mail (IMAP/SMTP, tested against protocol servers) |
 | Triggers & suggest mode | ✅ | Webhook (secret/HMAC) and event triggers with loop guards; delegation plans can require approval |
 | Per-bot models | ✅ | `default` / `provider/model` / profile per bot; workspace default; fallback to default; model recorded per task; UI, API, CLI, SDKs, `create_bot` |
 | Skip approvals | ✅ | Dangerous mode like `--dangerously-skip-permissions`: Settings toggle, `marbots approvals skip on`, server flag `--dangerously-skip-approvals`, API/SDK; profile denies still apply; audited |
 | SDKs (typed, DotCode style) | ✅ | .NET, Python (`marbots-sdk`, mypy --strict + typo test), TypeScript (`@gravicode/marbots`, `@ts-expect-error` typo test), Go, Java (JitPack, javac -Werror), Rust (`marbots-sdk`, clippy -D warnings) — each with a conformance test against a real server, all in CI |
 | CLI | ✅ | status, bots, bot * (incl. host, container, skills, packs, profile), templates, chat (token streaming), tasks, approvals, skills (evaluations, rollback/promote/discard), mcp, schedules, hosts (token, bootstrap, update, disable/remove), logs, themes |
 | Docs | ✅ | 14 pages × EN/ID (new: computers, apps), glossary, screenshots, README EN/ID |
-| Remote hosts / AgentHost | ✅ | `marbots-host` (Spectre.Console dashboard), WebSocket protocol, enrollment, SSH bootstrap + `--update`, placement, Docker profiles, reconnect + idempotent re-send, remote files; tested on a second PC |
+| Remote hosts / AgentHost | ✅ | `marbots-host` (Spectre.Console dashboard), WebSocket protocol, enrollment, SSH bootstrap (Windows, Linux, macOS) + `--update`, mutual TLS, GPU-aware placement, container hosts, Docker profiles, reconnect + idempotent re-send, remote files; tested on DEV2 and an Intel Mac |
 | Desktop / mobile / 3D office | ✅ | Avalonia app with the Three.Net 3D office (Rodin assets, Blender-rigged robot with 6 clips); MAUI Blazor Hybrid app with approvals and notifications |
 | Streaming | ✅ | Token streaming (SSE) in web chat, CLI, desktop and mobile; transient events not stored |
 | Learning evaluation | ✅ | Outcomes per skill version, verdicts, trials of drafts, history, manual/automatic rollback |
 
 ## Tests
 
-`dotnet test tests/Marbots.Tests` → **81 passed, 0 failed** (≈ 30 s, no network). Python SDK: mypy --strict + 10 rejected typos + 7 conformance tests; TypeScript SDK: 13 rejected typos + 7 conformance tests. Coverage includes:
+`dotnet test tests/Marbots.Tests` → **176 passed, 0 failed** (≈ 75 s, no network; storage tests also on PostgreSQL, SQL Server and MySQL when `MARBOTS_TEST_*` are set, as in CI). Python SDK: mypy --strict + 10 rejected typos + 7 conformance tests; TypeScript SDK: 13 rejected typos + 7 conformance tests. Coverage includes:
 
 - Policy profiles, critical-risk override, session grants, deny precedence
 - Cron parsing/next-run (steps, ranges, DOM/DOW OR rule, time zones, invalid input)
@@ -95,11 +98,33 @@ Seven concurrent jobs plus A2A: **16/16 tasks completed**, ~1.02 M tokens, ≈ $
   discard, auto-rollback), bot placement (`hostRef`, container profile) and the desktop/subagents packs, each with
   typo checks and conformance tests. `marbots-host` binaries are attached to the GitHub release.
 
+- **2026-10-07 (f)**: Backlog completed (0.3).
+  - **Storage and tenancy.** PostgreSQL, SQL Server and MySQL storage with a tenant column, plus hybrid memory search.
+    Multi-tenant mode runs one runtime per tenant, with tenant API keys, OIDC/JWT sign-in, roles, the Access page and
+    a tenant switcher. All six SDKs and the CLI support tenancy.
+  - **Operations.** OpenTelemetry (GenAI spans, metrics, OTLP); an e-mail channel; push notifications (FCM, APNs,
+    ntfy).
+  - **Hosts.** Mutual TLS for agent hosts; GPU detection and placement; disposable container hosts; macOS hosts
+    (osx-x64, launchd).
+  - **Supply chain.** Signed skill packages; CycloneDX SBOMs and host binaries attached to releases by CI; CI service
+    containers for the database tests.
+  - **Performance.** Profiling sped up `grep` 7x and hybrid memory search 3.3x in C#; the decision is no Rust
+    (ADR-011). SSH.NET was upgraded to 2026.0.0 (two high-severity advisories).
+  - **Trials.** Real data migrated, with providers re-registered. On DEV2, GPU auto-placement (`gpu:2`) and a container
+    host (Ubuntu, 1 GiB limit) were run with a real LLM, and deprovisioning was tested. The Intel Mac was bootstrapped
+    over SSH with a launchd agent and both GPUs detected. mTLS was tested over HTTPS. Multi-tenant mode was tested on
+    MySQL with an interactive Blazor circuit.
+  - **Bugs found and fixed:** request scopes disposed tenant singletons; `POST /threads` without a bot crashed; SFTP
+    chmod for Linux/macOS hosts; numeric arguments for `run_shell` in provisioning; macOS GPU memory and vendor
+    parsing; e-mail signature detection.
+
 ## Known limitations
 
-- Bots on the same host are isolated per thread workspace and policy; use a container profile for process isolation. Host-to-server auth is a shared secret over the server's TLS (no mTLS certificates yet).
+- Bots on the same host are isolated per thread workspace and policy; use a container profile or a container host for process isolation.
 - MCP servers run on the control plane, also for bots placed on other computers.
-- Mobile notifications are local (while the app runs); no FCM/APNs push yet. Windows toast delivery was not verified.
-- Memory search is BM25 only; vector retrieval is planned.
+- The mobile app registers ntfy topics; native FCM/APNs registration in the app needs your own Firebase/Apple setup (the server side is complete). Windows toast delivery was not verified.
+- The FCM, APNs and ntfy integrations were verified against faithful test doubles (signatures checked), not against the live Google/Apple services.
+- Container hosts were trialled on Docker Desktop (Windows); Linux Docker engines were covered by unit tests only.
+- In multi-tenant mode without OIDC, the web UI signs in with API keys.
 - Approvals granted "for this thread" are kept in memory and reset when the server restarts.
 - Java SDK is distributed through JitPack (the `com.gravicode` Maven Central namespace is not verified yet).

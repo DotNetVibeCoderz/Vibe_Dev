@@ -95,5 +95,29 @@ failures, and cancelled tasks do not count. The Skills page shows a verdict for 
 - **Skill files.** Loading a skill copies its files (scripts, templates) into the workspace at `.skills/<name>/`, also
   on remote computers, so bots can run the skill's scripts.
 
+
+## Signed skill packages
+
+A skill can be signed, so the server knows who published it and that nothing changed since. `SIGNATURE.json` holds the
+publisher, the key id and the SHA-256 of every file. It is signed with ECDSA P-256.
+
+```bash
+marbots skills keygen gravicode                              # gravicode.key.pem (secret) + gravicode.pub.pem
+marbots skills sign ./invoice-check --key gravicode.key.pem --publisher gravicode
+marbots skills verify ./invoice-check gravicode.pub.pem
+marbots skills trust gravicode gravicode.pub.pem             # on the server (Admin)
+```
+
+| Signature state | What happens |
+|---|---|
+| Verified (trusted publisher, files unchanged) | Installed and loaded; trust label "Verified Publisher", ✓ publisher on the Skills page |
+| Signed by an unknown publisher | Loaded as a normal local skill, marked "signed · publisher" |
+| **Invalid** (any file added, removed or changed, or a bad signature) | **Never installed or loaded**, whoever signed it |
+| Unsigned | Loaded, unless `RequireSignedSkills` is on |
+
+Trusted publishers come from `Marbots:TrustedSkillPublishers` (`{ Name, PublicKeyPem }`) and from
+`data/trusted-publishers/<name>.pem`.
+
+
 ---
-*Marbots — Created by Gravicode Studios, led by Kang Fadhil.*
+*Marbots: Created by Gravicode Studios, led by Kang Fadhil.*
