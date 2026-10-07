@@ -2,8 +2,10 @@
 #  • Every push/PR touching Marbots/: build + .NET tests (incl. .NET SDK conformance) + SDK checks
 #    (Python: mypy --strict + typo test + conformance; TypeScript: typo test + conformance; Go: vet + build)
 #    plus Java (javac -Werror + conformance) and Rust (fmt + clippy -D warnings + conformance)
+#  • Storage conformance also runs against PostgreSQL, MySQL and SQL Server service containers
 #  • Tag "marbots-v*" (e.g. marbots-v0.1.1) or manual run with publish=true: pack and push NuGet packages
 #    (uses the repository secret NUGET_API_KEY)
+#  • Tag "marbots-v*": marbots-host binaries for 6 platforms + CycloneDX SBOMs + SHA256SUMS on the GitHub release
 #  • Java SDK: JitPack builds tags marbots-java-v* (see /jitpack.yml). Manual run with publish_maven=true publishes to
 #    Maven Central once the com.gravicode namespace is verified for the MAVEN_CENTRAL_* account
 name: Marbots
@@ -37,6 +39,25 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env: { POSTGRES_PASSWORD: marbots, POSTGRES_DB: marbots_test }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+      mysql:
+        image: mysql:8.4
+        env: { MYSQL_ROOT_PASSWORD: marbots, MYSQL_DATABASE: marbots_test }
+        ports: ["3306:3306"]
+        options: --health-cmd "mysqladmin ping -pmarbots" --health-interval 5s --health-timeout 5s --health-retries 30
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env: { ACCEPT_EULA: "Y", MSSQL_SA_PASSWORD: "Marbots!Test1" }
+        ports: ["1433:1433"]
+    env:
+      MARBOTS_TEST_POSTGRES: "Host=localhost;Port=5432;Database=marbots_test;Username=postgres;Password=marbots"
+      MARBOTS_TEST_MYSQL: "Server=localhost;Port=3306;Database=marbots_test;User ID=root;Password=marbots;AllowUserVariables=true"
+      MARBOTS_TEST_SQLSERVER: "Server=localhost,1433;Database=master;User ID=sa;Password=Marbots!Test1;TrustServerCertificate=true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -76,6 +97,43 @@ jobs:
       - name: Rust SDK (fmt + clippy + conformance)
         working-directory: Marbots/sdk/rust
         run: cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+
+  release-assets:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/marbots-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: "10.0.x" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: marbots-host binaries
+        run: |
+          mkdir -p dist
+          for rid in win-x64 win-arm64 linux-x64 linux-arm64 osx-x64 osx-arm64; do
+            dotnet publish src/Marbots.AgentHost -c Release -r $rid --self-contained -p:PublishSingleFile=true -o out/$rid
+            ext=""; [[ $rid == win-* ]] && ext=".exe"
+            cp out/$rid/marbots-host$ext dist/marbots-host-$rid$ext
+          done
+      - name: SBOMs (CycloneDX)
+        run: |
+          dotnet tool install --global CycloneDX
+          dotnet-CycloneDX Marbots.slnx -o dist -fn marbots-dotnet.cdx.json -F Json -ed
+          (cd sdk/typescript && npm ci && npx --yes @cyclonedx/cyclonedx-npm --output-file ../../dist/marbots-typescript-sdk.cdx.json)
+          python -m venv /tmp/sdkenv && /tmp/sdkenv/bin/pip install -q ./sdk/python
+          pip install -q cyclonedx-bom && cyclonedx-py environment /tmp/sdkenv/bin/python -o dist/marbots-python-sdk.cdx.json
+      - name: Checksums and release upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist && sha256sum * > SHA256SUMS && cd ..
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "Marbots ${GITHUB_REF_NAME#marbots-v}" --notes "See Marbots/Progress.md"
+          gh release upload "$GITHUB_REF_NAME" dist/* --clobber
 
   nuget:
     needs: test
