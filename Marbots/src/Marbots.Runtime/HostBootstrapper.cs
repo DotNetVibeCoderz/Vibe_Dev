@@ -13,6 +13,8 @@ namespace Marbots.Runtime;
 /// </summary>
 public sealed class HostBootstrapper(MarbotsOptions options, HostRegistry registry, HostConnectionManager connections, ILogger<HostBootstrapper> log)
 {
+    public const string LaunchdLabel = "id.gravicode.marbots-host";
+
     public const string TaskName = "Marbots Host";
 
     public string PackagesDirectory => options.HostPackagesDirectory is { Length: > 0 } d ? Path.GetFullPath(d) : options.DataPath("host-packages");
@@ -89,7 +91,7 @@ public sealed class HostBootstrapper(MarbotsOptions options, HostRegistry regist
             }
             else
             {
-                Run(ssh, "systemctl --user stop marbots-host 2>/dev/null; pkill -f 'marbots-host run' 2>/dev/null; true");
+                Run(ssh, $"systemctl --user stop marbots-host 2>/dev/null; launchctl bootout gui/$(id -u)/{LaunchdLabel} 2>/dev/null; pkill -f 'marbots-host run' 2>/dev/null; true");
                 Run(ssh, $"mkdir -p '{Path.GetDirectoryName(exe)!.Replace('\\', '/')}'");
             }
             using (var sftp = new SftpClient(info))
@@ -98,14 +100,22 @@ public sealed class HostBootstrapper(MarbotsOptions options, HostRegistry regist
                 var remotePath = windows ? "/" + exe.Replace('\\', '/') : exe;
                 await using var file = File.OpenRead(package);
                 await Task.Run(() => sftp.UploadFile(file, remotePath, true), ct);
-                if (!windows) sftp.ChangePermissions(remotePath, 0x1ED); // 0755
+                // SSH.NET takes the octal digits written as a decimal number.
+                if (!windows) sftp.ChangePermissions(remotePath, 755);
                 sftp.Disconnect();
             }
             Step($"Uploaded {Path.GetFileName(package)} ({new FileInfo(package).Length / 1024 / 1024} MB).");
+            var mac = rid.StartsWith("osx", StringComparison.Ordinal);
+            if (mac)
+            {
+                // Apple silicon refuses unsigned code: sign ad hoc, and drop any quarantine flag.
+                Run(ssh, $"xattr -c '{exe}' 2>/dev/null; codesign --force -s - '{exe}' 2>/dev/null; true");
+            }
 
             if (req.UpdateOnly)
             {
                 if (windows) Run(ssh, $"schtasks /Run /TN \"{TaskName}\"");
+                else if (mac) Run(ssh, $"launchctl kickstart -k gui/$(id -u)/{LaunchdLabel} 2>/dev/null || (nohup '{exe}' run > ~/.local/share/marbots/host/nohup.log 2>&1 &)");
                 else Run(ssh, "systemctl --user restart marbots-host 2>/dev/null || (nohup ~/.local/share/marbots/host/marbots-host run > ~/.local/share/marbots/host/nohup.log 2>&1 &)");
                 Step("Updated the binary and restarted the host (enrollment kept).");
                 result.Success = true;
@@ -133,6 +143,24 @@ public sealed class HostBootstrapper(MarbotsOptions options, HostRegistry regist
                 if (create.Exit != 0) throw new InvalidOperationException("Could not create the logon task: " + create.Output);
                 Run(ssh, $"schtasks /Run /TN \"{TaskName}\"");
                 Step("Installed the logon task 'Marbots Host' (runs in the user's desktop session) and started it.");
+            }
+            else if (mac)
+            {
+                // A launchd agent: starts at login, restarts if it stops.
+                var plist = $"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict>"
+                    + $"<key>Label</key><string>{LaunchdLabel}</string><key>ProgramArguments</key><array><string>{exe}</string><string>run</string></array>"
+                    + "<key>RunAtLoad</key><true/><key>KeepAlive</key><true/>"
+                    + $"<key>StandardOutPath</key><string>{home}/.local/share/marbots/host/launchd.log</string><key>StandardErrorPath</key><string>{home}/.local/share/marbots/host/launchd.log</string>"
+                    + "</dict></plist>\n";
+                var plistPath = $"{home}/Library/LaunchAgents/{LaunchdLabel}.plist";
+                Run(ssh, $"mkdir -p ~/Library/LaunchAgents && printf '%s' '{plist.Replace("'", "'\\''")}' > '{plistPath}'");
+                Run(ssh, $"launchctl bootout gui/$(id -u)/{LaunchdLabel} 2>/dev/null; true");
+                var ld = Run(ssh, $"launchctl bootstrap gui/$(id -u) '{plistPath}' 2>&1 || launchctl load -w '{plistPath}' 2>&1");
+                await Task.Delay(1500, ct);
+                var running = Run(ssh, "pgrep -f 'marbots-host run' >/dev/null && echo yes || echo no").Output.Trim() == "yes";
+                if (!running) Run(ssh, $"nohup '{exe}' run > ~/.local/share/marbots/host/nohup.log 2>&1 &");
+                Step(running ? $"Installed the launchd agent {LaunchdLabel} (starts at login) and started it."
+                    : "No GUI login session for launchd (it starts at the next login); started now with nohup.");
             }
             else
             {
